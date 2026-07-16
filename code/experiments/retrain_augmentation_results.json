@@ -1,0 +1,15 @@
+{
+  "n_real_train": 4392,
+  "n_synthetic_added": 953,
+  "n_real_test": 1099,
+  "auc_real_only": 0.8985127775450356,
+  "auc_augmented": 0.8854110559179683,
+  "production_recorded_auc": 0.9031559838011451,
+  "bootstrap_ci_on_diff": {
+    "mean_diff": -0.013148280597850394,
+    "ci_lower_2.5": -0.021174792756149075,
+    "ci_upper_97.5": -0.004896452180709399
+  },
+  "beats_production_bar": false,
+  "verdict": "does NOT measurably beat real-only (CI includes zero or is negative) -- production model is NOT touched, matching the standard used for every other experiment this session (GP, ensemble, CNN all failed the same bar)."
+}

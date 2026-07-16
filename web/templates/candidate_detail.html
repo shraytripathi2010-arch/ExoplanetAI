@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block title %}{{ c.host }} -- Exoplanet Candidate Tracker{% endblock %}
+{% block content %}
+
+<div class="disclaimer-banner">
+  <span class="scope-note-icon" aria-hidden="true">i</span>
+  <span>{{ disclaimer }}</span>
+</div>
+
+<section class="card">
+  <div class="detail-head">
+    <h1>{{ c.host }}</h1>
+    {% if c.manual_review_status == 'rejected' %}
+      <span class="badge badge-fail big"><span class="dot"></span>Reviewed &mdash; Rejected</span>
+    {% elif c.manual_review_status == 'accepted' %}
+      <span class="badge badge-pass big"><span class="dot"></span>Reviewed &mdash; Accepted</span>
+    {% else %}
+      <span class="badge tier-badge-{{ (c.confidence_tier or '')|lower }} big"><span class="dot"></span>{{ c.confidence_tier or '?' }} confidence</span>
+    {% endif %}
+  </div>
+
+  {% if c.manual_review_status %}
+  <div class="action-card" style="border-left: 3px solid var(--fail); margin-bottom: var(--sp-4);">
+    <p class="action-progress" style="margin: 0 0 0.4rem;">
+      <strong>Human review: {{ c.manual_review_status|capitalize }}</strong>
+      <span class="muted" style="font-weight: 400;"> &mdash; reviewed {{ c.manual_review_date }}</span>
+    </p>
+    <p class="muted" style="margin: 0;">{{ c.manual_review_note }}</p>
+  </div>
+  {% endif %}
+
+  <div class="stat-row">
+    <div class="stat"><span class="stat-label">Classifier probability</span><span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}</span></div>
+    <div class="stat"><span class="stat-label">Combined filter</span><span class="stat-value">{{ 'PASS ('+c.combined_filter_tier+')' if c.combined_filter_pass else ('needs review' if c.needs_manual_review else 'fail') }}</span></div>
+    <div class="stat"><span class="stat-label">First found</span><span class="stat-value small">{{ c.first_found_date }}</span></div>
+    <div class="stat"><span class="stat-label">Last verified</span><span class="stat-value small">{{ c.last_verified_date }}</span></div>
+    <div class="stat"><span class="stat-label">Status</span><span class="stat-value small">{{ c.current_status }}</span></div>
+  </div>
+
+  <div id="reverify-section" data-tic="{{ c.tic_id }}">
+    {% if reverify and reverify.status == 'running' %}
+      <div class="action-card">
+        <p class="action-progress" id="reverify-status"><span class="spinner" aria-hidden="true"></span>
+          Re-checking archive/ExoFOP/arXiv/VSX/blend live -- usually a few seconds, occasionally longer if an external service is slow.</p>
+      </div>
+    {% else %}
+      <div class="inline-form">
+        <form action="{{ url_for('reverify_candidate', tic_id=c.tic_id) }}" method="post">
+          <button type="submit">Re-verify this candidate now</button>
+        </form>
+        <span class="muted">Re-runs just the external checks (archive/ExoFOP/arXiv/VSX/blend) for this star only -- fast, doesn't wait for a full Update.</span>
+      </div>
+      {% if reverify and reverify.status == 'completed' %}
+        <p class="muted">Last result ({{ reverify.computed_at }}): {{ reverify.result_summary }}</p>
+      {% elif reverify and reverify.status == 'failed' %}
+        <p class="muted">Last attempt failed: {{ reverify.error_message }}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Evidence summary</h2>
+  <p class="muted">Every independent check this candidate has been run through, at a glance. Each item is
+    additive evidence for a human reviewer -- none of them alone confirms or rules out a real planet.</p>
+  <div class="evidence-grid">
+    {% for item in evidence_items %}
+      <div class="evidence-item">
+        <span class="status-icon status-icon--{{ item.status }}" aria-hidden="true"></span>
+        <div class="evidence-item-body">
+          <p class="evidence-item-label">{{ item.label }}</p>
+          <p class="evidence-item-value">{{ item.value }}</p>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card" id="multi-sector-section" data-tic="{{ c.tic_id }}">
+  <h2>Multi-sector strengthening</h2>
+  <p class="muted">
+    Checks MAST for every available TESS sector for this star (not just the one it was found
+    in), combines them into a longer baseline, and re-runs the transit search. This is
+    <strong>supplementary evidence only</strong> -- more independently-observed transits is real
+    evidence, but the result is never re-scored by the classifier or re-checked against the
+    out-of-distribution filters (a longer baseline shifts period/transit-count outside what the
+    current classifier was trained on, which would cause a false OOD flag if treated as a new
+    model input, not a reason to distrust the candidate).
+  </p>
+  <div id="multi-sector-content">
+    {% if multi_sector and multi_sector.status == 'completed' %}
+      {% if not multi_sector.plausible %}
+        <div class="disclaimer-banner disclaimer-caution">
+          <span class="scope-note-icon" aria-hidden="true">!</span>
+          <span><strong>This result looks like a search artifact, not real evidence:</strong>
+          {{ multi_sector.plausibility_note }}</span>
+        </div>
+      {% endif %}
+      <table class="plain-table">
+        <tr><td>Sectors used</td><td>{{ multi_sector.sectors_used }} ({{ multi_sector.n_sectors }} total)</td></tr>
+        <tr><td>Refined period</td><td>{{ '%.6f'|format(multi_sector.period_days) }} days</td></tr>
+        <tr><td>Transits observed</td><td>{{ multi_sector.transit_count|int }}</td></tr>
+        <tr><td>SDE (multi-sector)</td><td>{{ '%.1f'|format(multi_sector.sde) }}</td></tr>
+        <tr><td>Depth / duration</td><td>{{ '%.1f'|format(multi_sector.depth_ppm) }} ppm / {{ '%.2f'|format(multi_sector.duration_hours) }} hours
+          {% if not multi_sector.plausible %}<span class="badge badge-fail">implausible</span>{% endif %}</td></tr>
+        <tr><td>Computed</td><td>{{ multi_sector.computed_at }}</td></tr>
+      </table>
+      <form action="{{ url_for('start_multi_sector', tic_id=c.tic_id) }}" method="post" class="inline-form">
+        <button type="submit">Re-check for newer sectors</button>
+      </form>
+    {% elif multi_sector and multi_sector.status == 'running' %}
+      <div class="action-card">
+        <p class="action-progress" id="multi-sector-status"><span class="spinner" aria-hidden="true"></span>
+          Searching MAST, downloading, re-running TLS -- this can take a couple of minutes.</p>
+      </div>
+    {% elif multi_sector and multi_sector.status == 'failed' %}
+      <p class="muted">Last attempt failed: {{ multi_sector.error_message }}</p>
+      <form action="{{ url_for('start_multi_sector', tic_id=c.tic_id) }}" method="post" class="inline-form">
+        <button type="submit">Try again</button>
+      </form>
+    {% else %}
+      <form action="{{ url_for('start_multi_sector', tic_id=c.tic_id) }}" method="post" class="inline-form">
+        <button type="submit">Check for additional sectors</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card" id="centroid-section" data-tic="{{ c.tic_id }}">
+  <h2>Pixel-level centroid check</h2>
+  <p class="muted">
+    Downloads the target pixel file and directly tests whether the transit signal's photocenter
+    falls on this star or is shifted toward a nearby source -- independent of, and separate from,
+    the Gaia-proximity blend check above (that one measures catalog distance; this one measures
+    where the light during the actual transit is coming from). Neither replaces the other.
+  </p>
+  <div id="centroid-content">
+    {% if centroid and centroid.status == 'completed' %}
+      <table class="plain-table">
+        <tr><td>Sector used</td><td>{{ centroid.sector_used }}</td></tr>
+        <tr><td>Photocenter shift</td><td>{{ '%.3f'|format(centroid.shift_pixels) }} pixels</td></tr>
+        <tr><td>Verdict</td><td>{{ centroid.verdict }}</td></tr>
+        <tr><td>Computed</td><td>{{ centroid.computed_at }}</td></tr>
+      </table>
+      <form action="{{ url_for('start_centroid', tic_id=c.tic_id) }}" method="post" class="inline-form">
+        <button type="submit">Re-run</button>
+      </form>
+    {% elif centroid and centroid.status == 'running' %}
+      <div class="action-card">
+        <p class="action-progress" id="centroid-status"><span class="spinner" aria-hidden="true"></span>
+          Downloading pixel data, computing difference image -- usually under a minute.</p>
+      </div>
+    {% elif centroid and centroid.status == 'failed' %}
+      <p class="muted">Last attempt failed: {{ centroid.error_message }}</p>
+      <form action="{{ url_for('start_centroid', tic_id=c.tic_id) }}" method="post" class="inline-form">
+        <button type="submit">Try again</button>
+      </form>
+    {% else %}
+      <form action="{{ url_for('start_centroid', tic_id=c.tic_id) }}" method="post" class="inline-form">
+        <button type="submit">Run centroid check</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Reasons this could be real</h2>
+  <p>{{ char.supporting_evidence }}</p>
+  <h2>Reasons for doubt</h2>
+  <p>{{ char.doubting_evidence }}</p>
+  <p class="muted"><strong>Note:</strong> even "High confidence" here means "strong candidate worth real follow-up" -- never "confirmed planet." No automated pipeline can produce that confirmation.</p>
+</section>
+
+<section class="card">
+  <h2>Folded light curve</h2>
+  {% if has_plot %}
+    <img class="lightcurve-plot" src="{{ url_for('candidate_plot', tic_id=c.tic_id) }}" alt="Folded light curve for {{ c.host }}">
+  {% else %}
+    <img class="lightcurve-plot" src="{{ url_for('candidate_plot', tic_id=c.tic_id) }}" alt="Folded light curve for {{ c.host }}"
+         onerror="this.outerHTML='<p class=\'muted\'>Plot unavailable (processed light curve not found on disk).</p>'">
+  {% endif %}
+  <p class="figure-caption">The real TESS photometry for {{ c.host }}, phase-folded on the detected period and binned for clarity.</p>
+</section>
+
+<section class="card">
+  <h2>Animated transit illustration</h2>
+  {% if transit_anim.has_data %}
+    <p class="muted">
+      Simplified illustration, not a literal simulation -- the orbit is sped up to a fixed
+      {{ transit_anim.loop_seconds }}-second loop for every candidate so they're
+      comparable to look at (the real period is {{ '%.4f'|format(transit_anim.period_days) }} days).
+      Planet size and the brightness dip's timing/depth are scaled from this candidate's own
+      measured R<sub>p</sub>/R<sub>star</sub>, transit duration, and transit depth.
+    </p>
+    <div class="transit-anim-wrap"
+         data-rp-rstar="{{ transit_anim.rp_rstar }}"
+         data-duration-fraction="{{ transit_anim.duration_fraction }}"
+         data-depth-ppm="{{ transit_anim.depth_ppm }}">
+      <canvas id="transit-anim-canvas" width="360" height="170"></canvas>
+      <div class="transit-anim-readout">
+        <span id="transit-anim-brightness">Relative brightness: 100.00%</span>
+        <span class="muted">(actual measured depth: {{ '%.0f'|format(transit_anim.depth_ppm) }} ppm,
+          duration {{ '%.2f'|format(transit_anim.duration_hours) }} h)</span>
+      </div>
+    </div>
+  {% else %}
+    <p class="muted">Not enough measured transit parameters on file to drive this illustration.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Physical &amp; orbital parameters</h2>
+  <div class="param-grid">
+    <div class="param-cell">
+      <span class="param-label">Orbital period</span>
+      <span class="param-value">{{ '%.4f'|format(char.period_days) if char.period_days is not none else '--' }}<span class="unit">days</span></span>
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Epoch (T0)</span>
+      <span class="param-value">{{ '%.4f'|format(char.epoch_bjd) if char.epoch_bjd is not none else '--' }}<span class="unit">BJD</span></span>
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Transit depth</span>
+      <span class="param-value">{{ '%.0f'|format(char.transit_depth_ppm) if char.transit_depth_ppm is not none else '--' }}<span class="unit">ppm</span></span>
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Transit duration</span>
+      <span class="param-value">{{ '%.2f'|format(char.transit_duration_hours) if char.transit_duration_hours is not none else '--' }}<span class="unit">hours</span></span>
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Estimated planet radius</span>
+      <span class="param-value">{{ '%.2f'|format(char.planet_radius_earth) if char.planet_radius_earth is not none else '--' }}<span class="unit">R&#8853;</span></span>
+      {% if char.planet_radius_earth_p16 is not none and char.planet_radius_earth_p84 is not none %}
+        <div class="muted param-uncertainty">68% range: {{ '%.2f'|format(char.planet_radius_earth_p16) }}&ndash;{{ '%.2f'|format(char.planet_radius_earth_p84) }} R&#8853;</div>
+      {% endif %}
+      {% if not char.radius_plausible %}<br><span class="badge badge-fail">exceeds plausibility ceiling</span>{% endif %}
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Semi-major axis</span>
+      <span class="param-value">{{ '%.4f'|format(char.semi_major_axis_au) if char.semi_major_axis_au is not none else '--' }}<span class="unit">AU</span></span>
+      {% if char.semi_major_axis_au_p16 is not none and char.semi_major_axis_au_p84 is not none %}
+        <div class="muted param-uncertainty">68% range: {{ '%.4f'|format(char.semi_major_axis_au_p16) }}&ndash;{{ '%.4f'|format(char.semi_major_axis_au_p84) }} AU</div>
+      {% endif %}
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Equilibrium temperature</span>
+      <span class="param-value">{{ '%.0f'|format(char.equilibrium_temp_k) if char.equilibrium_temp_k is not none else '--' }}<span class="unit">K</span></span>
+      {% if char.equilibrium_temp_k_p16 is not none and char.equilibrium_temp_k_p84 is not none %}
+        <div class="muted param-uncertainty">68% range: {{ '%.0f'|format(char.equilibrium_temp_k_p16) }}&ndash;{{ '%.0f'|format(char.equilibrium_temp_k_p84) }} K</div>
+      {% endif %}
+      {% if char.rough_hz_flag %}<br><span class="badge badge-pass">rough HZ</span>{% endif %}
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Insolation</span>
+      <span class="param-value">{{ '%.1f'|format(char.insolation_flux_earth) if char.insolation_flux_earth is not none else '--' }}<span class="unit">&times; Earth</span></span>
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Host spectral type (rough)</span>
+      <span class="param-value">{{ char.stellar_spectral_type_rough or '--' }}</span>
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Stellar mass</span>
+      {% if char.stellar_mass_was_defaulted_to_solar %}
+        <span class="badge badge-fail">defaulted to solar</span>
+      {% else %}
+        <span class="badge badge-pass">real TIC catalog value</span>
+      {% endif %}
+    </div>
+    <div class="param-cell">
+      <span class="param-label">Detection strength</span>
+      <span class="param-value">SDE {{ '%.1f'|format(char.SDE) if char.SDE is not none else '--' }}</span>
+      <div class="muted">{{ char.distinct_transit_count|int if char.distinct_transit_count is not none else '?' }} distinct transits</div>
+    </div>
+  </div>
+  <p class="muted" style="margin-top: var(--sp-4);"><strong>Plausibility verdict:</strong> {{ char.plausibility_verdict }}</p>
+  {% if char.uncertainty_fallbacks_used and char.uncertainty_fallbacks_used != 'none' %}
+    <p class="muted param-uncertainty-note">
+      <strong>On the 68% ranges above:</strong> a real per-star measurement uncertainty wasn't available for
+      {{ char.uncertainty_fallbacks_used
+         | replace('st_mass_defaulted_to_solar', 'stellar mass (defaulted to solar)')
+         | replace('st_rad', 'stellar radius')
+         | replace('st_mass', 'stellar mass')
+         | replace('period', 'orbital period')
+         | replace('depth', 'transit depth')
+         | replace('duration', 'transit duration')
+         | replace('; ', ', ') }},
+      so a documented default uncertainty was used instead (not a real measurement for this star) --
+      the ranges are illustrative, not a precise error bar, for those quantities.
+    </p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Legitimate next steps toward confirmation</h2>
+  <p class="muted">
+    Be realistic: nothing this site does can move a candidate to "confirmed." Real confirmation
+    requires spectroscopic follow-up and independent observation by qualified researchers with
+    telescope/spectrograph access. What this site CAN do is point you to the real, existing
+    community mechanism for that:
+  </p>
+  <ul>
+    <li><a href="{{ exofop_view_url }}" target="_blank" rel="noopener">View this target on ExoFOP-TESS</a>
+      -- the real community follow-up portal, viewable by anyone with no login.</li>
+    <li><a href="{{ exofop_account_url }}" target="_blank" rel="noopener">Request a free ExoFOP account</a>
+      -- required to submit a candidate as a community TOI or comment on a target; genuine
+      follow-up observation requests go through the separate TFOP (TESS Follow-up Observing
+      Program) membership process, not a self-serve button.</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Prepare for community (CTOI) submission</h2>
+  <div class="disclaimer-banner disclaimer-caution">
+    <span class="scope-note-icon" aria-hidden="true">!</span>
+    <span><strong>ExoFOP has temporarily paused new Community TOI (CTOI) uploads</strong>
+    as of the last time this was checked. This section only prepares the data you'd need --
+    it does not submit anything on your behalf, and you should check ExoFOP's own site for
+    current submission status before trying to use it.</span>
+  </div>
+  <p class="muted">
+    Every value below is already computed by this pipeline -- nothing new is calculated here.
+    Copy this summary if/when you want to submit this candidate for community review once
+    uploads reopen, or to reference when discussing it with someone who can pursue real follow-up.
+  </p>
+  <textarea id="ctoi-summary" class="ctoi-textarea" readonly rows="14">TIC ID: {{ c.tic_id }}
+Host: {{ c.host }}
+RA / Dec: {{ char.ra }}, {{ char.dec }}
+Orbital period: {{ '%.6f'|format(char.period_days) if char.period_days is not none else '?' }} days
+Epoch (T0): {{ '%.6f'|format(char.epoch_bjd) if char.epoch_bjd is not none else '?' }} BJD
+Transit depth: {{ '%.1f'|format(char.transit_depth_ppm) if char.transit_depth_ppm is not none else '?' }} ppm
+Transit duration: {{ '%.3f'|format(char.transit_duration_hours) if char.transit_duration_hours is not none else '?' }} hours
+Derived planet radius: {{ '%.2f'|format(char.planet_radius_earth) if char.planet_radius_earth is not none else '?' }} R_earth
+Host spectral type (rough): {{ char.stellar_spectral_type_rough or '?' }}
+Classifier probability: {{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '?' }}
+Confidence tier: {{ c.confidence_tier or '?' }} (NOT a confirmation -- automated screening only)
+Plausibility verdict: {{ char.plausibility_verdict }}
+Gaia blend risk: {{ char.blending_status }}
+Variable-star check: {{ char.vsx_status }}
+Reasons this could be real: {{ char.supporting_evidence }}
+Reasons for doubt: {{ char.doubting_evidence }}
+Not previously flagged by ExoFOP/TOI/archive as of: {{ char.last_verified_unknown_utc }}</textarea>
+  <div class="inline-form">
+    <button type="button" id="ctoi-copy-btn">Copy to clipboard</button>
+    <span class="muted" id="ctoi-copy-status"></span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Status history</h2>
+  {% if history %}
+  <table class="plain-table">
+    <thead><tr><th>Date</th><th>Change</th><th>Note</th></tr></thead>
+    <tbody>
+    {% for h in history %}
+      <tr><td>{{ h.changed_date }}</td><td>{{ h.old_status }} &rarr; {{ h.new_status }}</td><td>{{ h.note or '' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No status changes recorded -- still {{ c.current_status }} since first found on {{ c.first_found_date }}.</p>
+  {% endif %}
+
+  <h2>Verification events</h2>
+  {% if events %}
+  <table class="plain-table">
+    <thead><tr><th>Date</th><th>Type</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for e in events %}
+      <tr><td>{{ e.timestamp }}</td><td>{{ e.event_type }}</td><td>{{ e.result_summary }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No manual re-verification runs yet for this candidate.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Model History -- Exoplanet Candidate Tracker{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>Currently live model</h2>
+  <p class="muted">
+    The classifier actually running behind every candidate's predicted probability right now.
+    Promoted here only if the continuous-retraining pipeline found it beat the previous model
+    by more than statistical noise (paired bootstrap CI entirely above zero) -- otherwise the
+    original hand-trained model (from this project's initial build) is still live.
+  </p>
+  {% if production_meta %}
+  <div class="stat-row">
+    <div class="stat">
+      <span class="stat-label">Model</span>
+      <span class="stat-value small">{{ production_meta.model_name or 'HistGradientBoosting' }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Test ROC-AUC</span>
+      <span class="stat-value accent">{{ '%.4f'|format(production_meta.test_roc_auc) if production_meta.test_roc_auc is not none else '--' }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Training rows</span>
+      <span class="stat-value">{{ production_meta.training_rows or '--' }}</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Test rows</span>
+      <span class="stat-value">{{ production_meta.test_rows or '--' }}</span>
+    </div>
+  </div>
+  {% if live_version %}
+    <p class="muted">Promoted by the continuous-retraining pipeline on {{ live_version.trained_at }}
+    (version #{{ live_version.version_id }}) -- see the retrain-attempt log below for why.</p>
+  {% else %}
+    <p class="muted">This is the original hand-trained model -- the continuous-retraining
+    pipeline has not yet promoted a replacement.</p>
+  {% endif %}
+  {% else %}
+    <p class="muted">No production model metadata found.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Model version history</h2>
+  <p class="muted">Every version the continuous-retraining pipeline has ever trained, whether or
+  not it was promoted. Versioned files live under <code>models/versions/</code> so any previous
+  version can be restored -- promotion never deletes what came before.</p>
+  {% if versions %}
+  <div class="table-wrap">
+    <table class="candidate-table">
+      <thead>
+        <tr>
+          <th>Version</th><th>Trained</th><th>Live?</th><th>Training rows</th>
+          <th>Pos / Neg</th><th>Test ROC-AUC</th><th>95% CI vs prior</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in versions %}
+        <tr>
+          <td>#{{ v.version_id }}</td>
+          <td class="mono">{{ v.trained_at }}</td>
+          <td>{% if v.is_live %}<span class="badge badge-pass">live</span>{% else %}<span class="badge">retired</span>{% endif %}</td>
+          <td class="num">{{ v.n_training_rows }}</td>
+          <td class="num">{{ v.n_positive }} / {{ v.n_negative }}</td>
+          <td class="num">{{ '%.4f'|format(v.test_roc_auc) if v.test_roc_auc is not none else '--' }}</td>
+          <td class="num">
+            {% if v.bootstrap_ci_lower is not none %}
+              [{{ '%+.4f'|format(v.bootstrap_ci_lower) }}, {{ '%+.4f'|format(v.bootstrap_ci_upper) }}]
+            {% else %}--{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">No versions trained yet -- the continuous-retraining pipeline hasn't
+    accumulated enough new labeled examples to trigger a retrain.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Retrain attempt log</h2>
+  <p class="muted">Every time the scheduler found enough new labeled examples to justify a
+  retrain, logged here regardless of outcome -- including attempts that did NOT get promoted,
+  and why. Consistent with how this project has always preferred showing negative results over
+  hiding them.</p>
+  {% if attempts %}
+  <div class="table-wrap">
+    <table class="candidate-table">
+      <thead>
+        <tr>
+          <th>Attempt</th><th>Triggered</th><th>New examples</th><th>Result</th><th>Reasoning</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in attempts %}
+        <tr>
+          <td>#{{ a.attempt_id }}</td>
+          <td class="mono">{{ a.triggered_at }}</td>
+          <td class="num">{{ a.n_new_examples }}</td>
+          <td>
+            {% if a.promoted %}<span class="badge badge-pass">promoted</span>
+            {% else %}<span class="badge badge-review">not promoted</span>{% endif %}
+          </td>
+          <td>{{ a.reasoning or a.error_message or '--' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">No retrain attempts logged yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

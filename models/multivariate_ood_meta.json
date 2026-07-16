@@ -1,0 +1,8 @@
+{
+  "source": "/Users/anujtripathi/Downloads/ExoplanetAI/src/../data/training_dataset/training.csv",
+  "training_rows": 5491,
+  "contamination_target": 0.02,
+  "threshold_score": -0.5340611045174187,
+  "actual_training_flagged_fraction": 0.020032780914223274,
+  "note": "actual_training_flagged_fraction is the measured false-positive baseline: this is the fraction of REAL, legitimate training examples (confirmed planets + confirmed false positives) that this detector would ALSO flag if scored against itself -- the honest false-positive rate to expect, not the nominal contamination target."
+}

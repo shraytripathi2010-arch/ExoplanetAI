@@ -1,0 +1,100 @@
+======================================================================
+UNEXAMINED CANDIDATES RANKED FOR HUMAN REVIEW -- NOT CONFIRMED DETECTIONS
+A high probability means 'worth a closer look by someone qualified to vet
+it', not 'this is a planet'. Real confirmation requires spectroscopic
+follow-up, multiple independent observations, and ruling out instrumental/
+astrophysical false-positive scenarios this light-curve-only model cannot see.
+======================================================================
+
+IN-DISTRIBUTION CANDIDATES (top 20 of 201 total) --
+every feature value falls within the training data's observed range. This is
+the trustworthy shortlist.
+
+#1  TIC_323859617  (p=0.992, sector 104.0)
+    Flagged primarily due to: st_rad=35.91 (100th percentile among confirmed planets); st_teff=4148 (12th percentile among confirmed planets); chi2red_min=1.806e-08 (1th percentile among confirmed planets); SDE=5.975 (59th percentile among confirmed planets)
+#2  TIC_367899500  (p=0.989, sector 104.0)
+    Flagged primarily due to: st_rad=10.97 (98th percentile among confirmed planets); st_teff=4883 (25th percentile among confirmed planets); chi2red_min=4.919e-08 (4th percentile among confirmed planets); SDE=5.691 (53th percentile among confirmed planets)
+#3  TIC_260795157  (p=0.987, sector 104.0)
+    Flagged primarily due to: st_rad=0.6181 (12th percentile among confirmed planets); st_teff=4745 (20th percentile among confirmed planets); chi2red_min=1.056e-07 (10th percentile among confirmed planets); SDE=7.055 (71th percentile among confirmed planets)
+#4  TIC_324497887  (p=0.986, sector 104.0)
+    Flagged primarily due to: st_rad=8.714 (98th percentile among confirmed planets); st_teff=4790 (21th percentile among confirmed planets); chi2red_min=5.239e-08 (4th percentile among confirmed planets); SDE=5.835 (56th percentile among confirmed planets)
+#5  TIC_74648456  (p=0.984, sector 104.0)
+    Flagged primarily due to: st_rad=0.9013 (41th percentile among confirmed planets); st_teff=4490 (16th percentile among confirmed planets); chi2red_min=0.0009768 (88th percentile among confirmed planets); SDE=5.691 (53th percentile among confirmed planets)
+#6  TIC_229141027  (p=0.984, sector 104.0)
+    Flagged primarily due to: st_rad=0.9216 (44th percentile among confirmed planets); st_teff=5885 (73th percentile among confirmed planets); chi2red_min=4.048e-05 (58th percentile among confirmed planets); SDE=6.05 (60th percentile among confirmed planets)
+#7  TIC_140459480  (p=0.984, sector 104.0)
+    Flagged primarily due to: st_rad=15.02 (99th percentile among confirmed planets); st_teff=4545 (17th percentile among confirmed planets); chi2red_min=5.236e-08 (4th percentile among confirmed planets); SDE=6.055 (60th percentile among confirmed planets)
+#8  TIC_143359172  (p=0.983, sector 104.0)
+    Flagged primarily due to: st_rad=36.05 (100th percentile among confirmed planets); st_teff=4030 (11th percentile among confirmed planets); chi2red_min=5.271e-08 (4th percentile among confirmed planets); SDE=6.215 (63th percentile among confirmed planets)
+#9  TIC_277749000  (p=0.981, sector 104.0)
+    Flagged primarily due to: st_rad=0.5351 (9th percentile among confirmed planets); st_teff=3738 (7th percentile among confirmed planets); chi2red_min=0.0003545 (78th percentile among confirmed planets); SDE=6.948 (70th percentile among confirmed planets)
+#10  TIC_314017939  (p=0.981, sector 104.0)
+    Flagged primarily due to: st_rad=10.24 (98th percentile among confirmed planets); st_teff=4854 (24th percentile among confirmed planets); chi2red_min=5.909e-08 (5th percentile among confirmed planets); SDE=5.783 (55th percentile among confirmed planets)
+#11  TIC_343961704  (p=0.981, sector 104.0)
+    Flagged primarily due to: st_rad=0.5439 (9th percentile among confirmed planets); st_teff=3725 (7th percentile among confirmed planets); chi2red_min=2.826e-05 (54th percentile among confirmed planets); SDE=6.301 (64th percentile among confirmed planets)
+#12  TIC_102032194  (p=0.979, sector 104.0)
+    Flagged primarily due to: st_rad=50.21 (100th percentile among confirmed planets); st_teff=3851 (9th percentile among confirmed planets); chi2red_min=4.452e-08 (3th percentile among confirmed planets); SDE=7.442 (74th percentile among confirmed planets)
+#13  TIC_118273470  (p=0.978, sector 104.0)
+    Flagged primarily due to: st_rad=34.12 (100th percentile among confirmed planets); st_teff=4165 (12th percentile among confirmed planets); chi2red_min=5.186e-08 (4th percentile among confirmed planets); SDE=6.039 (60th percentile among confirmed planets)
+#14  TIC_118191232  (p=0.977, sector 104.0)
+    Flagged primarily due to: st_rad=0.6654 (14th percentile among confirmed planets); st_teff=4618 (18th percentile among confirmed planets); chi2red_min=0.0001091 (67th percentile among confirmed planets); SDE=5.93 (58th percentile among confirmed planets)
+#15  TIC_466307646  (p=0.976, sector 104.0)
+    Flagged primarily due to: st_rad=0.7745 (25th percentile among confirmed planets); st_teff=5104 (32th percentile among confirmed planets); chi2red_min=1.632e-05 (50th percentile among confirmed planets); SDE=5.708 (54th percentile among confirmed planets)
+#16  TIC_119625675  (p=0.975, sector 104.0)
+    Flagged primarily due to: st_rad=11.45 (99th percentile among confirmed planets); st_teff=4934 (26th percentile among confirmed planets); chi2red_min=7.015e-08 (6th percentile among confirmed planets); SDE=5.908 (57th percentile among confirmed planets)
+#17  TIC_207089163  (p=0.973, sector 104.0)
+    Flagged primarily due to: st_rad=12.42 (99th percentile among confirmed planets); st_teff=4603 (18th percentile among confirmed planets); chi2red_min=1.886e-07 (14th percentile among confirmed planets); SDE=6.249 (63th percentile among confirmed planets)
+#18  TIC_161265576  (p=0.972, sector 104.0)
+    Flagged primarily due to: st_rad=17.82 (99th percentile among confirmed planets); st_teff=4584 (17th percentile among confirmed planets); chi2red_min=3.413e-08 (2th percentile among confirmed planets); SDE=6.675 (68th percentile among confirmed planets)
+#19  TIC_63687402  (p=0.971, sector 104.0)
+    Flagged primarily due to: st_rad=0.7568 (23th percentile among confirmed planets); st_teff=4948 (27th percentile among confirmed planets); chi2red_min=2.243e-05 (53th percentile among confirmed planets); SDE=6.25 (63th percentile among confirmed planets)
+#20  TIC_140041127  (p=0.970, sector 104.0)
+    Flagged primarily due to: st_rad=13.6 (99th percentile among confirmed planets); st_teff=5139 (33th percentile among confirmed planets); chi2red_min=5.252e-08 (4th percentile among confirmed planets); SDE=5.783 (55th percentile among confirmed planets)
+
+======================================================================
+OUT-OF-DISTRIBUTION CANDIDATES (top 20 of 53 total) --
+at least one feature value falls outside the training data's observed min/max.
+These may be interesting, but the model has no learned behavior for feature
+values this extreme -- verify the stellar characterization independently
+(e.g. SIMBAD, Gaia) before trusting the score at all.
+
+#1  TIC_79492963  (p=0.972, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.614, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#2  TIC_138734144  (p=0.969, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. transit_count=83 (above training max 78, 6% over); empty_transit_count=48 (above training max 32, 50% over); MULTIVARIATE: unusual combination of feature values (anomaly score=-0.567, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#3  TIC_74993348  (p=0.966, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.549, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#4  TIC_161176007  (p=0.964, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. st_rad=115.1 (above training max 102, 13% over)
+#5  TIC_61648669  (p=0.956, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. st_rad=152.3 (above training max 102, 49% over)
+#6  TIC_320484212  (p=0.942, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. period=0.07202 (below training min 0.08764, 18% under); duration=0.0003877 (below training min 0.0005848, 34% under); transit_count=352 (above training max 78, 351% over); distinct_transit_count=88 (above training max 60, 47% over); empty_transit_count=264 (above training max 32, 725% over); depth_duration_ratio=2524 (above training max 1710, 48% over); MULTIVARIATE: unusual combination of feature values (anomaly score=-0.709, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#7  TIC_403317759  (p=0.941, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. duration=0.0004113 (below training min 0.0005848, 30% under); transit_count=273 (above training max 78, 250% over); distinct_transit_count=73 (above training max 60, 22% over); empty_transit_count=200 (above training max 32, 525% over); depth_duration_ratio=2413 (above training max 1710, 41% over); MULTIVARIATE: unusual combination of feature values (anomaly score=-0.635, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#8  TIC_352438054  (p=0.933, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. transit_count=108 (above training max 78, 38% over); distinct_transit_count=95 (above training max 60, 58% over)
+#9  TIC_120125656  (p=0.930, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.589, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#10  TIC_128726280  (p=0.929, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. period=0.08355 (below training min 0.08764, 5% under); transit_count=246 (above training max 78, 215% over); distinct_transit_count=142 (above training max 60, 137% over); empty_transit_count=104 (above training max 32, 225% over); MULTIVARIATE: unusual combination of feature values (anomaly score=-0.692, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#11  TIC_332327376  (p=0.927, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.564, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#12  TIC_464449183  (p=0.923, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.546, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#13  TIC_122542393  (p=0.916, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. st_rad=102.9 (above training max 102, 1% over)
+#14  TIC_161402643  (p=0.915, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. duration=0.0003359 (below training min 0.0005848, 43% under); transit_count=277 (above training max 78, 255% over); empty_transit_count=225 (above training max 32, 603% over); depth_duration_ratio=2973 (above training max 1710, 74% over); MULTIVARIATE: unusual combination of feature values (anomaly score=-0.570, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#15  TIC_341364194  (p=0.911, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. transit_count=97 (above training max 78, 24% over); distinct_transit_count=93 (above training max 60, 55% over)
+#16  TIC_350221590  (p=0.909, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.595, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#17  TIC_471015391  (p=0.908, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.679, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#18  TIC_219309932  (p=0.907, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. transit_count=128 (above training max 78, 64% over); distinct_transit_count=122 (above training max 60, 103% over); MULTIVARIATE: unusual combination of feature values (anomaly score=-0.590, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#19  TIC_456611043  (p=0.892, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. distinct_transit_count=63 (above training max 60, 5% over); MULTIVARIATE: unusual combination of feature values (anomaly score=-0.617, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)
+#20  TIC_57237703  (p=0.890, sector 104.0)
+    OUT OF DISTRIBUTION -- score may be unreliable. MULTIVARIATE: unusual combination of feature values (anomaly score=-0.555, below the training-calibrated threshold -- individual features may each be in-range, but this specific combination is atypical)

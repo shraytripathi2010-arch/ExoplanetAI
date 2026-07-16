@@ -1,0 +1,337 @@
+host,gaia_teff,gaia_status,gaia_distance_pc,simbad_sptype,simbad_parallax_mas,simbad_status,stellar_param_flags,stellar_param_verified_clean,stellar_param_could_be_checked
+TIC_447400458,4548.080078125,Success,224.602294921875,,,Not found in SIMBAD,,True,True
+TIC_50010670,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M0III,3.1201,Success,,True,True
+TIC_335150213,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_420437359,4804.0576171875,Success,173.99330139160156,,,Not found in SIMBAD,,True,True
+TIC_402453271,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K1IIb,3.8484,Success,,True,True
+TIC_394134589,,No Gaia match within 5 arcsec,,M0.5V,53.2805,Success,,True,True
+TIC_314017939,4745.21826171875,Success,44.26430130004883,K0III,22.6081,Success,,True,True
+TIC_71379213,4491.27099609375,Success,636.5465087890625,K2II/III,1.533,Success,,True,True
+TIC_301690351,4914.9384765625,Success,94.1313018798828,K0/1III,10.4684,Success,,True,True
+TIC_222012610,,No Gaia match within 5 arcsec,,G5VFe-1.2CH-0.9,43.2721,Success,,True,True
+TIC_363268904,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K0.5IIbCN1,3.2585,Success,,True,True
+TIC_341228186,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K3III,4.2347,Success,,True,True
+TIC_161265576,4835.27099609375,Success,193.19090270996097,K1III,4.9819,Success,,True,True
+TIC_342147222,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_120442975,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,21.1656,Success,,False,False
+TIC_148157626,4238.10986328125,Success,157.50770568847656,,,Not found in SIMBAD,,True,True
+TIC_319768482,4620.7646484375,Success,453.0185852050781,K1III,2.2033,Success,,True,True
+TIC_160413824,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K1/2III,1.7517,Success,,True,True
+TIC_403153811,3928.293701171875,Success,96.40180206298828,,,Not found in SIMBAD,,True,True
+TIC_213158282,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K2/3III,3.8101,Success,,True,True
+TIC_220506705,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M3III,1.486,Success,,True,True
+TIC_235006943,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,2.173,Success,,False,False
+TIC_402457337,4642.076171875,Success,278.410400390625,,,Not found in SIMBAD,,True,True
+TIC_394633233,4531.53369140625,Success,298.40838623046875,K4III,2.9698,Success,,True,True
+TIC_230953185,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K1III,8.6669,Success,,True,True
+TIC_160702612,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.7151,Success,,False,False
+TIC_352352778,4505.78955078125,Success,758.6414794921875,G8/K1(III),1.4932,Success,,True,True
+TIC_69511960,3277.644287109375,Success,138.47430419921875,,,Not found in SIMBAD,,True,True
+TIC_234289408,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_447605389,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_406280054,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,sdB,0.8352,Success,,False,False
+TIC_327710327,,No Gaia match within 5 arcsec,,M2.5V,29.7294,Success,,True,True
+TIC_273366457,14279.3486328125,Success,9696.2060546875,B/sdB,0.2249,Success,TIC Teff (31000K) vs Gaia teff_gspphot (14279K) disagree by 54%,False,True
+TIC_465765802,3572.290771484375,Success,139.82679748535156,,,Not found in SIMBAD,,True,True
+TIC_425907353,3713.057861328125,Success,318.72491455078125,M2III,3.0123,Success,,True,True
+TIC_199730918,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K1/2III,8.1539,Success,,True,True
+TIC_345087856,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_406321525,4570.1376953125,Success,445.8304138183594,K1III,2.2318,Success,,True,True
+TIC_219139751,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K5III,2.3646,Success,,True,True
+TIC_303990872,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.2858,Success,,False,False
+TIC_394137224,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M3.0Ve,27.1566,Success,,True,True
+TIC_382074000,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.807,Success,,False,False
+TIC_325338668,4604.72021484375,Success,468.091796875,G8/K0III,2.2213,Success,,True,True
+TIC_84175358,3652.47900390625,Success,179.96170043945312,,,Not found in SIMBAD,,True,True
+TIC_464685711,3381.255615234375,Success,127.77069854736328,,,Not found in SIMBAD,,True,True
+TIC_58583881,3406.860595703125,Success,94.72969818115234,,10.6217,Success,,True,True
+TIC_155420646,3376.99267578125,Success,164.4320068359375,,,Not found in SIMBAD,,True,True
+TIC_363274545,3602.58642578125,Success,163.61129760742188,,,Not found in SIMBAD,,True,True
+TIC_334138196,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.8355,Success,,False,False
+TIC_206591925,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.351,Success,,False,False
+TIC_303277487,6005.17724609375,Success,160.9521942138672,K7,6.341,Success,TIC Teff (3825K) vs Gaia teff_gspphot (6005K) disagree by 57%,False,True
+TIC_339260231,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K4III,1.8758,Success,,True,True
+TIC_56437876,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_148307484,3290.204345703125,Success,129.45550537109375,,,Not found in SIMBAD,,True,True
+TIC_84532958,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.0394,Success,,False,False
+TIC_149594966,3322.7724609375,Success,113.21739959716795,,,Not found in SIMBAD,,True,True
+TIC_32344300,4760.88427734375,Success,215.26589965820312,,,Not found in SIMBAD,,True,True
+TIC_425931249,4314.4375,Success,816.3997802734375,,1.1048,Success,,True,True
+TIC_97884635,4713.1572265625,Success,805.9102783203125,,1.1819,Success,,True,True
+TIC_469979458,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M1III,2.0114,Success,,True,True
+TIC_158622711,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K5III,2.2261,Success,,True,True
+TIC_229805551,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,sdB,2.0215,Success,,False,False
+TIC_148080282,4159.0849609375,Success,140.4376983642578,,7.0942,Success,,True,True
+TIC_266995429,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K1III,2.1647,Success,,True,True
+TIC_318516988,5810.97265625,Success,333.93548583984375,,,Not found in SIMBAD,,True,True
+TIC_304484734,5823.568359375,Success,429.6418151855469,,,Not found in SIMBAD,,True,True
+TIC_144070566,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M4III,1.528,Success,,True,True
+TIC_260753626,4751.06201171875,Success,592.609375,K2III,1.8363,Success,,True,True
+TIC_294297441,4798.20361328125,Success,497.8965148925781,,2.0257,Success,,True,True
+TIC_128697557,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_402742149,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.2649,Success,,False,False
+TIC_303901048,3658.517578125,Success,258.860107421875,,,Not found in SIMBAD,,True,True
+TIC_374823554,4945.74267578125,Success,118.7584991455078,K3.5IVe,8.0818,Success,,True,True
+TIC_421937394,5882.60107421875,Success,112.11830139160156,G0,8.8892,Success,,True,True
+TIC_234495456,2945.241943359375,Success,37.776100158691406,M4.9,26.6316,Success,,True,True
+TIC_213892434,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,G5,1.4715,Success,,True,True
+TIC_101949434,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,G8III/IV,4.1602,Success,,True,True
+TIC_401838575,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M5.5e,25.9492,Success,,True,True
+TIC_69880428,5144.76123046875,Success,132.51710510253906,K0Ve,7.4652,Success,,True,True
+TIC_411982793,7382.75048828125,Success,389.335205078125,,2.7747,Success,,True,True
+TIC_303703388,7391.51416015625,Success,243.3085021972656,F0III,4.191,Success,,True,True
+TIC_148951947,6075.1689453125,Success,131.0791015625,F8/G0V,7.5865,Success,,True,True
+TIC_197766496,4651.642578125,Success,512.79638671875,,1.8481,Success,,True,True
+TIC_382254933,7150.19140625,Success,167.67239379882812,F2III(m),6.0881,Success,,True,True
+TIC_325388104,6769.15869140625,Success,237.19970703125,F2IV/V,4.0579,Success,,True,True
+TIC_276452267,6012.33544921875,Success,141.7646026611328,G0(V),7.0088,Success,,True,True
+TIC_136264102,7217.673828125,Success,484.9294128417969,,2.1759,Success,,True,True
+TIC_381857833,7510.87353515625,Success,185.9402008056641,A9V,5.3048,Success,,True,True
+TIC_121250827,5931.30126953125,Success,141.9539031982422,F7/8V,7.0128,Success,,True,True
+TIC_74100918,7828.71240234375,Success,41.65340042114258,A5IV/V,24.3817,Success,,True,True
+TIC_142250801,8036.05908203125,Success,133.75759887695312,A3III,7.2065,Success,,True,True
+TIC_447469406,7219.68310546875,Success,240.35060119628903,F0IV/V,3.9654,Success,,True,True
+TIC_466231027,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,A2/3IV,5.2828,Success,,True,True
+TIC_369666165,6839.0234375,Success,74.427001953125,F3III,13.318,Success,,True,True
+TIC_29993983,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_98123487,6785.8125,Success,282.78448486328125,Fm_dD,3.5974,Success,,True,True
+TIC_281573888,10307.8671875,Success,154.09739685058594,A4IV/V,6.5703,Success,TIC Teff (7895K) vs Gaia teff_gspphot (10308K) disagree by 31%,False,True
+TIC_173877131,7660.51171875,Success,122.53630065917967,A3/5mA3-F2,8.124,Success,,True,True
+TIC_39761579,7180.04638671875,Success,357.17889404296875,,2.9905,Success,,True,True
+TIC_316201175,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,A1/2V,2.2865,Success,,True,True
+TIC_343296059,10116.8408203125,Success,438.8374938964844,A1V,2.2164,Success,,True,True
+TIC_37589272,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,F0IV/V,2.1675,Success,,True,True
+TIC_409853937,8043.037109375,Success,167.7165069580078,A3/5Vs,5.9275,Success,,True,True
+TIC_372172466,9354.0302734375,Success,579.99072265625,A2V,1.9085,Success,,True,True
+TIC_333954983,7302.28662109375,Success,652.5225219726562,Fm_dD,1.6347,Success,,True,True
+TIC_323859617,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K4/5III,6.7176,Success,,True,True
+TIC_367899500,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,G8/K0III,9.5882,Success,,True,True
+TIC_260795157,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K3+Vk:,47.478,Success,,True,True
+TIC_324497887,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K1III-IV,26.6984,Success,,True,True
+TIC_74648456,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_229141027,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_140459480,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K2III,5.0807,Success,,True,True
+TIC_143359172,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K4III,3.0876,Success,,True,True
+TIC_277749000,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_343961704,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_102032194,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,M1III,3.1631,Success,,True,True
+TIC_118273470,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K4III,2.9568,Success,,True,True
+TIC_118191232,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_466307646,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_119625675,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K0III,9.2613,Success,,True,True
+TIC_207089163,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K1III,1.9725,Success,,True,True
+TIC_63687402,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_140041127,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,G6III,4.7687,Success,,True,True
+TIC_322049520,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,7.384,Success,,False,False
+TIC_280794907,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K0III,1.7387,Success,,True,True
+TIC_201600307,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_237316813,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,3.7593,Success,,False,False
+TIC_237319282,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,M3III,2.7247,Success,,True,True
+TIC_355765896,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K3(III),1.1326,Success,,True,True
+TIC_425884418,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,G3III/IV,4.1304,Success,,True,True
+TIC_469235870,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_139876330,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K3V,24.8582,Success,,True,True
+TIC_220378915,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,F8V,19.1724,Success,,True,True
+TIC_213932220,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_469815705,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,6.391,Success,,False,False
+TIC_425952950,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,G5V,19.7351,Success,,True,True
+TIC_158442384,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K0III,6.1271,Success,,True,True
+TIC_381036825,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,1.8923,Success,,False,False
+TIC_219319398,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_406280308,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,22.5544,Success,,False,False
+TIC_231053750,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K0II/IIICNIV,6.6286,Success,,True,True
+TIC_232864710,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_101311910,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K0III,9.1277,Success,,True,True
+TIC_304985492,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K0/1III,1.7078,Success,,True,True
+TIC_232062851,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,G8/K1III/Vp,2.7659,Success,,True,True
+TIC_206592567,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K0III,2.0714,Success,,True,True
+TIC_412064277,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,0.6455,Success,,False,False
+TIC_160188131,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K2(III),0.8863,Success,,True,True
+TIC_320330186,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K4III,2.5851,Success,,True,True
+TIC_229152539,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,M4.5,74.7102,Success,,True,True
+TIC_120197271,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K1III,5.4952,Success,,True,True
+TIC_56584594,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_325220064,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,38.3175,Success,,False,False
+TIC_421432683,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,F6V,24.3965,Success,,True,True
+TIC_123404420,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,2.7744,Success,,False,False
+TIC_101277769,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,M0,13.4487,Success,,True,True
+TIC_117396321,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,1.1702,Success,,False,False
+TIC_382388574,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,,Not found in SIMBAD,,False,False
+TIC_215335145,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,,7.1912,Success,,False,False
+TIC_76522780,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,K1III,2.612,Success,,True,True
+TIC_229147081,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,G8IV,2.0323,Success,,True,True
+TIC_421999342,,"Gaia query error: [Errno 8] nodename nor servname provided, or not known",,sdB,0.9938,Success,,False,False
+TIC_33235691,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,G8III,3.8938,Success,,True,True
+TIC_234998611,5476.408203125,Success,178.43609619140625,,,Not found in SIMBAD,,True,True
+TIC_341309049,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.1061,Success,,False,False
+TIC_267082507,4576.74072265625,Success,477.96978759765625,,2.1064,Success,,True,True
+TIC_464342159,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,G8III/IV,2.2033,Success,,True,True
+TIC_304068024,3436.775634765625,Success,107.127197265625,,,Not found in SIMBAD,,True,True
+TIC_197667960,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K4III,4.6073,Success,,True,True
+TIC_102071750,,Gaia query error: [Errno 60] Operation timed out,,,,"SIMBAD query error: Unable to access the capabilities endpoint at:
+- https://simbad.cds.unistra.fr/simbad/sim-tap/capabilities: Connection failed (Possible causes: incorrect URL, DNS issue, or service is down)
+
+This could mean:
+1. The service URL is incorrect
+2. The service is temporarily unavailable
+3. The service doesn't support this protocol
+4. If a 503 was encountered, retry after the suggested delay.
+",,False,False
+TIC_382827107,5750.6220703125,Success,437.1658020019531,,,"SIMBAD query error: Unable to access the capabilities endpoint at:
+- https://simbad.cds.unistra.fr/simbad/sim-tap/capabilities: Connection failed (Possible causes: incorrect URL, DNS issue, or service is down)
+
+This could mean:
+1. The service URL is incorrect
+2. The service is temporarily unavailable
+3. The service doesn't support this protocol
+4. If a 503 was encountered, retry after the suggested delay.
+",,True,True
+TIC_143295589,4795.5703125,Success,822.9127197265625,,,"SIMBAD query error: Unable to access the capabilities endpoint at:
+- https://simbad.cds.unistra.fr/simbad/sim-tap/capabilities: Connection failed (Possible causes: incorrect URL, DNS issue, or service is down)
+
+This could mean:
+1. The service URL is incorrect
+2. The service is temporarily unavailable
+3. The service doesn't support this protocol
+4. If a 503 was encountered, retry after the suggested delay.
+",,True,True
+TIC_161134835,5599.36669921875,Success,196.43209838867188,,4.85,Success,,True,True
+TIC_389089359,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K3III,3.7836,Success,,True,True
+TIC_183594679,5811.71923828125,Success,114.7177963256836,G3V,8.6391,Success,,True,True
+TIC_330163931,,Gaia query error: 500,,,,Not found in SIMBAD,,False,False
+TIC_219123085,,Gaia query error: 500,,K1III,2.8762,Success,,True,True
+TIC_101935408,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K0III,2.3161,Success,,True,True
+TIC_122557588,5678.1943359375,Success,252.4403076171875,,3.7801,Success,,True,True
+TIC_469935154,4825.4912109375,Success,642.2811889648438,K1III,1.5356,Success,,True,True
+TIC_161172848,5548.5712890625,Success,104.69969940185548,K0V,9.494,Success,,True,True
+TIC_143951327,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_372347022,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K5/M0(III),0.6709,Success,,True,True
+TIC_425863648,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,2.8738,Success,,False,False
+TIC_166674855,4290.60009765625,Success,66.44110107421875,,,"SIMBAD query error: Unable to access the capabilities endpoint at:
+- https://simbad.cds.unistra.fr/simbad/sim-tap/capabilities: Connection failed (Possible causes: incorrect URL, DNS issue, or service is down)
+
+This could mean:
+1. The service URL is incorrect
+2. The service is temporarily unavailable
+3. The service doesn't support this protocol
+4. If a 503 was encountered, retry after the suggested delay.
+",,True,True
+TIC_303994283,5365.25830078125,Success,227.1887969970703,,,"SIMBAD query error: Unable to access the capabilities endpoint at:
+- https://simbad.cds.unistra.fr/simbad/sim-tap/capabilities: Connection failed (Possible causes: incorrect URL, DNS issue, or service is down)
+
+This could mean:
+1. The service URL is incorrect
+2. The service is temporarily unavailable
+3. The service doesn't support this protocol
+4. If a 503 was encountered, retry after the suggested delay.
+",,True,True
+TIC_424941570,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,6.7667,Success,,False,False
+TIC_161313103,5037.7783203125,Success,390.2513122558594,K0III,2.7053,Success,,True,True
+TIC_87778118,3319.06787109375,Success,117.36979675292967,,,Not found in SIMBAD,,True,True
+TIC_200671353,5428.6533203125,Success,124.9009017944336,,7.9385,Success,,True,True
+TIC_341293863,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.932,Success,,False,False
+TIC_271503364,4771.009765625,Success,696.4752807617188,K2III,1.4003,Success,,True,True
+TIC_161265291,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.8289,Success,,False,False
+TIC_33465112,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K1(III),1.9469,Success,,True,True
+TIC_7220124,3392.482177734375,Success,35.855098724365234,,,Not found in SIMBAD,,True,True
+TIC_62182085,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_49617121,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K0/1III,1.6408,Success,,True,True
+TIC_33542596,3564.701416015625,Success,117.5469970703125,,,Not found in SIMBAD,,True,True
+TIC_97474160,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.9687,Success,,False,False
+TIC_320427373,6110.2021484375,Success,335.94268798828125,,2.8225,Success,,True,True
+TIC_412565479,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_76068281,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.8178,Success,,False,False
+TIC_360148433,5689.18994140625,Success,85.2571029663086,,11.7255,Success,,True,True
+TIC_118801697,5552.3828125,Success,489.185302734375,,2.0937,Success,,True,True
+TIC_100105097,3358.117431640625,Success,247.8708038330078,,,Not found in SIMBAD,,True,True
+TIC_234497780,4726.8779296875,Success,591.5548706054688,K3III,1.614,Success,,True,True
+TIC_140431282,4985.9638671875,Success,296.56298828125,G8/K0III,3.2443,Success,,True,True
+TIC_101778771,4758.3212890625,Success,631.6903076171875,,1.6589,Success,,True,True
+TIC_253668790,5147.03515625,Success,344.37030029296875,M2/3II/III,2.7638,Success,TIC Teff (3743K) vs Gaia teff_gspphot (5147K) disagree by 38%,False,True
+TIC_57409304,3631.1826171875,Success,1193.865234375,,0.6162,Success,,True,True
+TIC_91529289,8700.0126953125,Success,48.54560089111328,A2.5V,20.9663,Success,,True,True
+TIC_166746526,5728.7763671875,Success,117.51589965820312,G5V,8.4942,Success,,True,True
+TIC_160226187,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_404664076,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.5404,Success,,False,False
+TIC_123267854,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K0III,2.2145,Success,,True,True
+TIC_409787089,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.7293,Success,,False,False
+TIC_144285638,7957.19384765625,Success,95.49590301513672,A3III/IV,10.6202,Success,,True,True
+TIC_381049631,3309.76806640625,Success,121.63369750976562,,,Not found in SIMBAD,,True,True
+TIC_349237367,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.5286,Success,,False,False
+TIC_61186487,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,5.3405,Success,,False,False
+TIC_406274238,4308.44189453125,Success,1887.1251220703125,,0.5667,Success,,True,True
+TIC_212461524,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K5Ve,8.9239,Success,,True,True
+TIC_412823807,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_304369934,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.6922,Success,,False,False
+TIC_308241590,6750.54052734375,Success,58.42470169067383,F3/5(IV),17.1294,Success,,True,True
+TIC_96379601,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.8526,Success,,False,False
+TIC_231698310,4622.88330078125,Success,629.8912963867188,K0/1(III),1.6127,Success,,True,True
+TIC_349801741,3410.0322265625,Success,103.66300201416016,,,Not found in SIMBAD,,True,True
+TIC_253857443,5380.708984375,Success,305.7643127441406,,,Not found in SIMBAD,,True,True
+TIC_197054642,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K8V,25.3073,Success,,True,True
+TIC_347385146,4586.25830078125,Success,106.38990020751953,,,Not found in SIMBAD,,True,True
+TIC_118826494,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.5969,Success,,False,False
+TIC_313249030,5563.85302734375,Success,121.36319732666016,,8.1458,Success,,True,True
+TIC_271502836,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M3.6,22.0417,Success,,True,True
+TIC_123370279,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.0839,Success,,False,False
+TIC_313002372,8211.923828125,Success,70.21630096435547,A3V,14.2387,Success,,True,True
+TIC_217549035,4502.0859375,Success,191.87399291992188,,,Not found in SIMBAD,,True,True
+TIC_324141976,5138.0576171875,Success,180.44740295410156,,5.5086,Success,,True,True
+TIC_166744141,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K1III,2.7354,Success,,True,True
+TIC_88139561,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,6.3337,Success,,False,False
+TIC_165881566,3531.853759765625,Success,224.4427947998047,,,Not found in SIMBAD,,True,True
+TIC_320783984,10359.2294921875,Success,309.55218505859375,A0V,3.774,Success,,True,True
+TIC_231828950,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,22.6596,Success,,False,False
+TIC_166424433,6122.6357421875,Success,116.26329803466797,F6V,8.4606,Success,,True,True
+TIC_80427890,6410.21533203125,Success,243.36500549316406,F7V,3.9879,Success,,True,True
+TIC_321068946,10453.9619140625,Success,118.71189880371094,A0Vn,8.6568,Success,,True,True
+TIC_231626393,7496.208984375,Success,68.99949645996094,A5/6IV/V,14.3399,Success,,True,True
+TIC_152358293,5791.70458984375,Success,222.20680236816406,,4.4046,Success,,True,True
+TIC_100615932,7267.10205078125,Success,138.98379516601562,A9III/IV,7.2018,Success,,True,True
+TIC_219332944,6432.16259765625,Success,126.31430053710938,F5V,7.8178,Success,,True,True
+TIC_158536414,6354.6171875,Success,193.43170166015625,F5/6V,5.1403,Success,,True,True
+TIC_119981237,7300.13037109375,Success,583.3477783203125,A3/5mF0-F3,1.4666,Success,,True,True
+TIC_6669806,5943.34814453125,Success,368.6980895996094,K0III+A3/5,2.2181,Success,,True,True
+TIC_280792839,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.3166,Success,,False,False
+TIC_101931487,7528.59619140625,Success,389.2862854003906,A8/9V,2.6681,Success,,True,True
+TIC_87260967,4956.26953125,Success,173.93800354003906,K1IIICNII,5.5829,Success,,True,True
+TIC_372300399,6524.8447265625,Success,112.46499633789062,,8.8819,Success,,True,True
+TIC_409889015,5310.79638671875,Success,69.86589813232422,G8/K1(V),14.0602,Success,,True,True
+TIC_464650717,7652.0048828125,Success,161.86270141601562,A3/5III/IV,6.4179,Success,,True,True
+TIC_62413432,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_234295610,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,20.7818,Success,,False,False
+TIC_303616017,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.8642,Success,,False,False
+TIC_319739812,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_281851171,5913.08154296875,Success,174.28770446777344,,5.7106,Success,,True,True
+TIC_255717096,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,FpSr,1.2405,Success,,True,True
+TIC_321055264,5758.6181640625,Success,1178.371337890625,,0.8836,Success,,True,True
+TIC_32306785,6616.38134765625,Success,355.864013671875,,2.7159,Success,,True,True
+TIC_31752971,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,A2V,4.4501,Success,,True,True
+TIC_234518259,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,A2V,5.6004,Success,,True,True
+TIC_315652389,6749.58447265625,Success,225.4420928955078,,4.4117,Success,,True,True
+TIC_245878670,4375.62255859375,Success,91.79509735107422,,,Not found in SIMBAD,,True,True
+TIC_101932572,6553.80517578125,Success,159.7866973876953,F3V,6.3061,Success,,True,True
+TIC_316832189,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,Fm_dD,3.4131,Success,,True,True
+TIC_76527960,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_370134610,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,2.2574,Success,,False,False
+TIC_219322317,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,1.7734,Success,,False,False
+TIC_219920019,7613.400390625,Success,282.02960205078125,A3mA7-F2,3.4674,Success,,True,True
+TIC_464139856,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,A2Ib,0.8148,Success,,True,True
+TIC_61724376,5664.59130859375,Success,296.69000244140625,,3.3252,Success,,True,True
+TIC_328153490,3624.146728515625,Success,98.17050170898438,,,Not found in SIMBAD,,True,True
+TIC_166766868,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,3.223,Success,,False,False
+TIC_160991022,5754.73095703125,Success,166.8905029296875,,4.4719,Success,,True,True
+TIC_100566535,10524.0859375,Success,274.6026916503906,A0V,3.7743,Success,,True,True
+TIC_122314621,18715.421875,Success,1107.69091796875,B0II,0.9121,Success,TIC Teff (6551K) vs Gaia teff_gspphot (18715K) disagree by 186%; TIC Teff (6551K) inconsistent with SIMBAD spectral type 'B0II' (expected roughly 10000-30000K),False,True
+TIC_76758733,5251.20166015625,Success,233.0825958251953,,4.246,Success,,True,True
+TIC_87775884,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_61135882,5505.05615234375,Success,639.246826171875,,1.4982,Success,,True,True
+TIC_326512158,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,A1/2IV/V,2.0999,Success,,True,True
+TIC_382384315,7676.57666015625,Success,179.1717987060547,A6IV/V,5.1688,Success,,True,True
+TIC_303993393,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,,Not found in SIMBAD,,False,False
+TIC_464422047,8053.03955078125,Success,152.08740234375,A2mA5-A9,6.7132,Success,,True,True
+TIC_217602397,7193.80419921875,Success,2322.633056640625,,,Not found in SIMBAD,,True,True
+TIC_166606391,6249.10205078125,Success,88.97129821777344,F6V,11.2065,Success,,True,True
+TIC_125108479,6199.63720703125,Success,1408.9984130859375,,,Not found in SIMBAD,,True,True
+TIC_277800037,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,A1V,3.9677,Success,,True,True
+TIC_30214880,7382.45849609375,Success,461.318115234375,A1/2(m)F2-F3,2.0623,Success,,True,True

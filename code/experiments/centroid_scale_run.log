@@ -1,0 +1,523 @@
+5497 total training rows. 360 positive-class skipped (no resolved TIC ID), 51 skipped (missing ra/dec/period/T0/duration). 5086 jobs to run across 8 workers.
+Warning: 29% (5719/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6099/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6100/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5670/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5719/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [20/5086] done (191s elapsed, ~48374s remaining, 11/20 usable so far)
+  [40/5086] done (458s elapsed, ~57743s remaining, 19/40 usable so far)
+Warning: 37% (6540/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 22% (2557/11701) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [60/5086] done (538s elapsed, ~45104s remaining, 30/60 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6118/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5443/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5444/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [80/5086] done (602s elapsed, ~37682s remaining, 41/80 usable so far)
+Warning: 29% (5442/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5442/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [100/5086] done (684s elapsed, ~34107s remaining, 51/100 usable so far)
+Warning: 20% (3860/19279) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (4202/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3774/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [120/5086] done (762s elapsed, ~31543s remaining, 56/120 usable so far)
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5103/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5725/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [140/5086] done (838s elapsed, ~29618s remaining, 69/140 usable so far)
+  [160/5086] done (902s elapsed, ~27780s remaining, 77/160 usable so far)
+  [180/5086] done (997s elapsed, ~27160s remaining, 90/180 usable so far)
+Warning: 20% (3882/19279) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 39% (6970/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [200/5086] done (1070s elapsed, ~26147s remaining, 106/200 usable so far)
+Warning: 25% (4635/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (5651/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [220/5086] done (1151s elapsed, ~25456s remaining, 122/220 usable so far)
+  [240/5086] done (1234s elapsed, ~24907s remaining, 140/240 usable so far)
+  [260/5086] done (1309s elapsed, ~24296s remaining, 158/260 usable so far)
+  [280/5086] done (1390s elapsed, ~23853s remaining, 174/280 usable so far)
+Warning: 21% (3787/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [300/5086] done (1454s elapsed, ~23191s remaining, 189/300 usable so far)
+Warning: 21% (3750/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [320/5086] done (1535s elapsed, ~22868s remaining, 200/320 usable so far)
+  [340/5086] done (1631s elapsed, ~22764s remaining, 208/340 usable so far)
+Warning: 20% (3870/19279) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [360/5086] done (1740s elapsed, ~22846s remaining, 218/360 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6121/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [380/5086] done (1866s elapsed, ~23113s remaining, 225/380 usable so far)
+Warning: 26% (5111/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 24% (4614/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 41% (7266/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 39% (6933/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 39% (6875/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 38% (6642/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [400/5086] done (1998s elapsed, ~23401s remaining, 231/400 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 40% (7011/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 36% (6403/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5726/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5747/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [420/5086] done (2098s elapsed, ~23305s remaining, 237/420 usable so far)
+Warning: 38% (6769/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5759/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 37% (6556/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6098/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5671/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [440/5086] done (2208s elapsed, ~23309s remaining, 247/440 usable so far)
+Warning: 28% (4902/17602) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5074/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [460/5086] done (2340s elapsed, ~23531s remaining, 249/460 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5077/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6101/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [480/5086] done (2490s elapsed, ~23898s remaining, 253/480 usable so far)
+Warning: 29% (5445/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [500/5086] done (2615s elapsed, ~23985s remaining, 261/500 usable so far)
+Warning: 30% (5656/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (5656/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (5674/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [520/5086] done (2742s elapsed, ~24078s remaining, 268/520 usable so far)
+  [540/5086] done (2847s elapsed, ~23966s remaining, 272/540 usable so far)
+Warning: 21% (3778/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3823/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [560/5086] done (2961s elapsed, ~23935s remaining, 275/560 usable so far)
+Warning: 30% (6029/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3828/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3837/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3835/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3925/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [580/5086] done (3062s elapsed, ~23785s remaining, 279/580 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (6034/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [600/5086] done (3177s elapsed, ~23750s remaining, 288/600 usable so far)
+Warning: 30% (6032/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6098/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [620/5086] done (3298s elapsed, ~23755s remaining, 298/620 usable so far)
+  [640/5086] done (3446s elapsed, ~23935s remaining, 304/640 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 24% (4427/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [660/5086] done (3576s elapsed, ~23978s remaining, 310/660 usable so far)
+Warning: 31% (6098/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [680/5086] done (3683s elapsed, ~23864s remaining, 318/680 usable so far)
+Warning: 24% (4439/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6104/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [700/5086] done (3797s elapsed, ~23794s remaining, 325/700 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [720/5086] done (3935s elapsed, ~23861s remaining, 332/720 usable so far)
+Warning: 31% (6098/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [740/5086] done (4047s elapsed, ~23766s remaining, 341/740 usable so far)
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [760/5086] done (4197s elapsed, ~23890s remaining, 346/760 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [780/5086] done (4328s elapsed, ~23893s remaining, 352/780 usable so far)
+  [800/5086] done (4467s elapsed, ~23932s remaining, 356/800 usable so far)
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [820/5086] done (4593s elapsed, ~23897s remaining, 363/820 usable so far)
+Warning: 29% (5674/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5718/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5437/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [840/5086] done (4709s elapsed, ~23802s remaining, 371/840 usable so far)
+Warning: 20% (3888/19279) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5717/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [860/5086] done (4790s elapsed, ~23536s remaining, 379/860 usable so far)
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5105/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [880/5086] done (4880s elapsed, ~23324s remaining, 388/880 usable so far)
+  [900/5086] done (4962s elapsed, ~23078s remaining, 397/900 usable so far)
+  [920/5086] done (5046s elapsed, ~22847s remaining, 403/920 usable so far)
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5103/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+5497 total training rows. 360 positive-class skipped (no resolved TIC ID), 51 skipped (missing ra/dec/period/T0/duration). 5086 jobs to run across 8 workers.
+920 already done -- resuming.
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5103/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [20/4166] done (77s elapsed, ~15877s remaining, 410/940 usable so far)
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5098/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [40/4166] done (154s elapsed, ~15877s remaining, 420/960 usable so far)
+Warning: 33% (6183/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [60/4166] done (226s elapsed, ~15438s remaining, 435/980 usable so far)
+Warning: 29% (5685/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5702/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [80/4166] done (300s elapsed, ~15322s remaining, 447/1000 usable so far)
+Warning: 21% (3834/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [100/4166] done (368s elapsed, ~14971s remaining, 454/1020 usable so far)
+Warning: 29% (5725/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5669/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3774/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5685/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5684/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5718/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5725/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5685/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5685/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [120/4166] done (454s elapsed, ~15313s remaining, 471/1040 usable so far)
+Warning: 25% (5024/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5684/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5674/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [140/4166] done (512s elapsed, ~14730s remaining, 482/1060 usable so far)
+Warning: 26% (5072/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [160/4166] done (587s elapsed, ~14701s remaining, 493/1080 usable so far)
+Warning: 29% (5673/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5717/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3774/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5077/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5076/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5717/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [180/4166] done (666s elapsed, ~14741s remaining, 502/1100 usable so far)
+Warning: 21% (3831/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [200/4166] done (738s elapsed, ~14640s remaining, 514/1120 usable so far)
+Warning: 29% (5684/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5725/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5685/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [220/4166] done (813s elapsed, ~14576s remaining, 523/1140 usable so far)
+Warning: 21% (3774/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3774/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [240/4166] done (891s elapsed, ~14570s remaining, 531/1160 usable so far)
+Warning: 21% (3774/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3775/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [260/4166] done (961s elapsed, ~14438s remaining, 541/1180 usable so far)
+Warning: 26% (5098/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [280/4166] done (1038s elapsed, ~14409s remaining, 556/1200 usable so far)
+  [300/4166] done (1116s elapsed, ~14378s remaining, 565/1220 usable so far)
+  [320/4166] done (1206s elapsed, ~14496s remaining, 574/1240 usable so far)
+  [340/4166] done (1285s elapsed, ~14462s remaining, 582/1260 usable so far)
+  [360/4166] done (1376s elapsed, ~14545s remaining, 593/1280 usable so far)
+  [380/4166] done (1462s elapsed, ~14563s remaining, 602/1300 usable so far)
+  [400/4166] done (1534s elapsed, ~14440s remaining, 610/1320 usable so far)
+  [420/4166] done (1612s elapsed, ~14378s remaining, 622/1340 usable so far)
+  [440/4166] done (1707s elapsed, ~14452s remaining, 629/1360 usable so far)
+  [460/4166] done (1801s elapsed, ~14513s remaining, 639/1380 usable so far)
+  [480/4166] done (1901s elapsed, ~14595s remaining, 651/1400 usable so far)
+  [500/4166] done (1982s elapsed, ~14532s remaining, 661/1420 usable so far)
+  [520/4166] done (2079s elapsed, ~14576s remaining, 671/1440 usable so far)
+  [540/4166] done (2180s elapsed, ~14641s remaining, 680/1460 usable so far)
+  [560/4166] done (2277s elapsed, ~14661s remaining, 688/1480 usable so far)
+  [580/4166] done (2376s elapsed, ~14692s remaining, 695/1500 usable so far)
+  [600/4166] done (2460s elapsed, ~14618s remaining, 705/1520 usable so far)
+  [620/4166] done (2553s elapsed, ~14599s remaining, 715/1540 usable so far)
+  [640/4166] done (2651s elapsed, ~14605s remaining, 725/1560 usable so far)
+  [660/4166] done (2737s elapsed, ~14540s remaining, 735/1580 usable so far)
+  [680/4166] done (2835s elapsed, ~14532s remaining, 742/1600 usable so far)
+  [700/4166] done (2914s elapsed, ~14427s remaining, 748/1620 usable so far)
+  [720/4166] done (2995s elapsed, ~14333s remaining, 759/1640 usable so far)
+  [740/4166] done (3086s elapsed, ~14289s remaining, 771/1660 usable so far)
+  [760/4166] done (3159s elapsed, ~14156s remaining, 778/1680 usable so far)
+  [780/4166] done (3257s elapsed, ~14140s remaining, 788/1700 usable so far)
+  [800/4166] done (3346s elapsed, ~14078s remaining, 794/1720 usable so far)
+  [820/4166] done (3441s elapsed, ~14041s remaining, 805/1740 usable so far)
+  [840/4166] done (3558s elapsed, ~14087s remaining, 816/1760 usable so far)
+  [860/4166] done (3645s elapsed, ~14011s remaining, 822/1780 usable so far)
+  [880/4166] done (3740s elapsed, ~13965s remaining, 830/1800 usable so far)
+  [900/4166] done (3834s elapsed, ~13914s remaining, 839/1820 usable so far)
+  [920/4166] done (3913s elapsed, ~13806s remaining, 847/1840 usable so far)
+  [940/4166] done (3995s elapsed, ~13711s remaining, 855/1860 usable so far)
+  [960/4166] done (4100s elapsed, ~13692s remaining, 865/1880 usable so far)
+  [980/4166] done (4184s elapsed, ~13601s remaining, 875/1900 usable so far)
+  [1000/4166] done (4279s elapsed, ~13546s remaining, 885/1920 usable so far)
+  [1020/4166] done (4379s elapsed, ~13505s remaining, 896/1940 usable so far)
+  [1040/4166] done (4465s elapsed, ~13421s remaining, 906/1960 usable so far)
+  [1060/4166] done (4555s elapsed, ~13346s remaining, 914/1980 usable so far)
+  [1080/4166] done (4656s elapsed, ~13303s remaining, 923/2000 usable so far)
+  [1100/4166] done (4754s elapsed, ~13251s remaining, 934/2020 usable so far)
+  [1120/4166] done (4852s elapsed, ~13196s remaining, 940/2040 usable so far)
+  [1140/4166] done (4931s elapsed, ~13089s remaining, 948/2060 usable so far)
+  [1160/4166] done (5033s elapsed, ~13041s remaining, 960/2080 usable so far)
+  [1180/4166] done (5129s elapsed, ~12980s remaining, 970/2100 usable so far)
+  [1200/4166] done (5236s elapsed, ~12942s remaining, 978/2120 usable so far)
+  [1220/4166] done (5341s elapsed, ~12897s remaining, 983/2140 usable so far)
+  [1240/4166] done (5436s elapsed, ~12826s remaining, 992/2160 usable so far)
+  [1260/4166] done (5530s elapsed, ~12755s remaining, 998/2180 usable so far)
+  [1280/4166] done (5619s elapsed, ~12669s remaining, 1004/2200 usable so far)
+  [1300/4166] done (5716s elapsed, ~12602s remaining, 1016/2220 usable so far)
+  [1320/4166] done (5802s elapsed, ~12509s remaining, 1025/2240 usable so far)
+  [1340/4166] done (5888s elapsed, ~12417s remaining, 1032/2260 usable so far)
+  [1360/4166] done (5982s elapsed, ~12341s remaining, 1042/2280 usable so far)
+  [1380/4166] done (6062s elapsed, ~12239s remaining, 1048/2300 usable so far)
+  [1400/4166] done (6151s elapsed, ~12153s remaining, 1055/2320 usable so far)
+  [1420/4166] done (6233s elapsed, ~12053s remaining, 1064/2340 usable so far)
+  [1440/4166] done (6329s elapsed, ~11982s remaining, 1075/2360 usable so far)
+  [1460/4166] done (6438s elapsed, ~11932s remaining, 1085/2380 usable so far)
+  [1480/4166] done (6520s elapsed, ~11833s remaining, 1094/2400 usable so far)
+  [1500/4166] done (6617s elapsed, ~11761s remaining, 1098/2420 usable so far)
+  [1520/4166] done (6711s elapsed, ~11682s remaining, 1111/2440 usable so far)
+  [1540/4166] done (6810s elapsed, ~11612s remaining, 1121/2460 usable so far)
+  [1560/4166] done (6900s elapsed, ~11527s remaining, 1132/2480 usable so far)
+  [1580/4166] done (6980s elapsed, ~11424s remaining, 1144/2500 usable so far)
+  [1600/4166] done (7088s elapsed, ~11367s remaining, 1155/2520 usable so far)
+  [1620/4166] done (7181s elapsed, ~11286s remaining, 1163/2540 usable so far)
+  [1640/4166] done (7277s elapsed, ~11208s remaining, 1170/2560 usable so far)
+  [1660/4166] done (7377s elapsed, ~11137s remaining, 1179/2580 usable so far)
+  [1680/4166] done (7464s elapsed, ~11044s remaining, 1191/2600 usable so far)
+  [1700/4166] done (7562s elapsed, ~10969s remaining, 1201/2620 usable so far)
+  [1720/4166] done (7657s elapsed, ~10888s remaining, 1210/2640 usable so far)
+  [1740/4166] done (7747s elapsed, ~10801s remaining, 1218/2660 usable so far)
+  [1760/4166] done (7834s elapsed, ~10709s remaining, 1227/2680 usable so far)
+  [1780/4166] done (7930s elapsed, ~10629s remaining, 1234/2700 usable so far)
+  [1800/4166] done (8008s elapsed, ~10526s remaining, 1240/2720 usable so far)
+  [1820/4166] done (8097s elapsed, ~10437s remaining, 1247/2740 usable so far)
+  [1840/4166] done (8179s elapsed, ~10339s remaining, 1257/2760 usable so far)
+  [1860/4166] done (8278s elapsed, ~10263s remaining, 1267/2780 usable so far)
+  [1880/4166] done (8393s elapsed, ~10206s remaining, 1272/2800 usable so far)
+  [1900/4166] done (8468s elapsed, ~10099s remaining, 1280/2820 usable so far)
+  [1920/4166] done (8611s elapsed, ~10073s remaining, 1292/2840 usable so far)
+  [1940/4166] done (8741s elapsed, ~10030s remaining, 1303/2860 usable so far)
+  [1960/4166] done (8831s elapsed, ~9940s remaining, 1313/2880 usable so far)
+  [1980/4166] done (8949s elapsed, ~9880s remaining, 1316/2900 usable so far)
+  [2000/4166] done (9048s elapsed, ~9799s remaining, 1325/2920 usable so far)
+  [2020/4166] done (9173s elapsed, ~9745s remaining, 1335/2940 usable so far)
+  [2040/4166] done (9256s elapsed, ~9646s remaining, 1343/2960 usable so far)
+  [2060/4166] done (9324s elapsed, ~9533s remaining, 1355/2980 usable so far)
+  [2080/4166] done (9396s elapsed, ~9423s remaining, 1363/3000 usable so far)
+  [2100/4166] done (9463s elapsed, ~9310s remaining, 1372/3020 usable so far)
+  [2120/4166] done (9537s elapsed, ~9204s remaining, 1383/3040 usable so far)
+Warning: 37% (6542/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 40% (7051/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3728/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (5681/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 20% (3905/19279) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2140/4166] done (9613s elapsed, ~9101s remaining, 1390/3060 usable so far)
+Warning: 25% (4762/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5098/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6112/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5740/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2160/4166] done (9695s elapsed, ~9004s remaining, 1403/3080 usable so far)
+Warning: 29% (5744/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5795/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (412/1312) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2180/4166] done (9736s elapsed, ~8869s remaining, 1411/3100 usable so far)
+Warning: 24% (4447/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (412/1312) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2200/4166] done (9776s elapsed, ~8736s remaining, 1420/3120 usable so far)
+Warning: 31% (412/1312) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 20% (263/1301) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2220/4166] done (9822s elapsed, ~8609s remaining, 1430/3140 usable so far)
+  [2240/4166] done (9899s elapsed, ~8512s remaining, 1444/3160 usable so far)
+  [2260/4166] done (9970s elapsed, ~8409s remaining, 1462/3180 usable so far)
+  [2280/4166] done (10039s elapsed, ~8304s remaining, 1476/3200 usable so far)
+  [2300/4166] done (10110s elapsed, ~8202s remaining, 1490/3220 usable so far)
+  [2320/4166] done (10184s elapsed, ~8103s remaining, 1503/3240 usable so far)
+  [2340/4166] done (10251s elapsed, ~7999s remaining, 1512/3260 usable so far)
+Warning: 28% (5331/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2360/4166] done (10321s elapsed, ~7898s remaining, 1522/3280 usable so far)
+Warning: 21% (3833/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 27% (5023/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2380/4166] done (10394s elapsed, ~7800s remaining, 1534/3300 usable so far)
+Warning: 26% (4659/17602) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2400/4166] done (10468s elapsed, ~7702s remaining, 1544/3320 usable so far)
+  [2420/4166] done (10534s elapsed, ~7600s remaining, 1557/3340 usable so far)
+Warning: 31% (412/1312) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2440/4166] done (10593s elapsed, ~7493s remaining, 1572/3360 usable so far)
+Warning: 24% (4567/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2460/4166] done (10666s elapsed, ~7397s remaining, 1587/3380 usable so far)
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2480/4166] done (10747s elapsed, ~7306s remaining, 1600/3400 usable so far)
+Warning: 31% (6100/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2500/4166] done (10839s elapsed, ~7223s remaining, 1617/3420 usable so far)
+  [2520/4166] done (10909s elapsed, ~7126s remaining, 1633/3440 usable so far)
+Warning: 25% (4670/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2540/4166] done (10981s elapsed, ~7030s remaining, 1649/3460 usable so far)
+Warning: 36% (6443/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2560/4166] done (11100s elapsed, ~6963s remaining, 1665/3480 usable so far)
+  [2580/4166] done (11207s elapsed, ~6889s remaining, 1679/3500 usable so far)
+  [2600/4166] done (11356s elapsed, ~6840s remaining, 1685/3520 usable so far)
+  [2620/4166] done (11451s elapsed, ~6757s remaining, 1698/3540 usable so far)
+Warning: 24% (4422/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2640/4166] done (11578s elapsed, ~6693s remaining, 1710/3560 usable so far)
+Warning: 24% (4351/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2660/4166] done (11650s elapsed, ~6596s remaining, 1724/3580 usable so far)
+Warning: 21% (4154/19947) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 23% (4248/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 24% (4413/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (4109/19947) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2680/4166] done (11734s elapsed, ~6506s remaining, 1736/3600 usable so far)
+Warning: 32% (6092/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 32% (6091/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2700/4166] done (11818s elapsed, ~6417s remaining, 1747/3620 usable so far)
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 20% (265/1301) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 23% (4241/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2720/4166] done (11885s elapsed, ~6318s remaining, 1760/3640 usable so far)
+  [2740/4166] done (11946s elapsed, ~6217s remaining, 1776/3660 usable so far)
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2760/4166] done (12021s elapsed, ~6124s remaining, 1782/3680 usable so far)
+  [2780/4166] done (12101s elapsed, ~6033s remaining, 1791/3700 usable so far)
+Warning: 29% (5728/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 29% (5718/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2800/4166] done (12176s elapsed, ~5940s remaining, 1802/3720 usable so far)
+Warning: 20% (4048/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2820/4166] done (12259s elapsed, ~5851s remaining, 1819/3740 usable so far)
+Warning: 25% (4754/18896) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2840/4166] done (12351s elapsed, ~5767s remaining, 1836/3760 usable so far)
+Warning: 21% (3832/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 25% (5038/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2860/4166] done (12430s elapsed, ~5676s remaining, 1849/3780 usable so far)
+Warning: 21% (3729/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 20% (3731/18342) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3832/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5109/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2880/4166] done (12524s elapsed, ~5592s remaining, 1864/3800 usable so far)
+Warning: 38% (6766/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 32% (6009/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 39% (6920/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2900/4166] done (12605s elapsed, ~5503s remaining, 1880/3820 usable so far)
+Warning: 39% (6875/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 39% (6932/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2920/4166] done (12696s elapsed, ~5418s remaining, 1896/3840 usable so far)
+Warning: 31% (6098/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 38% (6765/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2940/4166] done (12807s elapsed, ~5341s remaining, 1913/3860 usable so far)
+Warning: 31% (6098/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (5671/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 32% (6091/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2960/4166] done (12903s elapsed, ~5257s remaining, 1930/3880 usable so far)
+Warning: 31% (6097/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 33% (6227/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [2980/4166] done (13020s elapsed, ~5182s remaining, 1942/3900 usable so far)
+Warning: 29% (5732/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 38% (6767/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3000/4166] done (13788s elapsed, ~5359s remaining, 1953/3920 usable so far)
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (5665/18890) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3020/4166] done (14124s elapsed, ~5359s remaining, 1964/3940 usable so far)
+Warning: 21% (3728/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3040/4166] done (14205s elapsed, ~5261s remaining, 1977/3960 usable so far)
+Warning: 20% (3664/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3060/4166] done (14275s elapsed, ~5159s remaining, 1991/3980 usable so far)
+Warning: 26% (5071/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3080/4166] done (14345s elapsed, ~5058s remaining, 2006/4000 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3100/4166] done (14443s elapsed, ~4966s remaining, 2012/4020 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 23% (4239/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3120/4166] done (14553s elapsed, ~4879s remaining, 2024/4040 usable so far)
+Warning: 26% (4638/17602) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3140/4166] done (14645s elapsed, ~4785s remaining, 2035/4060 usable so far)
+  [3160/4166] done (14727s elapsed, ~4688s remaining, 2048/4080 usable so far)
+  [3180/4166] done (14798s elapsed, ~4588s remaining, 2063/4100 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 24% (4448/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3200/4166] done (14864s elapsed, ~4487s remaining, 2079/4120 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3220/4166] done (14934s elapsed, ~4387s remaining, 2091/4140 usable so far)
+  [3240/4166] done (15009s elapsed, ~4290s remaining, 2106/4160 usable so far)
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3260/4166] done (15079s elapsed, ~4191s remaining, 2121/4180 usable so far)
+Warning: 21% (3833/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3280/4166] done (15161s elapsed, ~4095s remaining, 2132/4200 usable so far)
+Warning: 31% (6105/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3300/4166] done (15239s elapsed, ~3999s remaining, 2143/4220 usable so far)
+  [3320/4166] done (15314s elapsed, ~3902s remaining, 2157/4240 usable so far)
+  [3340/4166] done (15370s elapsed, ~3801s remaining, 2172/4260 usable so far)
+  [3360/4166] done (15450s elapsed, ~3706s remaining, 2184/4280 usable so far)
+  [3380/4166] done (15531s elapsed, ~3612s remaining, 2200/4300 usable so far)
+Warning: 21% (3737/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3400/4166] done (15604s elapsed, ~3516s remaining, 2212/4320 usable so far)
+Warning: 21% (3740/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3420/4166] done (15668s elapsed, ~3418s remaining, 2223/4340 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 26% (5107/19780) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3440/4166] done (15741s elapsed, ~3322s remaining, 2237/4360 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3460/4166] done (15801s elapsed, ~3224s remaining, 2250/4380 usable so far)
+  [3480/4166] done (15868s elapsed, ~3128s remaining, 2262/4400 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3500/4166] done (15934s elapsed, ~3032s remaining, 2275/4420 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3520/4166] done (16004s elapsed, ~2937s remaining, 2287/4440 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3540/4166] done (16081s elapsed, ~2844s remaining, 2296/4460 usable so far)
+Warning: 21% (3699/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3560/4166] done (16139s elapsed, ~2747s remaining, 2307/4480 usable so far)
+  [3580/4166] done (16201s elapsed, ~2652s remaining, 2318/4500 usable so far)
+  [3600/4166] done (16263s elapsed, ~2557s remaining, 2330/4520 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3620/4166] done (16333s elapsed, ~2463s remaining, 2340/4540 usable so far)
+Warning: 21% (3745/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3704/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3640/4166] done (16391s elapsed, ~2369s remaining, 2351/4560 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3660/4166] done (16462s elapsed, ~2276s remaining, 2364/4580 usable so far)
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3680/4166] done (16526s elapsed, ~2183s remaining, 2375/4600 usable so far)
+  [3700/4166] done (16587s elapsed, ~2089s remaining, 2386/4620 usable so far)
+  [3720/4166] done (16653s elapsed, ~1997s remaining, 2397/4640 usable so far)
+  [3740/4166] done (16712s elapsed, ~1904s remaining, 2409/4660 usable so far)
+  [3760/4166] done (16790s elapsed, ~1813s remaining, 2421/4680 usable so far)
+  [3780/4166] done (16853s elapsed, ~1721s remaining, 2437/4700 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3800/4166] done (16926s elapsed, ~1630s remaining, 2452/4720 usable so far)
+  [3820/4166] done (16993s elapsed, ~1539s remaining, 2468/4740 usable so far)
+Warning: 31% (412/1312) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3840/4166] done (17069s elapsed, ~1449s remaining, 2481/4760 usable so far)
+  [3860/4166] done (17161s elapsed, ~1360s remaining, 2493/4780 usable so far)
+Warning: 31% (6096/19692) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3880/4166] done (17250s elapsed, ~1272s remaining, 2509/4800 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 23% (4243/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3900/4166] done (17343s elapsed, ~1183s remaining, 2520/4820 usable so far)
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3920/4166] done (17414s elapsed, ~1093s remaining, 2536/4840 usable so far)
+Warning: 21% (3727/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3725/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 21% (3729/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 20% (3666/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3940/4166] done (17493s elapsed, ~1003s remaining, 2548/4860 usable so far)
+Warning: 24% (4420/18494) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [3960/4166] done (17570s elapsed, ~914s remaining, 2563/4880 usable so far)
+  [3980/4166] done (17661s elapsed, ~825s remaining, 2578/4900 usable so far)
+Warning: 30% (6027/20209) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [4000/4166] done (17753s elapsed, ~737s remaining, 2590/4920 usable so far)
+  [4020/4166] done (17833s elapsed, ~648s remaining, 2604/4940 usable so far)
+  [4040/4166] done (17935s elapsed, ~559s remaining, 2615/4960 usable so far)
+  [4060/4166] done (18029s elapsed, ~471s remaining, 2628/4980 usable so far)
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [4080/4166] done (18141s elapsed, ~382s remaining, 2645/5000 usable so far)
+Warning: 20% (3663/17997) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [4100/4166] done (18236s elapsed, ~294s remaining, 2661/5020 usable so far)
+  [4120/4166] done (18344s elapsed, ~205s remaining, 2676/5040 usable so far)
+  [4140/4166] done (18447s elapsed, ~116s remaining, 2692/5060 usable so far)
+Warning: 36% (6443/17707) of the cadences will be ignored due to the quality mask (quality_bitmask=17087).
+  [4160/4166] done (18555s elapsed, ~27s remaining, 2704/5080 usable so far)
+  [4166/4166] done (18606s elapsed, ~0s remaining, 2709/5086 usable so far)
+
+Total wall time: 18609s for 4166 jobs
+status
+completed    2709
+failed       2377
+Name: count, dtype: int64
+Saved to /Users/anujtripathi/Downloads/ExoplanetAI/code/experiments/training_centroid_results.csv

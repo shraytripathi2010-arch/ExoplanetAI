@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Dashboard -- Exoplanet Candidate Tracker{% endblock %}
+{% block content %}
+
+<section class="stat-row">
+  <div class="stat"><span class="stat-label">Total candidates tracked</span><span class="stat-value">{{ counts.total }}</span></div>
+  <div class="stat"><span class="stat-label">High confidence</span><span class="stat-value tier-high">{{ counts.by_tier.get('High', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">Medium confidence</span><span class="stat-value tier-medium">{{ counts.by_tier.get('Medium', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">Low confidence</span><span class="stat-value tier-low">{{ counts.by_tier.get('Low', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">Pass combined filter</span><span class="stat-value accent">{{ counts.combined_filter_pass }}</span></div>
+  <div class="stat"><span class="stat-label">Needs manual review</span><span class="stat-value warn">{{ counts.needs_manual_review }}</span></div>
+  <div class="stat"><span class="stat-label">Flagged since found</span><span class="stat-value">{{ counts.flagged_since_found }}</span></div>
+</section>
+
+<section class="card">
+  <h2>Run a full Update</h2>
+  <p class="muted">
+    Re-runs the entire pipeline live: fresh sector check, download new unexamined candidates,
+    preprocess, TLS search, classify, re-verify against the NASA Exoplanet Archive/ExoFOP/VSX/Gaia,
+    physical plausibility, and the combined-filter ranking. This can take a long time
+    (past runs of ~1,000 stars took multiple hours) -- it runs in the background, so you can
+    leave this page and come back. Existing candidates stay fully browsable while it runs.
+  </p>
+  {% if running_run %}
+    <div id="update-progress" data-run-id="{{ running_run.run_id }}">
+      <ol class="pipeline-steps">
+        {% for key, label in [('06_download_unknown','Download'), ('07_search_unknown','Search &amp; verify'), ('08_characterize_candidates','Characterize'), ('sync','Sync'), ('centroid_check','Centroid check')] %}
+          {% set stage_order = ['06_download_unknown','07_search_unknown','08_characterize_candidates','sync','centroid_check'] %}
+          {% set cur_idx = stage_order.index(running_run.current_stage) if running_run.current_stage in stage_order else -1 %}
+          {% set this_idx = stage_order.index(key) %}
+          <li class="pipeline-step {{ 'is-done' if this_idx < cur_idx }} {{ 'is-active' if this_idx == cur_idx }}" data-stage="{{ key }}">
+            <span class="pipeline-step-dot">{{ this_idx + 1 }}</span>
+            <span class="pipeline-step-label">{{ label|safe }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+      <p class="action-progress"><span class="spinner" aria-hidden="true"></span>
+        <span id="run-progress-text" class="mono">{{ running_run.progress_text }}</span></p>
+      <p class="muted">Started {{ running_run.started_at }}.</p>
+    </div>
+  {% else %}
+    <form action="{{ url_for('start_update') }}" method="post" class="inline-form">
+      <label for="sample_size">Sample size</label>
+      <input type="number" id="sample_size" name="sample_size" value="300" min="20" max="2000">
+      <button type="submit">Update</button>
+    </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Automatic scheduling</h2>
+  <p class="muted">
+    Runs the same Update automatically on an interval, no button click needed.
+    <strong>This only fires while this app (<code class="mono">python3 app.py</code>) is running</strong> --
+    closing the terminal or letting the Mac sleep pauses it, same as any background job here.
+    For a schedule that survives that, see <code class="mono">web/README_SCHEDULING.md</code> for an
+    optional macOS <code class="mono">launchd</code> setup (a real change to your machine's startup
+    behavior, so that's documented rather than done automatically).
+  </p>
+  <div class="status-card action-card" style="margin-bottom: var(--sp-4);">
+    <div class="status-card-item">
+      <span class="stat-label">Status</span>
+      <span class="badge {{ 'badge-completed' if scheduler_cfg.enabled else 'badge-failed' }}">
+        <span class="dot"></span>{{ 'Enabled' if scheduler_cfg.enabled else 'Disabled' }}
+      </span>
+    </div>
+    {% if scheduler_cfg.enabled %}
+    <div class="status-card-item">
+      <span class="stat-label">Next scheduled run</span>
+      <span class="mono">{{ scheduler_cfg.next_run_at or 'not yet set' }}</span>
+    </div>
+    {% if scheduler_cfg.last_scheduled_run_at %}
+    <div class="status-card-item">
+      <span class="stat-label">Last scheduled run</span>
+      <span class="mono">{{ scheduler_cfg.last_scheduled_run_at }}</span>
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+  <form action="{{ url_for('scheduler_settings') }}" method="post" class="inline-form">
+    <label><input type="checkbox" name="enabled" value="1" {{ 'checked' if scheduler_cfg.enabled }}> Enabled</label>
+    <label for="interval_days">Every</label>
+    <input type="number" id="interval_days" name="interval_days" value="{{ scheduler_cfg.interval_days }}" min="0.01" step="0.5" style="width:70px;">
+    <span class="muted">days</span>
+    <label for="sched_sample_size">Sample size</label>
+    <input type="number" id="sched_sample_size" name="sample_size" value="{{ scheduler_cfg.sample_size }}" min="20" max="2000">
+    <button type="submit">Save</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Update batches</h2>
+  <p class="muted">
+    Each Update run gets its own batch below -- expand one to see exactly which candidates
+    it found (not a repeat of the full list every time). Expand a candidate within a batch
+    to see its full picture without leaving this page.
+  </p>
+  {% if recent_runs %}
+  <div class="run-batches">
+    {% for r in recent_runs %}
+      <div class="run-batch" data-run-id="{{ r.run_id }}">
+        <div class="run-batch-head-row">
+          <button type="button" class="run-batch-head expand-arrow" aria-expanded="false">
+            <span class="arrow-glyph">&#9656;</span>
+            <span class="run-batch-summary">
+              {% if r.current_stage == 'initial_import' %}
+                <strong>Initial import</strong> -- candidates present before the web app existed
+              {% else %}
+                <strong>Update started {{ r.started_at }}</strong>
+                (sample size {{ r.sample_size }})
+              {% endif %}
+              <span class="badge badge-{{ r.status }}">{{ r.status }}</span>
+              <span class="muted">{{ r.batch_counts.new }} new candidate{{ 's' if r.batch_counts.new != 1 }}</span>
+            </span>
+          </button>
+          {% if r.status != 'running' %}
+          <form action="{{ url_for('delete_run', run_id=r.run_id) }}" method="post"
+                class="run-delete-form" onsubmit="return confirm('Remove this log entry? The candidates it found stay in your candidate list either way -- this only removes the batch entry here.');">
+            <button type="submit" class="run-delete-btn" title="Remove this log entry">&times;</button>
+          </form>
+          {% endif %}
+        </div>
+        {% if r.error_message %}
+          <div class="run-error-detail">
+            <strong>What failed:</strong> {{ r.error_message }}
+            {% if r.current_stage == '06_download_unknown' %}
+              <br><span class="muted">This stage automatically retries up to 5 times (each a fresh process,
+              since all downloaded data is checkpointed to disk) before being reported as failed -- this
+              message reflects the final attempt. If it's the known stdout race, your data is safe; just
+              click Update again to resume from where it left off.</span>
+            {% endif %}
+          </div>
+        {% endif %}
+        <div class="run-batch-body" hidden></div>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="muted">No runs yet.</p>
+  {% endif %}
+</section>
+
+{% endblock %}

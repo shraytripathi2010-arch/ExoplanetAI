@@ -1,0 +1,34 @@
+# Raw and processed light curve data -- large, regeneratable via the
+# pipeline scripts (01_download_known.py, 06_download_unknown.py, etc.),
+# not source. This is the reason the original push never completed: ~67GB
+# of this was baked into the one commit with no .gitignore in place.
+data/known_lightcurves/
+data/known_lightcurves_negative/
+data/unknown_lightcurves/
+data/unknown_lightcurves_widesector/
+data/processed/
+data/processed_negative/
+data/processed_unknown/
+data/processed_unknown_widesector/
+data/retrain_pipeline/
+
+# Kepler pilot's own raw/processed downloads (same reasoning) -- the
+# pilot's scripts and small result CSVs stay tracked.
+code/kepler_pilot/raw/
+code/kepler_pilot/processed/
+
+# Mutable application state, not source -- changes on every Update run,
+# should never be version-controlled like a live database dump.
+web/exoplanet_candidates.db
+web/exoplanet.db
+
+# Regenerated logs and on-demand plot images.
+web/job_logs/
+web/static/plots/
+
+# Python bytecode cache.
+__pycache__/
+*.pyc
+
+# OS junk files.
+.DS_Store

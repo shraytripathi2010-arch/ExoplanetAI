@@ -1,0 +1,14 @@
+{
+  "hgb_alone_test_auc": 0.9016049234943244,
+  "gp_alone_test_auc": 0.8673120274502762,
+  "cnn_alone_test_auc": 0.704370897919285,
+  "ensemble_test_auc": 0.9018094041135516,
+  "meta_coefficients": [
+    4.131734731537668,
+    2.183986694043377,
+    2.330436268665169
+  ],
+  "n_train": 4392,
+  "n_test": 1099,
+  "note": "Evaluated on the subset of rows with a real light curve file available for the CNN (~2% attrition applied identically to train/test); HGB-alone AUC here is computed on this same restricted subset, so it differs slightly from the full-dataset production baseline (0.9032) -- both numbers are reported for honest comparison."
+}

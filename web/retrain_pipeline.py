@@ -1,0 +1,346 @@
+"""
+retrain_pipeline.py -- continuous retraining infrastructure (Item 2, Part B).
+
+Independent of the Kepler pilot (Part A) -- this only ever touches TESS
+data, reusing this project's existing real/negative pipeline exactly as it
+already works, just triggered periodically instead of by hand.
+
+Three responsibilities, matching the three-step request:
+  1. find_new_labeled_examples() -- live re-query of the NASA Exoplanet
+     Archive (confirmed planets) and TOI table (false positives), diffed
+     against what's already a row in data/training_dataset/training.csv.
+  2. process_and_append_new_examples() -- runs each newly-found star
+     through the EXACT SAME download -> preprocess -> TLS feature
+     extraction functions the original pipeline uses (imported, not
+     rewritten), then appends a matching row to training.csv.
+  3. maybe_trigger_retrain() -- once enough new rows have accumulated,
+     retrains via 05_train_models.py's own model-building code, compares
+     to the current production model via the same paired-bootstrap CI
+     standard used throughout this project, and ONLY promotes if it wins
+     by more than noise. Every attempt (promoted or not) is logged.
+
+Never auto-replaces best_model.joblib outside of this explicit gate.
+"""
+import os
+import sys
+import time
+import json
+import shutil
+import importlib
+
+import numpy as np
+import pandas as pd
+
+WEB_DIR = os.path.dirname(os.path.abspath(__file__))
+CODE_DIR = os.path.join(WEB_DIR, "..", "code")
+sys.path.insert(0, CODE_DIR)
+sys.path.insert(0, WEB_DIR)
+import db
+
+m06 = importlib.import_module("06_download_unknown")
+m02 = importlib.import_module("02_preprocess")
+m05 = importlib.import_module("05_train_models")
+
+PROJECT_ROOT = os.path.join(WEB_DIR, "..")
+TRAINING_CSV = os.path.join(PROJECT_ROOT, "data", "training_dataset", "training.csv")
+RETRAIN_RAW_DIR = os.path.join(PROJECT_ROOT, "data", "retrain_pipeline", "raw")
+MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
+MODEL_VERSIONS_DIR = os.path.join(MODELS_DIR, "versions")
+PRODUCTION_MODEL_PATH = os.path.join(MODELS_DIR, "best_model.joblib")
+PRODUCTION_METADATA_PATH = os.path.join(MODELS_DIR, "best_model_metadata.json")
+
+os.makedirs(RETRAIN_RAW_DIR, exist_ok=True)
+os.makedirs(MODEL_VERSIONS_DIR, exist_ok=True)
+
+# Threshold reasoning: current training set is 5,491 rows. 50 new examples
+# is ~0.9% growth -- small enough that a retrain won't be forced on some
+# arbitrary calendar schedule regardless of whether anything meaningful
+# changed, large enough to be a real sample (this project's own prior
+# experiment, the TOI FA expansion, tested a comparable-order change of
+# +98 real stars and found that WAS enough data to draw an honest
+# before/after conclusion from, even though the conclusion was negative).
+RETRAIN_THRESHOLD = 50
+N_BOOTSTRAP = 2000
+RANDOM_SEED = 42
+
+
+def _read_csv_url(url):
+    return pd.read_csv(url)
+
+
+def find_new_labeled_examples():
+    """Live re-query, same URL pattern already validated in
+    08_characterize_candidates.py's fetch_fresh_exclusion_data. Returns a
+    list of {host, label, source} dicts for stars not already a row in
+    training.csv (matched by host, which is always 'TIC_<id>')."""
+    existing_hosts = set()
+    if os.path.exists(TRAINING_CSV):
+        existing_hosts = set(pd.read_csv(TRAINING_CSV)["host"].astype(str))
+    already_watched = db.get_known_watch_hosts()
+
+    confirmed_url = ("https://exoplanetarchive.ipac.caltech.edu/TAP/sync?"
+                      "query=select+hostname,tic_id+from+pscomppars&format=csv")
+    confirmed = _read_csv_url(confirmed_url)
+    confirmed_tics = set(
+        confirmed["tic_id"].dropna().astype(str).str.replace("TIC ", "", regex=False).astype("int64")
+    )
+
+    toi_url = ("https://exoplanetarchive.ipac.caltech.edu/TAP/sync?"
+               "query=select+tid,tfopwg_disp+from+toi&format=csv")
+    toi = _read_csv_url(toi_url)
+    fp_tics = set(toi[toi["tfopwg_disp"] == "FP"]["tid"].dropna().astype("int64"))
+
+    new_rows = []
+    for tic_id in confirmed_tics:
+        host = f"TIC_{tic_id}"
+        if host not in existing_hosts and host not in already_watched:
+            new_rows.append({"host": host, "label": 1, "source": "pscomppars_confirmed"})
+    for tic_id in fp_tics:
+        host = f"TIC_{tic_id}"
+        if host not in existing_hosts and host not in already_watched:
+            new_rows.append({"host": host, "label": 0, "source": "toi_false_positive"})
+
+    n_added = db.add_watched_labels(new_rows)
+    print(f"find_new_labeled_examples: {len(confirmed_tics)} confirmed, {len(fp_tics)} FP live "
+          f"(archive), {len(new_rows)} not already in training.csv or the watch queue, "
+          f"{n_added} newly queued.")
+    return new_rows
+
+
+def _fetch_stellar_params_for_host(tic_id):
+    """Real per-star st_rad/st_teff/st_mass from the TIC catalog -- same
+    astroquery.mast.Catalogs call 06_download_unknown.py's
+    fetch_stellar_params already uses, just for a single star at a time
+    here since this runs one new label at a time, not in bulk."""
+    from astroquery.mast import Catalogs
+    r = Catalogs.query_criteria(catalog="Tic", ID=[tic_id])
+    if len(r) == 0:
+        return None, None, None
+    row = r[0]
+    return (float(row["rad"]) if row["rad"] is not None else None,
+            float(row["Teff"]) if row["Teff"] is not None else None,
+            float(row["mass"]) if row["mass"] is not None else None)
+
+
+def process_and_append_new_examples(max_new=None):
+    """Runs every pending watch-queue entry through download -> preprocess
+    -> TLS feature extraction, reusing 06_download_unknown.py's
+    try_search/_safe_download and 02_preprocess.py's process_one_file
+    UNCHANGED, then appends a matching row to training.csv. Resumable:
+    each star's status is tracked in label_watch_queue, so a crash mid-run
+    just leaves some stars 'pending' for the next tick to pick up."""
+    pending = db.get_pending_watch_labels()
+    if max_new:
+        pending = pending[:max_new]
+    if not pending:
+        return 0
+
+    print(f"process_and_append_new_examples: {len(pending)} pending stars to process...")
+    appended = 0
+    for item in pending:
+        host, label = item["host"], item["label"]
+        tic_id = int(host.replace("TIC_", ""))
+        try:
+            search, method = m06.try_search(tic_id)
+            if len(search) == 0:
+                db.mark_watch_label_failed(host, "No TESS data found via MAST")
+                continue
+            lc = m06._safe_download(search[0])
+            if lc is None:
+                db.mark_watch_label_failed(host, "Download failed")
+                continue
+            raw_path = os.path.join(RETRAIN_RAW_DIR, host + ".csv")
+            lc.to_pandas().reset_index().to_csv(raw_path, index=False)
+
+            result = m02.process_one_file(raw_path)
+            if result["status"] != "Success":
+                db.mark_watch_label_failed(host, f"Preprocess: {result['status']}")
+                continue
+            # process_one_file writes directly to its own OUTPUT_FOLDER
+            # (data/processed/, the SAME canonical folder the rest of this
+            # project's positive-class pipeline uses) -- not a
+            # retrain-pipeline-specific copy, so newly-appended stars'
+            # processed light curves are genuinely part of the same real
+            # dataset going forward, not a parallel shadow copy.
+            processed_path = os.path.join(m02.OUTPUT_FOLDER, host + ".csv")
+            if not os.path.exists(processed_path):
+                db.mark_watch_label_failed(host, "Preprocessed output not found where expected")
+                continue
+
+            st_rad, st_teff, st_mass = _fetch_stellar_params_for_host(tic_id)
+            feats, status = m06.compute_all_features(
+                processed_path, host, st_rad, st_mass, m05.FEATURE_COLUMNS
+            )
+            if feats is None:
+                db.mark_watch_label_failed(host, f"TLS/feature extraction: {status}")
+                continue
+
+            row = dict(feats)
+            row.update({"host": host, "label": label, "st_rad": st_rad, "st_teff": st_teff,
+                        "st_mass": st_mass})
+            # BUG FIXED (caught live): appending with header=False writes
+            # values POSITIONALLY -- a naive pd.DataFrame([row]) has whatever
+            # key order dict(feats) happened to produce, which does NOT
+            # match training.csv's real column order, so every value landed
+            # in the wrong column (host became a period value, label became
+            # an SDE value, etc.) until this reindex was added. Any column
+            # this row doesn't populate (ra/dec, pl_names, QC-stage counts
+            # that only exist for the original bulk-downloaded stars) is
+            # correctly left NaN, not misaligned.
+            existing_columns = pd.read_csv(TRAINING_CSV, nrows=0).columns if os.path.exists(TRAINING_CSV) else None
+            df_row = pd.DataFrame([row])
+            if existing_columns is not None:
+                df_row = df_row.reindex(columns=existing_columns)
+                df_row.to_csv(TRAINING_CSV, mode="a", header=False, index=False)
+            else:
+                df_row.to_csv(TRAINING_CSV, index=False)
+
+            db.mark_watch_label_processed(host, len(pd.read_csv(processed_path)))
+            appended += 1
+        except Exception as e:
+            db.mark_watch_label_failed(host, f"Unexpected error: {e}")
+
+    print(f"process_and_append_new_examples: {appended}/{len(pending)} appended to training.csv.")
+    return appended
+
+
+def _paired_bootstrap_auc_diff(y_test, proba_a, proba_b, n_bootstrap=N_BOOTSTRAP, seed=RANDOM_SEED):
+    from sklearn.metrics import roc_auc_score
+    rng = np.random.RandomState(seed)
+    y_arr = np.asarray(y_test)
+    n = len(y_arr)
+    diffs = []
+    for _ in range(n_bootstrap):
+        idx = rng.randint(0, n, n)
+        y_b = y_arr[idx]
+        if len(np.unique(y_b)) < 2:
+            continue
+        diffs.append(roc_auc_score(y_b, proba_b[idx]) - roc_auc_score(y_b, proba_a[idx]))
+    diffs = np.array(diffs)
+    lo, hi = np.percentile(diffs, [2.5, 97.5])
+    return float(diffs.mean()), float(lo), float(hi)
+
+
+def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
+    """Checks how many NEW rows have been appended since the last retrain
+    attempt (any attempt, promoted or not -- re-testing after every batch
+    of new data is the point, not just after a promoted one). If over
+    threshold, retrains + validates + promotes-or-not, and ALWAYS logs the
+    attempt regardless of outcome.
+
+    dry_run=True runs the exact same retrain/compare/decide logic but never
+    writes to PRODUCTION_MODEL_PATH/PRODUCTION_METADATA_PATH or the DB,
+    regardless of what the promotion decision would have been -- for
+    verifying this pipeline works without any risk of a noise-driven
+    promotion on too little data (e.g. testing with a near-zero threshold)."""
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import train_test_split
+
+    last_attempts = db.list_retrain_attempts(limit=1)
+    since = last_attempts[0]["triggered_at"] if last_attempts else "2000-01-01 00:00:00 UTC"
+    n_new = db.count_processed_watch_labels_since(since)
+    if n_new < threshold:
+        print(f"maybe_trigger_retrain: {n_new}/{threshold} new examples since last attempt -- not yet.")
+        return None
+
+    print(f"maybe_trigger_retrain: {n_new} new examples since last attempt -- triggering retrain.")
+    df = pd.read_csv(TRAINING_CSV)
+    X, y = m05.build_feature_matrix(df)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=m05.TEST_SIZE, stratify=y, random_state=m05.RANDOM_SEED
+    )
+
+    models = m05.build_models()
+    hgb_pipeline = models["HistGradientBoosting"]
+    hgb_pipeline.fit(X_train, y_train)
+    new_proba = hgb_pipeline.predict_proba(X_test)[:, 1]
+    new_auc = roc_auc_score(y_test, new_proba)
+
+    production_auc = None
+    production_proba = None
+    if os.path.exists(PRODUCTION_MODEL_PATH):
+        import joblib
+        prod_model = joblib.load(PRODUCTION_MODEL_PATH)
+        production_proba = prod_model.predict_proba(X_test)[:, 1]
+        production_auc = roc_auc_score(y_test, production_proba)
+
+    if production_proba is not None:
+        mean_diff, ci_lo, ci_hi = _paired_bootstrap_auc_diff(y_test, production_proba, new_proba)
+        promoted = ci_lo > 0
+        reasoning = (
+            f"New model test ROC-AUC {new_auc:.4f} vs production {production_auc:.4f}. "
+            f"Paired bootstrap on (new - production): mean {mean_diff:+.4f}, "
+            f"95% CI [{ci_lo:+.4f}, {ci_hi:+.4f}]. "
+            + ("Promoted: CI entirely above zero." if promoted
+               else "NOT promoted: CI includes zero or is negative -- doesn't clear the "
+                    "same statistical-significance bar every other experiment in this "
+                    "project has had to clear.")
+        )
+    else:
+        ci_lo, ci_hi = None, None
+        promoted = False
+        reasoning = "No existing production model to compare against -- not auto-promoting " \
+                    "without a baseline comparison."
+
+    if dry_run:
+        reasoning = "[DRY RUN -- nothing written] " + reasoning
+        print(f"maybe_trigger_retrain (dry run): {reasoning}")
+        return {"attempt_id": None, "promoted": promoted, "reasoning": reasoning, "dry_run": True}
+
+    version_id = None
+    model_path = None
+    if promoted:
+        import joblib
+        timestamp = db.now_iso().replace(":", "").replace(" ", "_").replace("-", "")
+        model_path = os.path.join(MODEL_VERSIONS_DIR, f"model_{timestamp}.joblib")
+        joblib.dump(hgb_pipeline, model_path)
+        shutil.copy(model_path, PRODUCTION_MODEL_PATH)
+        new_metadata = {
+            "model_name": "HistGradientBoosting_continuous_retrain",
+            "feature_columns": m05.FEATURE_COLUMNS, "test_roc_auc": float(new_auc),
+            "random_seed": m05.RANDOM_SEED, "training_rows": len(X_train), "test_rows": len(X_test),
+        }
+        with open(PRODUCTION_METADATA_PATH, "w") as f:
+            json.dump(new_metadata, f, indent=2)
+
+    version_id = db.add_model_version(
+        model_path or "(not promoted -- no file saved)", len(X_train),
+        int((y_train == 1).sum()), int((y_train == 0).sum()), float(new_auc),
+        (ci_lo or 0.0, ci_hi or 0.0), retrain_attempt_id=None, is_live=promoted,
+    )
+    attempt_id = db.log_retrain_attempt(
+        trigger_reason=f"{n_new} new labeled examples processed since last attempt",
+        n_new_examples=n_new, n_training_rows=len(df), test_roc_auc=float(new_auc),
+        production_roc_auc=production_auc, bootstrap_ci=(ci_lo, ci_hi), promoted=promoted,
+        model_version_id=version_id, reasoning=reasoning,
+    )
+    print(f"maybe_trigger_retrain: attempt #{attempt_id} logged. {reasoning}")
+    return {"attempt_id": attempt_id, "promoted": promoted, "reasoning": reasoning}
+
+
+# BUG AVOIDED (found live, not guessed): the very first live run of
+# find_new_labeled_examples() queued 4,485 "new" stars -- NOT because that
+# many were genuinely just published, but because most confirmed planets in
+# the archive were discovered by other missions (RV, ground-based, Kepler)
+# and never had TESS data at all -- the same thing the ORIGINAL one-time
+# 01_download_known.py bulk run already had to filter through (most of its
+# candidate list also failed "No TESS data" via the same try_search call).
+# Processing all 4,485 in one scheduler tick would mean hours of MAST
+# download attempts triggered by a single background poll -- capped per-tick
+# below so this stays a genuinely incremental, low-footprint background
+# process, not an accidental re-run of the original bulk gather.
+PER_TICK_MAX_NEW = 25
+
+
+def scheduler_tick():
+    """Called from job_runner.py's existing scheduler loop -- one full
+    cycle: find new labels, process a bounded batch of what's pending, maybe
+    retrain. Deliberately NOT run on the same 60s cadence as the Update-job
+    due-check -- see job_runner.py's _scheduler_loop for the coarser
+    interval this is actually called on."""
+    try:
+        find_new_labeled_examples()
+        process_and_append_new_examples(max_new=PER_TICK_MAX_NEW)
+        maybe_trigger_retrain()
+    except Exception as e:
+        print(f"retrain_pipeline.scheduler_tick error (does not affect Update jobs): {e}")

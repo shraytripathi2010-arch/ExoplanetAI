@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Exoplanet Candidate Tracker{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="{{ url_for('dashboard') }}">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">Exoplanet Candidate Tracker</span>
+    </a>
+    <nav class="topnav">
+      <a href="{{ url_for('dashboard') }}" class="{{ 'is-active' if request.endpoint == 'dashboard' }}">Dashboard</a>
+      <a href="{{ url_for('candidate_list') }}" class="{{ 'is-active' if request.endpoint == 'candidate_list' }}">Candidates</a>
+      <a href="{{ url_for('model_history') }}" class="{{ 'is-active' if request.endpoint == 'model_history' }}">Model History</a>
+    </nav>
+  </div>
+</header>
+
+{% if running_run %}
+<div class="run-banner" data-run-id="{{ running_run.run_id }}">
+  <span class="run-banner-dot" aria-hidden="true"></span>
+  <strong>Update running</strong>
+  <span id="run-banner-text" class="mono">{{ running_run.current_stage }} &mdash; {{ running_run.progress_text }}</span>
+</div>
+{% endif %}
+
+<div class="scope-note">
+  <span class="scope-note-icon" aria-hidden="true">i</span>
+  <span>This tool is an independent research pipeline that finds and ranks unexamined TESS stars
+  as possible-planet candidates for human review. It is <strong>not a planet-discovery machine</strong>,
+  and nothing shown here is a confirmed exoplanet.</span>
+</div>
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

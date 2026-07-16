@@ -1,0 +1,18 @@
+{
+  "n_total": 5497,
+  "n_with_centroid": 2709,
+  "n_train": 4397,
+  "n_test": 1100,
+  "cv_auc_base_mean": 0.9142304571159343,
+  "cv_auc_base_std": 0.006627673109571046,
+  "cv_auc_centroid_mean": 0.9140377957487649,
+  "cv_auc_centroid_std": 0.006225238072932872,
+  "test_auc_base": 0.9030034024280285,
+  "test_auc_centroid": 0.9050707635287613,
+  "production_recorded_auc": 0.9031559838011451,
+  "bootstrap_mean_diff": 0.0020579889297329037,
+  "bootstrap_ci_lower": -0.0019511208121269468,
+  "bootstrap_ci_upper": 0.005901950961190061,
+  "clears_promotion_bar": false,
+  "verdict": "Centroid feature is within noise (CI includes zero) -- does NOT clear the same statistical-significance bar every other experiment in this project has had to clear."
+}

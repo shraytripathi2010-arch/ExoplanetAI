@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "exoplanet-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["web/app.py"],
+      "port": 5050,
+      "autoPort": true
+    }
+  ]
+}
