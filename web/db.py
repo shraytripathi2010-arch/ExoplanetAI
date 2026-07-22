@@ -202,6 +202,22 @@ CREATE TABLE IF NOT EXISTS model_versions (
     bootstrap_ci_upper REAL,
     retrain_attempt_id INTEGER REFERENCES retrain_attempts(attempt_id)
 );
+
+-- Single-row baseline recording the real class counts at the time of the
+-- last full CNN-vs-classical architecture comparison (Part A). Retrains
+-- compare the current dataset's class counts against this baseline to
+-- flag "worth re-evaluating CNN viability" -- NOT to auto-build a CNN,
+-- just to surface that real data has grown enough that the original
+-- CNN-underperforms-classical finding might no longer hold. Update this
+-- row by hand (db.update_architecture_baseline) whenever the comparison
+-- is actually re-run, so the flag resets against the new baseline.
+CREATE TABLE IF NOT EXISTS architecture_baseline (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    n_positive INTEGER NOT NULL,
+    n_negative INTEGER NOT NULL,
+    compared_at TEXT NOT NULL,
+    note TEXT
+);
 """
 
 
@@ -247,6 +263,11 @@ MIGRATIONS = {
         ("manual_review_status", "TEXT"),
         ("manual_review_note", "TEXT"),
         ("manual_review_date", "TEXT"),
+    ],
+    "retrain_attempts": [
+        ("cnn_reevaluation_flag", "INTEGER"),
+        ("growth_pct_positive", "REAL"),
+        ("growth_pct_negative", "REAL"),
     ],
 }
 
@@ -845,18 +866,22 @@ def count_processed_watch_labels_since(since_iso):
 
 def log_retrain_attempt(trigger_reason, n_new_examples, n_training_rows=None, test_roc_auc=None,
                          production_roc_auc=None, bootstrap_ci=None, promoted=False,
-                         model_version_id=None, reasoning=None, error_message=None):
+                         model_version_id=None, reasoning=None, error_message=None,
+                         cnn_reevaluation_flag=False, growth_pct_positive=None,
+                         growth_pct_negative=None):
     ci_lower, ci_upper = (bootstrap_ci if bootstrap_ci else (None, None))
     with get_conn() as conn:
         cur = conn.execute(
             """INSERT INTO retrain_attempts
                (triggered_at, trigger_reason, n_new_examples, n_training_rows, test_roc_auc,
                 production_roc_auc, bootstrap_ci_lower, bootstrap_ci_upper, promoted,
-                model_version_id, reasoning, error_message)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                model_version_id, reasoning, error_message, cnn_reevaluation_flag,
+                growth_pct_positive, growth_pct_negative)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (now_iso(), trigger_reason, n_new_examples, n_training_rows, test_roc_auc,
              production_roc_auc, ci_lower, ci_upper, int(promoted), model_version_id,
-             reasoning, error_message),
+             reasoning, error_message, int(cnn_reevaluation_flag), growth_pct_positive,
+             growth_pct_negative),
         )
         return cur.lastrowid
 
@@ -898,3 +923,41 @@ def get_live_model_version():
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM model_versions WHERE is_live = 1 LIMIT 1").fetchone()
         return dict(row) if row else None
+
+
+# ---- architecture-comparison baseline (single row) ----
+# Real numbers from code/experiments/cnn_dataset.npz's real (non-synthetic)
+# examples at the time of the Part A CNN-vs-classical comparison -- not a
+# placeholder default, the actual measured class counts then.
+_ARCHITECTURE_BASELINE_DEFAULT = {
+    "n_positive": 4223, "n_negative": 1155, "compared_at": "2026-07-17",
+    "note": "Seeded from code/experiments/cnn_dataset.npz real-example counts "
+            "(Part A CNN vs. classical comparison, real_only test ROC-AUC 0.6964).",
+}
+
+
+def get_architecture_baseline():
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM architecture_baseline WHERE id = 1").fetchone()
+        if row is None:
+            d = _ARCHITECTURE_BASELINE_DEFAULT
+            conn.execute(
+                "INSERT INTO architecture_baseline (id, n_positive, n_negative, compared_at, note) "
+                "VALUES (1, ?, ?, ?, ?)",
+                (d["n_positive"], d["n_negative"], d["compared_at"], d["note"]),
+            )
+            row = conn.execute("SELECT * FROM architecture_baseline WHERE id = 1").fetchone()
+        return dict(row)
+
+
+def update_architecture_baseline(n_positive, n_negative, note=None):
+    """Call this by hand after actually re-running the CNN-vs-classical
+    comparison, so future growth is measured against the new baseline
+    instead of re-flagging against a stale one forever."""
+    get_architecture_baseline()  # ensures the row exists
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE architecture_baseline SET n_positive = ?, n_negative = ?, "
+            "compared_at = ?, note = ? WHERE id = 1",
+            (n_positive, n_negative, now_iso(), note),
+        )

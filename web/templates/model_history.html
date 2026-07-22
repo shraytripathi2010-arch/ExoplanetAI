@@ -41,6 +41,21 @@
   {% endif %}
 </div>
 
+{% if cnn_flag_active %}
+<div class="card" style="border-left: 3px solid var(--accent, #6d5ef5);">
+  <h2>Worth re-evaluating CNN viability</h2>
+  <p class="muted">
+    Real training data has grown 20%+ in at least one class since the last CNN-vs-classical
+    architecture comparison (baseline: {{ architecture_baseline.n_positive }} positive /
+    {{ architecture_baseline.n_negative }} negative, compared {{ architecture_baseline.compared_at }}).
+    This does <strong>not</strong> mean a CNN is being built automatically -- it's a manual prompt:
+    the original CNN-underperforms-classical finding was measured at that dataset size, and enough
+    real data has since accumulated that it may be worth manually re-running that comparison.
+    See the flagged attempt(s) below for the exact growth numbers.
+  </p>
+</div>
+{% endif %}
+
 <div class="card">
   <h2>Model version history</h2>
   <p class="muted">Every version the continuous-retraining pipeline has ever trained, whether or
@@ -91,7 +106,8 @@
     <table class="candidate-table">
       <thead>
         <tr>
-          <th>Attempt</th><th>Triggered</th><th>New examples</th><th>Result</th><th>Reasoning</th>
+          <th>Attempt</th><th>Triggered</th><th>New examples</th><th>Result</th>
+          <th>CNN re-eval?</th><th>Reasoning</th>
         </tr>
       </thead>
       <tbody>
@@ -103,6 +119,11 @@
           <td>
             {% if a.promoted %}<span class="badge badge-pass">promoted</span>
             {% else %}<span class="badge badge-review">not promoted</span>{% endif %}
+          </td>
+          <td>
+            {% if a.cnn_reevaluation_flag %}
+              <span class="badge badge-flagged" title="Pos {{ '%+.0f'|format(a.growth_pct_positive * 100) if a.growth_pct_positive is not none else '?' }}% / Neg {{ '%+.0f'|format(a.growth_pct_negative * 100) if a.growth_pct_negative is not none else '?' }}% since baseline">worth re-evaluating</span>
+            {% else %}<span class="muted">--</span>{% endif %}
           </td>
           <td>{{ a.reasoning or a.error_message or '--' }}</td>
         </tr>

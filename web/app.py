@@ -54,6 +54,8 @@ def model_history():
     versions = db.list_model_versions(limit=50)
     attempts = db.list_retrain_attempts(limit=50)
     live_version = db.get_live_model_version()
+    architecture_baseline = db.get_architecture_baseline()
+    cnn_flag_active = any(a.get("cnn_reevaluation_flag") for a in attempts)
     production_meta = None
     production_meta_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "models", "best_model_metadata.json"
@@ -63,7 +65,9 @@ def model_history():
         with open(production_meta_path) as f:
             production_meta = json.load(f)
     return render_template("model_history.html", versions=versions, attempts=attempts,
-                            live_version=live_version, production_meta=production_meta)
+                            live_version=live_version, production_meta=production_meta,
+                            architecture_baseline=architecture_baseline,
+                            cnn_flag_active=cnn_flag_active)
 
 
 @app.route("/scheduler/settings", methods=["POST"])

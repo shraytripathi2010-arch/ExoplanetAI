@@ -245,6 +245,23 @@ def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
 
     print(f"maybe_trigger_retrain: {n_new} new examples since last attempt -- triggering retrain.")
     df = pd.read_csv(TRAINING_CSV)
+
+    # CNN-reevaluation growth check (independent of promotion): compares the
+    # CURRENT full dataset's class counts against the baseline recorded at
+    # the last real CNN-vs-classical architecture comparison. This never
+    # triggers building a CNN -- it only flags the attempt so a human knows
+    # it may be worth manually re-running that comparison, since the
+    # original "CNN underperforms with real_only data" finding was itself
+    # conditioned on the dataset size at that time.
+    baseline = db.get_architecture_baseline()
+    n_pos_now = int((df["label"] == 1).sum())
+    n_neg_now = int((df["label"] == 0).sum())
+    growth_pos = ((n_pos_now - baseline["n_positive"]) / baseline["n_positive"]
+                  if baseline["n_positive"] else 0.0)
+    growth_neg = ((n_neg_now - baseline["n_negative"]) / baseline["n_negative"]
+                  if baseline["n_negative"] else 0.0)
+    cnn_flag = growth_pos >= 0.20 or growth_neg >= 0.20
+
     X, y = m05.build_feature_matrix(df)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=m05.TEST_SIZE, stratify=y, random_state=m05.RANDOM_SEED
@@ -282,10 +299,19 @@ def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
         reasoning = "No existing production model to compare against -- not auto-promoting " \
                     "without a baseline comparison."
 
+    if cnn_flag:
+        reasoning += (
+            f" [FLAG: real training data has grown {growth_pos:+.0%} positive / "
+            f"{growth_neg:+.0%} negative since the last CNN-vs-classical architecture "
+            f"comparison ({baseline['compared_at']}) -- worth manually re-evaluating CNN "
+            f"viability now that more real data exists. Not auto-building a CNN.]"
+        )
+
     if dry_run:
         reasoning = "[DRY RUN -- nothing written] " + reasoning
         print(f"maybe_trigger_retrain (dry run): {reasoning}")
-        return {"attempt_id": None, "promoted": promoted, "reasoning": reasoning, "dry_run": True}
+        return {"attempt_id": None, "promoted": promoted, "reasoning": reasoning, "dry_run": True,
+                "cnn_reevaluation_flag": cnn_flag}
 
     version_id = None
     model_path = None
@@ -312,10 +338,12 @@ def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
         trigger_reason=f"{n_new} new labeled examples processed since last attempt",
         n_new_examples=n_new, n_training_rows=len(df), test_roc_auc=float(new_auc),
         production_roc_auc=production_auc, bootstrap_ci=(ci_lo, ci_hi), promoted=promoted,
-        model_version_id=version_id, reasoning=reasoning,
+        model_version_id=version_id, reasoning=reasoning, cnn_reevaluation_flag=cnn_flag,
+        growth_pct_positive=growth_pos, growth_pct_negative=growth_neg,
     )
     print(f"maybe_trigger_retrain: attempt #{attempt_id} logged. {reasoning}")
-    return {"attempt_id": attempt_id, "promoted": promoted, "reasoning": reasoning}
+    return {"attempt_id": attempt_id, "promoted": promoted, "reasoning": reasoning,
+            "cnn_reevaluation_flag": cnn_flag}
 
 
 # BUG AVOIDED (found live, not guessed): the very first live run of
