@@ -289,7 +289,15 @@ def build_candidate_pool(excluded_tics, target_size):
                   f"params are re-fetched fresh below regardless -- this file may already have "
                   f"them baked in from a prior run's save, and re-merging onto that would collide "
                   f"column names instead of cleanly refreshing them.")
-            return existing[["tic_id", "sector"]]
+            # BUG FIXED (found by a clean-clone reproduction test): this
+            # returned the ENTIRE existing list, silently ignoring
+            # target_size. The repo ships a 2,000-row
+            # unknown_candidate_list.csv, so a new user running the
+            # documented quick-start (`--sample-size 10`) got a 2,000-star,
+            # ~25-hour download instead of the few minutes the flag implies.
+            # Resume support should reuse the cached list, not override the
+            # size the user explicitly asked for.
+            return existing[["tic_id", "sector"]].head(target_size)
 
     sectors, sector_obs_df = find_recent_sectors()
     sectors_used = sectors[:SECTORS_TO_TRY]

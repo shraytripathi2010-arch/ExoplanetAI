@@ -1,0 +1,15 @@
+# OPTIONAL extras -- only needed to re-run the injection-recovery and CNN
+# experiments under code/experiments/.
+#
+# Kept OUT of requirements.txt deliberately: torch is a ~2 GB download and
+# pulling it made a clean install take over ten minutes, for packages the
+# main pipeline, the deployed model and the web app never import. Verified
+# in a clean-clone test -- that install time was the single slowest step of
+# reproducing this project, and it bought nothing for anyone who just wants
+# to run the pipeline.
+#
+# Install only if you want the experiments:
+#   python3 -m pip install -r requirements-experiments.txt
+
+batman-package==2.5.3
+torch==2.13.0

@@ -32,9 +32,3 @@ transitleastsquares==1.32
 
 # --- web app (web/app.py) ---
 Flask==3.1.3
-
-# --- OPTIONAL: only needed to re-run the injection-recovery and CNN
-# --- experiments under code/experiments/. The main pipeline, the deployed
-# --- model, and the web app all work without these.
-batman-package==2.5.3
-torch==2.13.0
