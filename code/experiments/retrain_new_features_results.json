@@ -1,0 +1,40 @@
+{
+  "auc_base": 0.8986216848285814,
+  "production_recorded_auc": 0.9031559838011451,
+  "variants": [
+    {
+      "name": "multi_transit_depth_chi2red only",
+      "cv_auc_mean": 0.9189953668047369,
+      "cv_auc_std": 0.006359626163329819,
+      "test_auc": 0.8965915310742897,
+      "bootstrap_mean_diff": -0.001982197171293506,
+      "bootstrap_ci_lower": -0.005760340100144185,
+      "bootstrap_ci_upper": 0.001641531939079003,
+      "clears_promotion_bar": false,
+      "verdict": "within noise -- does NOT clear the bar"
+    },
+    {
+      "name": "power_ratio features only",
+      "cv_auc_mean": 0.9192341781908967,
+      "cv_auc_std": 0.0060723885177913885,
+      "test_auc": 0.8966462656117828,
+      "bootstrap_mean_diff": -0.0019726743166044404,
+      "bootstrap_ci_lower": -0.007186181082845122,
+      "bootstrap_ci_upper": 0.00306632339424221,
+      "clears_promotion_bar": false,
+      "verdict": "within noise -- does NOT clear the bar"
+    },
+    {
+      "name": "all three new features combined",
+      "cv_auc_mean": 0.9210356615149552,
+      "cv_auc_std": 0.006099422231041242,
+      "test_auc": 0.9001990346817933,
+      "bootstrap_mean_diff": 0.0015986782077903538,
+      "bootstrap_ci_lower": -0.004391122722265178,
+      "bootstrap_ci_upper": 0.007760506138445214,
+      "clears_promotion_bar": false,
+      "verdict": "within noise -- does NOT clear the bar"
+    }
+  ],
+  "any_clears_bar": false
+}

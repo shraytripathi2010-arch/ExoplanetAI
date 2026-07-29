@@ -293,6 +293,9 @@ table.plain-table tr:last-child td { border-bottom: none; }
 .param-value .unit { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 500; color: var(--text-muted); margin-left: 2px; }
 .param-cell .badge { margin-top: 0.35rem; }
 .param-uncertainty { font-size: var(--text-xs); margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+/* The +/- band is deliberately lighter and smaller than the point estimate:
+   it qualifies the number rather than competing with it for attention. */
+.uncertainty-band { font-size: 0.62em; font-weight: 500; opacity: 0.72; white-space: nowrap; }
 .param-uncertainty-note { margin-top: var(--sp-2); }
 
 .lightcurve-plot { max-width: 100%; border-radius: var(--radius); border: 1px solid var(--border); display: block; }

@@ -26,6 +26,22 @@ web/exoplanet.db
 web/job_logs/
 web/static/plots/
 
+# Bootstrap uncertainty ensemble -- 32 refits of the production model, ~150MB.
+# Deterministically regenerable from code/09_build_bootstrap_ensemble.py
+# (fixed seeds 1000+i on the frozen training split), so it is a build artifact
+# rather than source. best_model.joblib IS tracked because it is the deployed
+# model and cannot be reproduced without its original tuning run; these can.
+# Committing them would more than double the repo for something a single
+# command rebuilds.
+models/bootstrap_ensemble/
+
+# Experiment run logs and bulky intermediate feature tables. The SCRIPTS that
+# produce them and the small JSON/CSV RESULT files are tracked -- those are the
+# findings. These are the raw byproducts, regenerable by re-running the script.
+code/experiments/*.log
+code/kepler_pilot/*.log
+code/experiments/training_with_new_features.csv
+
 # Python bytecode cache.
 __pycache__/
 *.pyc

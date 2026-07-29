@@ -146,6 +146,27 @@ CREATE TABLE IF NOT EXISTS reverify_status (
     tic_id INTEGER PRIMARY KEY REFERENCES candidates(tic_id),
     status TEXT NOT NULL DEFAULT 'never_run',
     result_summary TEXT,
+    started_at TEXT,
+    computed_at TEXT,
+    error_message TEXT
+);
+
+-- On-demand, per-candidate live ExoFOP re-check. Deliberately SEPARATE
+-- from reverify_status even though the full re-verify also touches ExoFOP:
+-- this one answers a single narrow question ("has this star picked up a
+-- TOI number / ExoFOP entry since we last looked?") in a few seconds,
+-- rather than making the user wait on arXiv/VSX/Gaia to find out. Reuses
+-- 08's own already-validated check functions -- the bulk ExoFOP TOI CSV
+-- (fetch_fresh_exclusion_data) plus the per-target page scrape
+-- (check_exofop_target_page) -- with no new ExoFOP-querying logic.
+CREATE TABLE IF NOT EXISTS exofop_refresh (
+    tic_id INTEGER PRIMARY KEY REFERENCES candidates(tic_id),
+    status TEXT NOT NULL DEFAULT 'never_run',
+    in_bulk_toi_list INTEGER,
+    toi_designation TEXT,
+    result_summary TEXT,
+    changed INTEGER,
+    started_at TEXT,
     computed_at TEXT,
     error_message TEXT
 );
@@ -245,10 +266,6 @@ def get_conn():
 # with "no such column: plausible" until this migration ran). Every future
 # additive schema change should be listed here, not just added to SCHEMA.
 MIGRATIONS = {
-    "multi_sector_evidence": [
-        ("plausible", "INTEGER"),
-        ("plausibility_note", "TEXT"),
-    ],
     "scheduler_config": [
         ("last_retrain_tick_at", "TEXT"),
     ],
@@ -269,7 +286,68 @@ MIGRATIONS = {
         ("growth_pct_positive", "REAL"),
         ("growth_pct_negative", "REAL"),
     ],
+    # Every on-demand background check records when it STARTED, not just
+    # when it finished. Without this the UI could only render a static
+    # spinner: a job running normally and a job wedged on an unbounded
+    # network call looked identical to the user, which is exactly the
+    # "can't tell working from stalled" problem. With started_at the
+    # running state can show real elapsed time and warn once a job has
+    # clearly overrun its normal duration.
+    "multi_sector_evidence": [
+        ("plausible", "INTEGER"),
+        ("plausibility_note", "TEXT"),
+        ("started_at", "TEXT"),
+        ("progress_text", "TEXT"),
+    ],
+    "centroid_evidence": [("started_at", "TEXT"), ("progress_text", "TEXT")],
+    "reverify_status": [("started_at", "TEXT")],
+    # Per-candidate uncertainty from the pre-built bootstrap ensemble
+    # (models/bootstrap_ensemble). predicted_probability is UNCHANGED and
+    # remains the production model's own answer -- these columns only
+    # describe how stable that answer is under training-set resampling.
+    # bootstrap_mean is kept so the ensemble's centre can be compared against
+    # the deployed model's point estimate rather than assumed to agree.
+    "candidates": [
+        ("manual_review_status", "TEXT"),
+        ("manual_review_note", "TEXT"),
+        ("manual_review_date", "TEXT"),
+        ("uncertainty_std", "REAL"),
+        ("uncertainty_p16", "REAL"),
+        ("uncertainty_p84", "REAL"),
+        ("uncertainty_n_members", "INTEGER"),
+        ("bootstrap_mean", "REAL"),
+        ("uncertainty_computed_at", "TEXT"),
+    ],
 }
+
+
+def save_candidate_uncertainty(tic_id, rec):
+    """Additive only -- never touches predicted_probability or
+    confidence_tier, following the same 'new evidence never silently
+    re-scores an existing candidate' rule as every other check here."""
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE candidates SET uncertainty_std = ?, uncertainty_p16 = ?,
+                 uncertainty_p84 = ?, uncertainty_n_members = ?, bootstrap_mean = ?,
+                 uncertainty_computed_at = ?
+               WHERE tic_id = ?""",
+            (rec["uncertainty_std"], rec["uncertainty_p16"], rec["uncertainty_p84"],
+             rec["uncertainty_n_members"], rec["bootstrap_mean"], now_iso(), tic_id),
+        )
+
+
+def set_check_progress(table, tic_id, progress_text):
+    """Live sub-stage text for the long on-demand checks, mirroring what
+    update_run_progress already does for the full Update. The multi-sector
+    check in particular runs ~3 minutes, most of it inside a single
+    transit-search call -- without this the page could only show one fixed
+    sentence for the whole run, which is precisely the "can't tell working
+    from stalled" state this pass was meant to remove."""
+    if table not in ("multi_sector_evidence", "centroid_evidence"):
+        raise ValueError(f"unsupported table for progress: {table}")
+    with get_conn() as conn:
+        conn.execute(f"UPDATE {table} SET progress_text = ? WHERE tic_id = ?",
+                     (progress_text, tic_id))
 
 
 def _run_migrations(conn):
@@ -294,7 +372,8 @@ def _reset_orphaned_running_jobs(conn):
     necessarily orphaned from a previous process, so it's safe to fail it."""
     msg = "Interrupted by an app restart (no result was recorded) -- click again to retry."
     conn.execute("UPDATE runs SET status = 'failed', error_message = ? WHERE status = 'running'", (msg,))
-    for table in ("multi_sector_evidence", "centroid_evidence", "reverify_status"):
+    for table in ("multi_sector_evidence", "centroid_evidence", "reverify_status",
+                  "exofop_refresh"):
         conn.execute(f"UPDATE {table} SET status = 'failed', error_message = ? WHERE status = 'running'", (msg,))
 
 
@@ -663,9 +742,10 @@ def get_multi_sector_evidence(tic_id):
 def start_multi_sector_check(tic_id):
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO multi_sector_evidence (tic_id, status) VALUES (?, 'running')
-               ON CONFLICT(tic_id) DO UPDATE SET status = 'running', error_message = NULL""",
-            (tic_id,),
+            """INSERT INTO multi_sector_evidence (tic_id, status, started_at) VALUES (?, 'running', ?)
+               ON CONFLICT(tic_id) DO UPDATE SET status = 'running', error_message = NULL,
+                                                 started_at = excluded.started_at""",
+            (tic_id, now_iso()),
         )
 
 
@@ -687,7 +767,15 @@ def save_multi_sector_result(tic_id, sectors_used, n_sectors, period_days, t0_bj
 def fail_multi_sector_check(tic_id, error_message):
     with get_conn() as conn:
         conn.execute(
-            "UPDATE multi_sector_evidence SET status = 'failed', error_message = ? WHERE tic_id = ?",
+            # Same reasoning as fail_centroid_check: a failed re-analysis has
+            # no period/SDE/transit count, so the previous run's numbers must
+            # not be left sitting in the row looking current.
+            """UPDATE multi_sector_evidence SET status = 'failed', error_message = ?,
+                 sectors_used = NULL, n_sectors = NULL, period_days = NULL, t0_bjd = NULL,
+                 duration_hours = NULL, depth_ppm = NULL, sde = NULL, transit_count = NULL,
+                 plausible = NULL, plausibility_note = NULL, computed_at = NULL,
+                 progress_text = NULL
+               WHERE tic_id = ?""",
             (error_message, tic_id),
         )
 
@@ -725,9 +813,10 @@ def get_candidates_needing_centroid():
 def start_centroid_check(tic_id):
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO centroid_evidence (tic_id, status) VALUES (?, 'running')
-               ON CONFLICT(tic_id) DO UPDATE SET status = 'running', error_message = NULL""",
-            (tic_id,),
+            """INSERT INTO centroid_evidence (tic_id, status, started_at) VALUES (?, 'running', ?)
+               ON CONFLICT(tic_id) DO UPDATE SET status = 'running', error_message = NULL,
+                                                 started_at = excluded.started_at""",
+            (tic_id, now_iso()),
         )
 
 
@@ -743,9 +832,21 @@ def save_centroid_result(tic_id, sector_used, shift_pixels, verdict):
 
 
 def fail_centroid_check(tic_id, error_message):
+    """Clears the result columns, not just the status.
+
+    BUG FIXED: this used to set status='failed' and leave shift_pixels /
+    verdict / sector_used / computed_at holding the PREVIOUS run's answer.
+    The detail template happens to branch on status so it wasn't rendered,
+    but the row still read as a confident verdict to anything that looked
+    at the columns directly, and a re-run that failed silently preserved a
+    superseded result underneath. A failed check has no verdict -- say so
+    in the data, not just in the template that happens to read it."""
     with get_conn() as conn:
         conn.execute(
-            "UPDATE centroid_evidence SET status = 'failed', error_message = ? WHERE tic_id = ?",
+            """UPDATE centroid_evidence SET status = 'failed', error_message = ?,
+                 shift_pixels = NULL, verdict = NULL, sector_used = NULL,
+                 computed_at = NULL, progress_text = NULL
+               WHERE tic_id = ?""",
             (error_message, tic_id),
         )
 
@@ -759,9 +860,10 @@ def get_reverify_status(tic_id):
 def start_reverify_status(tic_id):
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO reverify_status (tic_id, status) VALUES (?, 'running')
-               ON CONFLICT(tic_id) DO UPDATE SET status = 'running', error_message = NULL""",
-            (tic_id,),
+            """INSERT INTO reverify_status (tic_id, status, started_at) VALUES (?, 'running', ?)
+               ON CONFLICT(tic_id) DO UPDATE SET status = 'running', error_message = NULL,
+                                                 started_at = excluded.started_at""",
+            (tic_id, now_iso()),
         )
 
 
@@ -778,6 +880,44 @@ def fail_reverify(tic_id, error_message):
     with get_conn() as conn:
         conn.execute(
             "UPDATE reverify_status SET status = 'failed', error_message = ? WHERE tic_id = ?",
+            (error_message, tic_id),
+        )
+
+
+# ---- on-demand live ExoFOP re-check ----
+
+def get_exofop_refresh(tic_id):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM exofop_refresh WHERE tic_id = ?", (tic_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def start_exofop_refresh(tic_id):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO exofop_refresh (tic_id, status, started_at) VALUES (?, 'running', ?)
+               ON CONFLICT(tic_id) DO UPDATE SET status = 'running', error_message = NULL,
+                                                 started_at = excluded.started_at""",
+            (tic_id, now_iso()),
+        )
+
+
+def save_exofop_refresh_result(tic_id, in_bulk_toi_list, toi_designation, result_summary, changed):
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE exofop_refresh SET status = 'completed', in_bulk_toi_list = ?,
+                 toi_designation = ?, result_summary = ?, changed = ?, computed_at = ?,
+                 error_message = NULL
+               WHERE tic_id = ?""",
+            (int(in_bulk_toi_list) if in_bulk_toi_list is not None else None,
+             toi_designation, result_summary, int(bool(changed)), now_iso(), tic_id),
+        )
+
+
+def fail_exofop_refresh(tic_id, error_message):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE exofop_refresh SET status = 'failed', error_message = ? WHERE tic_id = ?",
             (error_message, tic_id),
         )
 

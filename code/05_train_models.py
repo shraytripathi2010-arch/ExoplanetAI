@@ -121,6 +121,8 @@ CONFUSION_MATRIX_THRESHOLD = 0.5  # see note near the confusion-matrix code for 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(SCRIPT_DIR, "..", "data", "training_dataset", "training.csv")
+SPLIT_MANIFEST_PATH = os.path.join(SCRIPT_DIR, "..", "data", "training_dataset",
+                                    "split_manifest.json")
 MODELS_DIR = os.path.join(SCRIPT_DIR, "..", "models")
 TABLES_DIR = os.path.join(SCRIPT_DIR, "..", "results", "tables")
 FIGURES_DIR = os.path.join(SCRIPT_DIR, "..", "results", "figures")
@@ -391,13 +393,64 @@ def plot_feature_importance(model_name, pipeline, path, X_test=None, y_test=None
     return True
 
 
+def split_by_host(df):
+    """Splits train/test by STABLE STAR ID, not by row position.
+
+    BUG FIXED (found by an audit that compared the split's actual membership
+    across dataset versions): this used to be
+    `train_test_split(X, y, test_size=0.2, random_state=42)`, which assigns
+    rows by POSITION. A fixed seed makes that reproducible only while the row
+    count and row order never change -- and they do change, because the
+    continuous-retraining label watcher appends newly-confirmed planets to
+    training.csv. Measured directly: after 15 rows were appended
+    (5,491 -> 5,506), only 1,010 of the original 1,099 test stars were still
+    in the test set. 89 stars the deployed model had been TRAINED on had
+    silently moved INTO the test set, inflating its apparent test ROC-AUC
+    from the true 0.9032 to 0.9113.
+
+    Membership now comes from data/training_dataset/split_manifest.json,
+    which records the exact host IDs of the original 4,392/1,099 split that
+    models/best_model.joblib was really trained and evaluated on. Stars in
+    the manifest keep their original side forever, so every future retrain is
+    measured on the same held-out stars and the numbers stay comparable.
+
+    Stars NOT in the manifest (i.e. added after it was frozen) are assigned
+    by a deterministic hash of the host name. That is stable across runs,
+    processes and machines -- unlike Python's builtin hash(), which is salted
+    per-process for strings -- and needs no mutable state, so a new star lands
+    on the same side no matter when or how often it is seen.
+    """
+    import hashlib
+
+    with open(SPLIT_MANIFEST_PATH) as f:
+        manifest = json.load(f)
+    test_hosts = set(manifest["test_hosts"])
+    train_hosts = set(manifest["train_hosts"])
+
+    def side(host):
+        if host in test_hosts:
+            return "test"
+        if host in train_hosts:
+            return "train"
+        digest = hashlib.md5(str(host).encode("utf-8")).hexdigest()
+        return "test" if (int(digest[:8], 16) % 10000) < int(TEST_SIZE * 10000) else "train"
+
+    sides = df["host"].map(side)
+    n_new = int((~df["host"].isin(test_hosts | train_hosts)).sum())
+    is_test = (sides == "test").to_numpy()
+    print(f"Split by star ID (frozen manifest): {int((~is_test).sum())} train / "
+          f"{int(is_test.sum())} test"
+          + (f"  [{n_new} star(s) not in the manifest, assigned by stable hash]" if n_new else ""))
+    return ~is_test, is_test
+
+
 def main():
     df = load_and_report_class_balance()
     X, y = build_feature_matrix(df)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, stratify=y, random_state=RANDOM_SEED
-    )
+    train_mask, test_mask = split_by_host(df)
+    X_train, X_test = X[train_mask], X[test_mask]
+    y_train, y_test = y[train_mask], y[test_mask]
     print(f"Train: {len(X_train)} ({y_train.sum()} positive, {len(y_train) - y_train.sum()} negative)")
     print(f"Test:  {len(X_test)} ({y_test.sum()} positive, {len(y_test) - y_test.sum()} negative)\n")
 

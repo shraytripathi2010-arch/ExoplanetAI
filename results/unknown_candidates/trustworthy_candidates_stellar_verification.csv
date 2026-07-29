@@ -269,7 +269,7 @@ TIC_231698310,4622.88330078125,Success,629.8912963867188,K0/1(III),1.6127,Succes
 TIC_349801741,3410.0322265625,Success,103.66300201416016,,,Not found in SIMBAD,,True,True
 TIC_253857443,5380.708984375,Success,305.7643127441406,,,Not found in SIMBAD,,True,True
 TIC_197054642,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,K8V,25.3073,Success,,True,True
-TIC_347385146,4586.25830078125,Success,106.38990020751953,,,Not found in SIMBAD,,True,True
+TIC_347385146,4586.25830078125,Success,106.38990020751952,,,Not found in SIMBAD,,True,True
 TIC_118826494,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,0.5969,Success,,False,False
 TIC_313249030,5563.85302734375,Success,121.36319732666016,,8.1458,Success,,True,True
 TIC_271502836,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,M3.6,22.0417,Success,,True,True
@@ -282,11 +282,11 @@ TIC_88139561,,Gaia match found but no teff_gspphot available (star may be too br
 TIC_165881566,3531.853759765625,Success,224.4427947998047,,,Not found in SIMBAD,,True,True
 TIC_320783984,10359.2294921875,Success,309.55218505859375,A0V,3.774,Success,,True,True
 TIC_231828950,,Gaia match found but no teff_gspphot available (star may be too bright/faint for this pipeline),,,22.6596,Success,,False,False
-TIC_166424433,6122.6357421875,Success,116.26329803466797,F6V,8.4606,Success,,True,True
-TIC_80427890,6410.21533203125,Success,243.36500549316406,F7V,3.9879,Success,,True,True
+TIC_166424433,6122.6357421875,Success,116.26329803466795,F6V,8.4606,Success,,True,True
+TIC_80427890,6410.21533203125,Success,243.3650054931641,F7V,3.9879,Success,,True,True
 TIC_321068946,10453.9619140625,Success,118.71189880371094,A0Vn,8.6568,Success,,True,True
 TIC_231626393,7496.208984375,Success,68.99949645996094,A5/6IV/V,14.3399,Success,,True,True
-TIC_152358293,5791.70458984375,Success,222.20680236816406,,4.4046,Success,,True,True
+TIC_152358293,5791.70458984375,Success,222.2068023681641,,4.4046,Success,,True,True
 TIC_100615932,7267.10205078125,Success,138.98379516601562,A9III/IV,7.2018,Success,,True,True
 TIC_219332944,6432.16259765625,Success,126.31430053710938,F5V,7.8178,Success,,True,True
 TIC_158536414,6354.6171875,Success,193.43170166015625,F5/6V,5.1403,Success,,True,True

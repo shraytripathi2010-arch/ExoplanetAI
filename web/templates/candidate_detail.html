@@ -30,7 +30,13 @@
   {% endif %}
 
   <div class="stat-row">
-    <div class="stat"><span class="stat-label">Classifier probability</span><span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}</span></div>
+    <div class="stat"><span class="stat-label">Classifier probability</span>
+      <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if c.uncertainty_std is not none %} <span class="uncertainty-band">&plusmn; {{ '%.3f'|format(c.uncertainty_std) }}</span>{% endif %}</span>
+      {% if c.uncertainty_std is not none %}
+        <span class="muted param-uncertainty">68% of {{ c.uncertainty_n_members }} bootstrap models fall in
+          {{ '%.3f'|format(c.uncertainty_p16) }}&ndash;{{ '%.3f'|format(c.uncertainty_p84) }}</span>
+      {% endif %}
+    </div>
     <div class="stat"><span class="stat-label">Combined filter</span><span class="stat-value">{{ 'PASS ('+c.combined_filter_tier+')' if c.combined_filter_pass else ('needs review' if c.needs_manual_review else 'fail') }}</span></div>
     <div class="stat"><span class="stat-label">First found</span><span class="stat-value small">{{ c.first_found_date }}</span></div>
     <div class="stat"><span class="stat-label">Last verified</span><span class="stat-value small">{{ c.last_verified_date }}</span></div>
@@ -41,14 +47,15 @@
     {% if reverify and reverify.status == 'running' %}
       <div class="action-card">
         <p class="action-progress" id="reverify-status"><span class="spinner" aria-hidden="true"></span>
-          Re-checking archive/ExoFOP/arXiv/VSX/blend live -- usually a few seconds, occasionally longer if an external service is slow.</p>
+          Re-checking archive/ExoFOP/arXiv/VSX/blend live -- all five run at once, normally about 25 seconds.</p>
+        <p class="muted elapsed" data-started="{{ reverify.started_at }}" data-expected="25">Elapsed: --</p>
       </div>
     {% else %}
       <div class="inline-form">
         <form action="{{ url_for('reverify_candidate', tic_id=c.tic_id) }}" method="post">
           <button type="submit">Re-verify this candidate now</button>
         </form>
-        <span class="muted">Re-runs just the external checks (archive/ExoFOP/arXiv/VSX/blend) for this star only -- fast, doesn't wait for a full Update.</span>
+        <span class="muted">Re-runs all five external checks (archive/ExoFOP/arXiv/VSX/blend) for this star only, concurrently -- about 25 seconds, and doesn't wait for a full Update.</span>
       </div>
       {% if reverify and reverify.status == 'completed' %}
         <p class="muted">Last result ({{ reverify.computed_at }}): {{ reverify.result_summary }}</p>
@@ -57,6 +64,48 @@
       {% endif %}
     {% endif %}
   </div>
+</section>
+
+<section class="card" id="exofop-refresh-section" data-tic="{{ c.tic_id }}">
+  <h2>ExoFOP status</h2>
+  <p class="muted">
+    Re-queries ExoFOP live for <em>this star only</em>: has it been submitted, flagged, or
+    assigned a TOI number since the last check? Uses the same two checks the full pipeline
+    already relies on -- ExoFOP's bulk TOI list plus this target's own ExoFOP page (only a real
+    TOI-&lt;number&gt; on the page counts; the page merely existing does not). Usually a few
+    seconds; the first check after the app starts takes ~35s, because ExoFOP's full TOI
+    list has to be downloaded once before it can be reused.
+  </p>
+  {% if exofop_refresh and exofop_refresh.status == 'running' %}
+    <div class="action-card">
+      <p class="action-progress" id="exofop-refresh-status"><span class="spinner" aria-hidden="true"></span>
+        Querying ExoFOP live...</p>
+      <p class="muted elapsed" data-started="{{ exofop_refresh.started_at }}" data-expected="10">Elapsed: --</p>
+    </div>
+  {% else %}
+    {% if exofop_refresh and exofop_refresh.status == 'completed' %}
+      {% if exofop_refresh.changed %}
+        <div class="disclaimer-banner disclaimer-caution">
+          <span class="scope-note-icon" aria-hidden="true">!</span>
+          <span><strong>This changed since the previous ExoFOP check.</strong></span>
+        </div>
+      {% endif %}
+      <table class="plain-table">
+        <tr><td>TOI designation</td><td>{{ exofop_refresh.toi_designation or 'none' }}</td></tr>
+        <tr><td>In ExoFOP's TOI list</td><td>{{ 'yes' if exofop_refresh.in_bulk_toi_list else 'no' }}</td></tr>
+        <tr><td>Result</td><td>{{ exofop_refresh.result_summary }}</td></tr>
+        <tr><td>Last checked</td><td>{{ exofop_refresh.computed_at }}</td></tr>
+      </table>
+    {% elif exofop_refresh and exofop_refresh.status == 'failed' %}
+      <p class="muted">Last attempt failed: {{ exofop_refresh.error_message }}</p>
+    {% endif %}
+    <div class="inline-form">
+      <form action="{{ url_for('start_exofop_refresh', tic_id=c.tic_id) }}" method="post">
+        <button type="submit">Check ExoFOP for updates</button>
+      </form>
+      <a href="{{ exofop_view_url }}" target="_blank" rel="noopener" class="muted">Open this target on ExoFOP &#8599;</a>
+    </div>
+  {% endif %}
 </section>
 
 <section class="card">
@@ -111,7 +160,8 @@
     {% elif multi_sector and multi_sector.status == 'running' %}
       <div class="action-card">
         <p class="action-progress" id="multi-sector-status"><span class="spinner" aria-hidden="true"></span>
-          Searching MAST, downloading, re-running TLS -- this can take a couple of minutes.</p>
+          {{ multi_sector.progress_text or 'Starting...' }}</p>
+        <p class="muted elapsed" data-started="{{ multi_sector.started_at }}" data-expected="180">Elapsed: --</p>
       </div>
     {% elif multi_sector and multi_sector.status == 'failed' %}
       <p class="muted">Last attempt failed: {{ multi_sector.error_message }}</p>
@@ -148,7 +198,8 @@
     {% elif centroid and centroid.status == 'running' %}
       <div class="action-card">
         <p class="action-progress" id="centroid-status"><span class="spinner" aria-hidden="true"></span>
-          Downloading pixel data, computing difference image -- usually under a minute.</p>
+          {{ centroid.progress_text or 'Starting...' }}</p>
+        <p class="muted elapsed" data-started="{{ centroid.started_at }}" data-expected="30">Elapsed: --</p>
       </div>
     {% elif centroid and centroid.status == 'failed' %}
       <p class="muted">Last attempt failed: {{ centroid.error_message }}</p>
@@ -322,27 +373,21 @@
     Copy this summary if/when you want to submit this candidate for community review once
     uploads reopen, or to reference when discussing it with someone who can pursue real follow-up.
   </p>
-  <textarea id="ctoi-summary" class="ctoi-textarea" readonly rows="14">TIC ID: {{ c.tic_id }}
-Host: {{ c.host }}
-RA / Dec: {{ char.ra }}, {{ char.dec }}
-Orbital period: {{ '%.6f'|format(char.period_days) if char.period_days is not none else '?' }} days
-Epoch (T0): {{ '%.6f'|format(char.epoch_bjd) if char.epoch_bjd is not none else '?' }} BJD
-Transit depth: {{ '%.1f'|format(char.transit_depth_ppm) if char.transit_depth_ppm is not none else '?' }} ppm
-Transit duration: {{ '%.3f'|format(char.transit_duration_hours) if char.transit_duration_hours is not none else '?' }} hours
-Derived planet radius: {{ '%.2f'|format(char.planet_radius_earth) if char.planet_radius_earth is not none else '?' }} R_earth
-Host spectral type (rough): {{ char.stellar_spectral_type_rough or '?' }}
-Classifier probability: {{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '?' }}
-Confidence tier: {{ c.confidence_tier or '?' }} (NOT a confirmation -- automated screening only)
-Plausibility verdict: {{ char.plausibility_verdict }}
-Gaia blend risk: {{ char.blending_status }}
-Variable-star check: {{ char.vsx_status }}
-Reasons this could be real: {{ char.supporting_evidence }}
-Reasons for doubt: {{ char.doubting_evidence }}
-Not previously flagged by ExoFOP/TOI/archive as of: {{ char.last_verified_unknown_utc }}</textarea>
-  <div class="inline-form">
+  <textarea id="ctoi-summary" class="ctoi-textarea" readonly rows="16">{{ ctoi_summary }}</textarea>
+  <div class="inline-form" id="ctoi-actions" data-tic="{{ c.tic_id }}">
     <button type="button" id="ctoi-copy-btn">Copy to clipboard</button>
+    <button type="button" id="ctoi-update-btn">Update</button>
     <span class="muted" id="ctoi-copy-status"></span>
   </div>
+  <p class="muted">
+    <strong>Update</strong> re-queries ExoFOP and the archive/TOI lists live for this star, then
+    rebuilds the text above from the result -- including the
+    &ldquo;not previously flagged &hellip; as of&rdquo; timestamp, which advances to the moment of
+    that check. Takes a few seconds. It also picks up anything else that finished since this page
+    loaded (additional sectors, centroid, re-verify). The timestamp only moves when the check
+    genuinely ran and came back clean; if a lookup fails, the old timestamp stays and the message
+    below says so, rather than implying a verification that never happened.
+  </p>
 </section>
 
 <section class="card">

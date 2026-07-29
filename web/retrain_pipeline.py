@@ -234,7 +234,6 @@ def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
     verifying this pipeline works without any risk of a noise-driven
     promotion on too little data (e.g. testing with a near-zero threshold)."""
     from sklearn.metrics import roc_auc_score
-    from sklearn.model_selection import train_test_split
 
     last_attempts = db.list_retrain_attempts(limit=1)
     since = last_attempts[0]["triggered_at"] if last_attempts else "2000-01-01 00:00:00 UTC"
@@ -262,10 +261,25 @@ def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
                   if baseline["n_negative"] else 0.0)
     cnn_flag = growth_pos >= 0.20 or growth_neg >= 0.20
 
+    # BUG FIXED: this used m05's old positional train_test_split, which
+    # reshuffles whenever training.csv grows -- and this pipeline is the very
+    # thing that makes it grow. The consequence was specific and serious:
+    # three lines below, the CURRENT PRODUCTION MODEL is scored on X_test to
+    # get the baseline the challenger must beat. Once the split had drifted,
+    # that test set contained stars the production model was TRAINED on (89
+    # of 1,102, measured), inflating its baseline AUC by ~+0.008 and making
+    # the promotion gate systematically harder for challengers to clear --
+    # a silent bias against ever promoting anything, in the one comparison
+    # that decides what model users actually get.
+    #
+    # split_by_host keys membership to stable star IDs from the frozen
+    # manifest, so the production model is only ever measured on stars it was
+    # genuinely held out from, and every retrain attempt is scored on the
+    # same test stars as every other.
     X, y = m05.build_feature_matrix(df)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=m05.TEST_SIZE, stratify=y, random_state=m05.RANDOM_SEED
-    )
+    train_mask, test_mask = m05.split_by_host(df)
+    X_train, X_test = X[train_mask], X[test_mask]
+    y_train, y_test = y[train_mask], y[test_mask]
 
     models = m05.build_models()
     hgb_pipeline = models["HistGradientBoosting"]

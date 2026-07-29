@@ -11,6 +11,84 @@ came back negative, and the pixel-level centroid-displacement feature
 position, not light-curve shape/TLS statistics) tested as an actual model
 input rather than displayed-only evidence.
 
+**This is the ninth and final feature/architecture experiment against the
+classical model** (see "Multi-transit consistency + frequency-domain
+features" below) -- per explicit user instruction, the ~0.90 ROC-AUC
+ceiling for this feature family is now treated as final. No further
+feature engineering will be attempted without an explicit new request.
+
+## Multi-transit consistency + frequency-domain features -- NEGATIVE RESULT
+
+Two features, both genuinely different representations of information TLS
+already computes but never previously extracted:
+
+- `multi_transit_depth_chi2red`: uncertainty-weighted reduced chi-square
+  of individual transit depths (TLS's `transit_depths` +
+  `transit_depths_uncertainties` arrays -- confirmed live to exist,
+  neither ever used before). Different from the existing
+  `depth_consistency_std` feature, which is a raw std that ignores each
+  transit's own measurement uncertainty.
+- `power_ratio_half_period` / `power_ratio_double_period`: TLS's full
+  periodogram (`periods`/`power` arrays) evaluated at exactly half and
+  double the detected period, relative to power at the detected period
+  itself -- the classic eclipsing-binary aliasing signature.
+
+Required a fresh TLS rerun across all 5,502 training rows (the saved
+`transit_search_results.csv` only ever kept scalar summary columns, not
+per-transit arrays or full periodograms) -- 60,874s (~16.9hr) across 8
+workers, 100% job success rate (this computation doesn't require the
+stricter all-features-finite gate the centroid work needed).
+
+Leakage check: NaN rates were roughly balanced by class (2.8%/4.5% for
+the chi2red feature; 30-34% / 20-21% for the two harmonic features, the
+latter reflecting genuine cases where half/double the period falls
+outside TLS's searched grid, not a bug). Single-feature AUCs: chi2red
+0.495 (pure noise, no standalone signal at all); the two harmonic
+features both ~0.41 -- meaningfully below chance, in a physically
+sensible direction (false positives, often eclipsing binaries, show
+relatively MORE power at period harmonics than real planets, exactly the
+aliasing signature the feature was designed to catch) -- a real, if weak,
+signal, not a leakage artifact.
+
+Retrained the same HistGradientBoosting model, three ways (each feature
+alone, and all three combined):
+
+| Variant | 5-fold CV | Held-out test AUC | Bootstrap 95% CI vs base |
+|---|---|---|---|
+| Base (no new features) | -- | 0.8986 | -- |
+| + chi2red only | 0.9190 +/- 0.0064 | 0.8966 | [-0.0058, +0.0016] |
+| + power ratios only | 0.9192 +/- 0.0061 | 0.8966 | [-0.0072, +0.0031] |
+| + all three combined | 0.9210 +/- 0.0061 | 0.9002 | [-0.0044, +0.0078] |
+
+All three CIs include zero -- within noise, none clear the promotion bar.
+Production model untouched.
+
+**Correction/completion, found on audit**: the original request explicitly
+asked for (a) multi-transit consistency of both DEPTHS AND DURATIONS, and
+(b) validation via the "full existing suite (nested CV, calibration,
+bootstrap CI)". The first pass above only delivered depth-consistency and
+only ran plain CV + bootstrap CI. Both gaps were closed:
+- **Duration-consistency**: attempted via independent per-transit ingress/
+  egress measurement (predicted epochs from T0+n*period, no TLS rerun
+  needed). Found a genuine methodological wall, not a fixable bug: simple
+  threshold-crossing on raw per-cadence photometry doesn't reliably
+  measure a single transit's duration -- validated broken on both a
+  shallow-transit star (depth smaller than typical point-to-point noise)
+  and a "deep" transit star (real intrinsic scatter/non-idealities in the
+  raw data). Per explicit user decision, not pursued further with a more
+  complex per-transit-binning method; idea 1 closes as depth-only.
+- **Full validation suite**: re-ran with genuine nested CV (outer 5-fold /
+  inner 3-fold RandomizedSearchCV, 30 iterations, same pattern as
+  `05b_model_analysis.py`) and a calibration check (raw vs sigmoid vs
+  isotonic, Brier score). Nested CV: base 0.9212 +/- 0.0040 vs
+  base+new-features 0.9240 +/- 0.0034 -- still not a real separation once
+  bootstrapped. Calibration meaningfully helped both variants about
+  equally (isotonic, Brier 0.109 -> ~0.094) -- a calibration-layer benefit
+  that exists independent of the new features, not something they caused.
+  Bootstrap CI on the properly-tuned models: mean diff +0.0016, 95% CI
+  [-0.0044, +0.0078] -- same conclusion, now on solid methodological
+  ground: does not clear the promotion bar.
+
 ## Centroid displacement as a classifier feature -- NEGATIVE RESULT
 
 Difference-image centroid displacement (`shift_pixels`) was already built

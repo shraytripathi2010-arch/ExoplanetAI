@@ -39,87 +39,171 @@
   setTimeout(poll, 3000);
 })();
 
-// ---- CTOI submission-prep: copy-to-clipboard ----
+// ---- CTOI submission-prep: copy-to-clipboard + refresh ----
 (function () {
-  const btn = document.getElementById("ctoi-copy-btn");
-  if (!btn) return;
+  const actions = document.getElementById("ctoi-actions");
+  if (!actions) return;
   const textarea = document.getElementById("ctoi-summary");
   const status = document.getElementById("ctoi-copy-status");
-  btn.addEventListener("click", () => {
+  const copyBtn = document.getElementById("ctoi-copy-btn");
+  const updateBtn = document.getElementById("ctoi-update-btn");
+  const ticId = actions.dataset.tic;
+
+  copyBtn.addEventListener("click", () => {
     navigator.clipboard.writeText(textarea.value).then(
       () => { status.textContent = "Copied."; setTimeout(() => (status.textContent = ""), 2000); },
       () => { textarea.select(); document.execCommand("copy"); status.textContent = "Copied."; }
     );
   });
+
+  // Update = re-check, THEN re-render. Two steps on purpose.
+  //
+  // The summary quotes a "not previously flagged by ExoFOP/TOI/archive as of
+  // <time>" line. Re-rendering alone could never honestly move that
+  // timestamp forward -- it is a claim that a lookup happened at that moment,
+  // so the lookup has to actually happen. So this kicks off the same live
+  // ExoFOP/archive check the ExoFOP button runs, waits for it, and only then
+  // pulls the rebuilt text (which by that point carries the new timestamp,
+  // plus anything else that finished while this page was open).
+  const poll = (resolve, reject, deadline) => {
+    if (Date.now() > deadline) return reject(new Error("timed out waiting for the check"));
+    fetch(`/candidates/${ticId}/exofop_refresh/status`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.status === "running") return setTimeout(() => poll(resolve, reject, deadline), 1500);
+        if (d.status === "failed") return reject(new Error(d.error_message || "the check failed"));
+        resolve(d);
+      })
+      .catch(() => setTimeout(() => poll(resolve, reject, deadline), 3000));
+  };
+
+  updateBtn.addEventListener("click", () => {
+    updateBtn.disabled = true;
+    const before = textarea.value;
+    status.textContent = "Re-checking ExoFOP and the archive lists...";
+    fetch(`/candidates/${ticId}/ctoi_update`, { method: "POST" })
+      .then((r) => {
+        if (r.status === 409) throw new Error("a check is already running for this candidate");
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return new Promise((res, rej) => poll(res, rej, Date.now() + 180000));
+      })
+      .then((checkResult) => fetch(`/candidates/${ticId}/ctoi_summary`)
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .then((data) => ({ data, checkResult })))
+      .then(({ data, checkResult }) => {
+        const changed = data.text !== before;
+        textarea.value = data.text;
+        // Say which of the two actually happened. Claiming an update when
+        // nothing moved would just teach you to ignore the message.
+        let msg = changed
+          ? "Updated -- re-checked live, and the summary changed."
+          : "Re-checked live; nothing had changed.";
+        // A PARTIAL failure is the confusing case: if one of the two lookups
+        // didn't come back, the timestamp correctly refuses to advance, and
+        // without this you'd see "nothing had changed" and reasonably assume
+        // the button was broken rather than that a service was down. The job
+        // already words that caveat for the user; surface it verbatim.
+        const caveat = (checkResult && checkResult.result_summary || "").match(/\[([^\]]+)\]/);
+        if (caveat) msg += ` Note: ${caveat[1]}`;
+        status.textContent = msg;
+        setTimeout(() => (status.textContent = ""), 12000);
+      })
+      // Never let a failed check leave the text looking freshly verified.
+      .catch((e) => {
+        status.textContent = `Could not update (${e.message}) -- the text above is unchanged, `
+          + `and its timestamp still refers to the last successful check.`;
+      })
+      .finally(() => { updateBtn.disabled = false; });
+  });
 })();
 
-// ---- multi-sector strengthening: poll while running ----
+// ---- live elapsed-time counters for any running action ----
+//
+// Previously a running check showed one fixed sentence and a spinner for its
+// entire duration. A job progressing normally and a job wedged on a stalled
+// network call rendered identically, so the only way to tell them apart was
+// to give up and reload. A ticking elapsed count, plus an explicit warning
+// once a job passes well beyond its normal runtime, makes that difference
+// visible without pretending to know more than we do.
 (function () {
-  const section = document.getElementById("multi-sector-section");
-  if (!section) return;
-  const statusEl = document.getElementById("multi-sector-status");
-  if (!statusEl) return; // not currently running
-  const ticId = section.dataset.tic;
+  const els = document.querySelectorAll(".elapsed[data-started]");
+  if (!els.length) return;
 
-  function poll() {
-    fetch(`/candidates/${ticId}/multi_sector/status`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.status === "running") {
-          setTimeout(poll, 5000);
-        } else {
-          window.location.reload();
-        }
-      })
-      .catch(() => setTimeout(poll, 8000));
+  function parseStamp(s) {
+    // Timestamps are stored as "YYYY-MM-DD HH:MM:SS UTC".
+    const t = Date.parse(s.replace(" UTC", "Z").replace(" ", "T"));
+    return isNaN(t) ? null : t;
   }
-  setTimeout(poll, 5000);
+
+  function tick() {
+    els.forEach((el) => {
+      const started = parseStamp(el.dataset.started || "");
+      if (started === null) {
+        el.textContent = "";
+        return;
+      }
+      const secs = Math.max(0, Math.round((Date.now() - started) / 1000));
+      const shown = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
+      const expected = parseInt(el.dataset.expected || "0", 10);
+      // 3x the normal runtime: late enough not to cry wolf on ordinary
+      // slowness, early enough to be useful. This is a hint, not a verdict --
+      // the job's own watchdog is what actually ends a stalled run.
+      if (expected && secs > expected * 3) {
+        el.textContent = `Elapsed: ${shown} -- longer than the usual ~${expected}s. ` +
+          `Still running; it will report a real error if it stalls out.`;
+      } else {
+        el.textContent = `Elapsed: ${shown}`;
+      }
+    });
+  }
+  tick();
+  setInterval(tick, 1000);
 })();
 
-// ---- centroid check: poll while running ----
+// ---- on-demand per-candidate checks: poll while running ----
+//
+// One shared implementation instead of four near-identical copies. Beyond
+// deduplication this fixes a real gap: the multi-sector and centroid pollers
+// discarded the status payload entirely and only looked at data.status, so
+// the sub-stage text the backend now reports ("downloading 3 sectors",
+// "re-running the transit search") never reached the page. It updates the
+// visible line on every poll instead.
 (function () {
-  const section = document.getElementById("centroid-section");
-  if (!section) return;
-  const statusEl = document.getElementById("centroid-status");
-  if (!statusEl) return;
-  const ticId = section.dataset.tic;
+  const CHECKS = [
+    { section: "multi-sector-section", status: "multi-sector-status", path: "multi_sector", interval: 5000 },
+    { section: "centroid-section", status: "centroid-status", path: "centroid", interval: 4000 },
+    { section: "reverify-section", status: "reverify-status", path: "reverify", interval: 2000 },
+    { section: "exofop-refresh-section", status: "exofop-refresh-status", path: "exofop_refresh", interval: 2000 },
+  ];
 
-  function poll() {
-    fetch(`/candidates/${ticId}/centroid/status`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.status === "running") {
-          setTimeout(poll, 4000);
-        } else {
-          window.location.reload();
-        }
-      })
-      .catch(() => setTimeout(poll, 6000));
-  }
-  setTimeout(poll, 4000);
-})();
+  CHECKS.forEach((cfg) => {
+    const section = document.getElementById(cfg.section);
+    if (!section) return;
+    const statusEl = document.getElementById(cfg.status);
+    if (!statusEl) return; // not currently running
+    const ticId = section.dataset.tic;
+    const spinner = statusEl.querySelector(".spinner");
 
-// ---- reverify: poll while running ----
-(function () {
-  const section = document.getElementById("reverify-section");
-  if (!section) return;
-  const statusEl = document.getElementById("reverify-status");
-  if (!statusEl) return; // not currently running
-  const ticId = section.dataset.tic;
-
-  function poll() {
-    fetch(`/candidates/${ticId}/reverify/status`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.status === "running") {
-          setTimeout(poll, 2000);
-        } else {
-          window.location.reload();
-        }
-      })
-      .catch(() => setTimeout(poll, 4000));
-  }
-  setTimeout(poll, 2000);
+    function poll() {
+      fetch(`/candidates/${ticId}/${cfg.path}/status`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.status === "running") {
+            if (data.progress_text) {
+              statusEl.textContent = data.progress_text;
+              if (spinner) statusEl.prepend(spinner);
+            }
+            setTimeout(poll, cfg.interval);
+          } else {
+            window.location.reload();
+          }
+        })
+        // Network blip while polling is not the same as the job failing --
+        // back off and keep trying rather than reporting a false failure.
+        .catch(() => setTimeout(poll, cfg.interval * 2));
+    }
+    setTimeout(poll, cfg.interval);
+  });
 })();
 
 // ---- animated transit illustration: simplified 2D canvas loop driven by

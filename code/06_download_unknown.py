@@ -598,7 +598,29 @@ def download_candidates(candidates_df):
 # =====================================
 # STAGE E: PREPROCESSING (ported verbatim from 02_preprocess.py)
 # =====================================
-REQUIRED_COLUMNS = {"time", "flux", "flux_err", "quality", "pdcsap_flux", "pdcsap_flux_err"}
+# PHASE 3 CHANGE: pdcsap_flux/pdcsap_flux_err are no longer REQUIRED columns.
+#
+# Measured cost of requiring them (Phase 2 blind validation): of 89 known TOI
+# false positives absent from the training set, 88 were rejected here -- every
+# one of them downloaded fine, then failed schema validation purely because
+# the product had no pdcsap_flux COLUMN. Those targets have no SPOC 2-minute
+# data at all, only FFI-derived products (QLP, GSFC-ELEANOR-LITE, TARS). The
+# same requirement also cost 1 of 10 genuinely-new confirmed planets.
+#
+# The population this excluded was not random: those 89 stars are a median
+# 2.19 mag FAINTER than the 1,155 FPs that did make it into training (Tmag
+# 12.73 vs 10.55). So the pipeline had a systematic blind spot toward fainter
+# targets, and -- because the training negative class was built through this
+# same gate -- that blind spot was invisible from inside the training data.
+#
+# choose_flux_columns() ALREADY falls back to the generic `flux` column; it
+# simply never got the chance, because validation rejected the file first.
+# For QLP products `flux` is the KSPSAP detrended photometry (verified live:
+# fully populated, no NaNs), not raw SAP, so this is a reasonable input rather
+# than a desperate one. It is still a DIFFERENT photometry pipeline than
+# PDCSAP, which is why choose_flux_columns reports which source was used --
+# see flux_source_note() -- so any downstream result can be traced back to it.
+REQUIRED_COLUMNS = {"time", "flux", "flux_err", "quality"}
 
 
 def validate_schema(df):
@@ -613,7 +635,11 @@ def validate_schema(df):
 
 
 def choose_flux_columns(df):
-    if df["pdcsap_flux"].notna().any():
+    """Preference order is unchanged -- PDCSAP first, always. The only change
+    is that a MISSING pdcsap column is now treated the same as an all-NaN one
+    (fall through) instead of being impossible to reach because validation
+    rejected the file first."""
+    if "pdcsap_flux" in df.columns and df["pdcsap_flux"].notna().any():
         return df["pdcsap_flux"].to_numpy(), df["pdcsap_flux_err"].to_numpy(), "pdcsap_flux"
     if df["flux"].notna().any():
         return df["flux"].to_numpy(), df["flux_err"].to_numpy(), "flux"
@@ -682,7 +708,20 @@ def clean_light_curve(csv_path):
     flat_flux = flat_flux / median_flat
     flat_err = flat_err / median_flat
 
-    return pd.DataFrame({"time": time_arr, "flux": flat_flux, "flux_err": flat_err}), "Success"
+    # Carry the photometry source through with the data rather than dropping
+    # it here. Now that non-PDCSAP products are accepted, "which pipeline
+    # produced this flux" is a real caveat attached to every downstream
+    # number, and it must not be silently lost between preprocessing and the
+    # candidate table.
+    out = pd.DataFrame({"time": time_arr, "flux": flat_flux, "flux_err": flat_err})
+    # A real column, not df.attrs: this DataFrame gets written to CSV and
+    # re-read later by compute_all_features, and attrs do not survive that
+    # round-trip. compute_all_features only reads time/flux/flux_err, so the
+    # extra column is inert -- it exists so the provenance is still attached
+    # to the data when someone looks at a processed file months later.
+    out["flux_source"] = source
+    status = "Success" if source == "pdcsap_flux" else f"Success (flux source: {source})"
+    return out, status
 
 
 def preprocess_candidates():
@@ -715,6 +754,13 @@ def preprocess_candidates():
 # STAGE F: TLS FEATURE EXTRACTION (real stellar params, same as 05d)
 # =====================================
 FEATURE_METADATA_PATH = os.path.join(MODELS_FOLDER, "best_model_metadata.json")
+
+# Features allowed to be absent without disqualifying a star (see the long
+# note in compute_all_features for why only these two). Both are undefined
+# -- not merely noisy -- when a light curve has too few transits to
+# characterise, which is a property of the observing window rather than of
+# the star.
+OPTIONAL_FEATURES = {"transit_shape_ratio", "FAP"}
 
 
 def bin_lightcurve(time_arr, flux_arr, flux_err_arr):
@@ -808,8 +854,37 @@ def compute_all_features(csv_path, host, r_star, m_star, required_columns):
         if c not in ("st_rad", "st_teff")   # these come from the catalog, not TLS -- checked separately
         and (c not in feats or feats[c] is None or (isinstance(feats[c], float) and not np.isfinite(feats[c])))
     ]
-    if missing_or_bad:
-        return None, f"Required feature(s) not computable: {missing_or_bad}"
+
+    # PHASE 3 CHANGE: a small set of features may now be MISSING rather than
+    # disqualifying. Measured cost of the old all-or-nothing rule (Phase 2):
+    # 7 of 10 genuinely-new confirmed planets were discarded here, every one
+    # of them on transit_shape_ratio, four also on FAP. Those were real
+    # planets with real detections -- periods 14-180 days, whose transits are
+    # simply too few in a single TESS sector for an edge-vs-centre shape
+    # measurement to exist. Signal quality was never the issue.
+    #
+    # Only these two are optional, and for a specific reason: both are
+    # UNDEFINED for sparse transits rather than merely noisy, so their absence
+    # carries information ("too few transits to characterise") instead of
+    # indicating a broken star. Everything else stays mandatory -- a missing
+    # period or depth means the detection itself failed, and no imputation can
+    # honestly stand in for that.
+    #
+    # IMPORTANT CAVEAT, and the reason the status string says so out loud:
+    # the classifier's imputer fills these with the TRAINING MEDIAN, and it
+    # was fit on data where they were always present. A candidate scored this
+    # way is being judged partly on a stand-in value, not a measurement, so
+    # its probability is less trustworthy than one from a complete feature
+    # vector. See the measured effect of this in
+    # results/tables/optional_feature_impact.csv -- it is not negligible.
+    optional = [c for c in missing_or_bad if c in OPTIONAL_FEATURES]
+    blocking = [c for c in missing_or_bad if c not in OPTIONAL_FEATURES]
+    if blocking:
+        return None, f"Required feature(s) not computable: {blocking}"
+    for c in optional:
+        feats[c] = np.nan
+    if optional:
+        return feats, f"Success (imputed, not measured: {sorted(optional)})"
 
     feats["elapsed_s"] = time.monotonic() - t0
     return feats, "Success"
@@ -910,7 +985,12 @@ def score_candidates(features_df, candidates_df, feature_columns):
     # included explicitly here rather than assumed to ride along automatically.
     optional_cols = [c for c in ("n_sectors_observed", "sectors_observed", "ra", "dec",
                                   "st_rad_err", "st_mass_err") if c in candidates_df.columns]
-    success = features_df[features_df["status"] == "Success"].copy()
+    # startswith, not equality: compute_all_features now also returns
+    # "Success (imputed, not measured: [...])" for stars that cleared every
+    # blocking feature but had an optional one undefined. An exact-match test
+    # here would silently discard exactly the stars the optional-feature
+    # change was made to rescue.
+    success = features_df[features_df["status"].astype(str).str.startswith("Success")].copy()
     success = success.merge(
         candidates_df.assign(host=lambda d: "TIC_" + d["tic_id"].astype("int64").astype(str))[
             ["host", "st_rad", "st_teff", "st_mass", "sector"] + optional_cols],
@@ -927,12 +1007,29 @@ def score_candidates(features_df, candidates_df, feature_columns):
         raise SystemExit(f"FATAL: required feature columns missing entirely from the feature table: "
                           f"{missing_required} -- refusing to score with a mismatched feature set.")
 
-    still_bad = success[feature_columns].isna().any(axis=1)
+    # A NaN in a BLOCKING feature still disqualifies a star -- the original
+    # reasoning holds: better no score than a meaningless one. But NaNs in
+    # OPTIONAL_FEATURES are now expected and deliberate, so they must not
+    # re-trigger the same exclusion one stage later.
+    blocking_cols = [c for c in feature_columns if c not in OPTIONAL_FEATURES]
+    still_bad = success[blocking_cols].isna().any(axis=1)
     if still_bad.any():
         print(f"Excluding {still_bad.sum()} stars with a NaN in a required feature "
               f"(st_rad/st_teff missing from the TIC catalog) -- not scoring these rather than "
               f"silently imputing and presenting a meaningless probability.")
         success = success[~still_bad]
+
+    # Flag -- per star -- whether any feature behind its probability was
+    # imputed rather than measured, so this cannot be lost between here and
+    # the candidate table the user actually reads.
+    imputed_mask = success[list(OPTIONAL_FEATURES & set(feature_columns))].isna()
+    success["imputed_features"] = imputed_mask.apply(
+        lambda r: ",".join(sorted(c for c, v in r.items() if v)) or "", axis=1)
+    n_imputed = (success["imputed_features"] != "").sum()
+    if n_imputed:
+        print(f"{n_imputed} star(s) scored with at least one IMPUTED (not measured) feature -- "
+              f"their probabilities carry more uncertainty than the model's headline metrics imply; "
+              f"see the imputed_features column.")
 
     if len(success) == 0:
         print("No candidates have a complete feature set -- nothing to score.")
@@ -1213,7 +1310,6 @@ def compute_reference_importance(feature_columns):
     """Fresh permutation importance on the training set (same technique used
     throughout this project's validation), so explanations are grounded in
     what actually drives THIS model, not an assumption."""
-    from sklearn.model_selection import train_test_split
     from sklearn.inspection import permutation_importance
     import importlib.util
 
@@ -1223,9 +1319,14 @@ def compute_reference_importance(feature_columns):
 
     df = pd.read_csv(TRAINING_PATH)
     X, y = tm.build_feature_matrix(df)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=tm.TEST_SIZE, random_state=tm.RANDOM_SEED, stratify=y
-    )
+    # BUG FIXED: was a positional train_test_split, which drifts as
+    # training.csv grows -- meaning permutation importance (and therefore the
+    # per-candidate explanations built from it) could be measured on stars the
+    # model was trained on, overstating how much each feature really matters
+    # on unseen data. Same stable star-ID split as everywhere else now.
+    train_mask, test_mask = tm.split_by_host(df)
+    X_train, X_test = X[train_mask], X[test_mask]
+    y_train, y_test = y[train_mask], y[test_mask]
     model = joblib.load(os.path.join(MODELS_FOLDER, "best_model.joblib"))
     result = permutation_importance(model, X_test, y_test, n_repeats=15, random_state=tm.RANDOM_SEED,
                                      scoring="roc_auc", n_jobs=-1)

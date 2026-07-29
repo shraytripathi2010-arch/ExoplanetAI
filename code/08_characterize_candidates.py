@@ -173,9 +173,27 @@ BLEND_BRIGHT_DELTA_MAG = 5.0                   # neighbor within this many mags 
 HZ_TEQ_MIN, HZ_TEQ_MAX = 180.0, 310.0          # loose, illustrative liquid-water range
 PLAUSIBLE_RADIUS_CEILING_REARTH = 2 * R_JUP_IN_R_EARTH   # see docstring reasoning above
 RV_MATCH_ARCSEC = 5.0                          # coordinate cross-match radius against the RV star list
-RV_LARGE_VARIATION_MS = 1000.0                 # peak-to-peak RV variation above this suggests a stellar-mass
-                                                # companion, not a planet -- real hot Jupiters top out around a
-                                                # few hundred m/s, while stellar binaries are km/s-scale
+# FIXED: a flat m/s cutoff is not a physical quantity. The same RV amplitude
+# implies wildly different companion masses depending on the star's mass and
+# the orbital period -- 935 m/s peak-to-peak means ~3.8 M_Jup around a
+# 1.9 M_sun star at 1.3 d (an ordinary hot Jupiter), but would mean tens of
+# M_Jup around an M dwarf at long period. The old flat 1000 m/s threshold
+# also had its stated rationale backwards: it claimed hot Jupiters "top out
+# around a few hundred m/s", but at the 1-3 day periods this pipeline
+# actually finds, a single Jupiter produces 140-400 m/s and a 13 M_Jup
+# object produces several km/s. So the flat cutoff was too STRICT, not too
+# permissive -- it would have flagged ~3.5 M_Jup planets as stellar.
+#
+# The check now converts the observed scatter into an implied minimum
+# companion mass using the star's own mass and the candidate's period, and
+# compares that against the deuterium-burning limit -- the actual
+# planet/brown-dwarf boundary, and the real question being asked.
+RV_PLANET_MASS_CEILING_MJUP = 13.0             # deuterium-burning limit: above this the companion is not a planet
+RV_LARGE_VARIATION_MS = 4000.0                 # FALLBACK only, used when st_mass is unavailable so the implied
+                                                # mass can't be computed. Chosen as roughly the peak-to-peak a
+                                                # 13 M_Jup companion produces at a few days around a solar-mass
+                                                # star; deliberately loose, since without a stellar mass this can
+                                                # only be a crude backstop rather than a real test.
 
 # Uncertainty propagation (Part D): documented FALLBACK fractional
 # uncertainties, used ONLY when a real per-star value isn't available.
@@ -442,7 +460,7 @@ RV_HARPS_LIST_CATALOG = "J/A+A/636/A74/list"
 RV_HARPS_EPOCH_CATALOG = "J/A+A/636/A74/rvbank"
 
 
-def check_rv(ra, dec, period_days):
+def check_rv(ra, dec, period_days, m_star=None):
     """Cross-matches this candidate's coordinates against the HARPS RV Bank
     (Trifonov et al. 2020, ~3000 stars) and, if a real star match with
     enough RV epochs is found, reports whether the RV scatter is consistent
@@ -496,13 +514,47 @@ def check_rv(ra, dec, period_days):
         # the occasional single bad/flagged epoch this catalog can contain
         # (confirmed live -- a few stars had one wildly-off RVdrs value).
         peak_to_peak = float(np.percentile(rv, 95) - np.percentile(rv, 5))
+
+        # Convert the observed scatter into an implied MINIMUM companion mass:
+        #   K = 28.4329 * (Mp sini / M_Jup) * (M*/Msun)^(-2/3) * (P/yr)^(-1/3)
+        # solved for Mp sini, taking K ~ peak_to_peak / 2 for a circular orbit.
+        #
+        # This is deliberately an UPPER bound on the companion mass, and reads
+        # conservatively (towards flagging) on purpose: it attributes ALL of the
+        # observed scatter to a companion at this candidate's period. Stellar
+        # activity, jitter, or a completely unrelated long-period companion
+        # would inflate it. So "planetary" here means "not even the full
+        # observed scatter could be a non-planet", which is the strong form of
+        # the statement; "too massive" means it warrants a real look.
+        implied_mjup = None
+        if m_star and m_star > 0 and pd.notna(period_days) and period_days and period_days > 0:
+            k_ms = peak_to_peak / 2.0
+            implied_mjup = (k_ms / 28.4329) * (m_star ** (2.0 / 3.0)) * ((period_days / 365.25) ** (1.0 / 3.0))
+
+        if implied_mjup is not None:
+            mass_note = (f"implies a minimum companion mass of {implied_mjup:.1f} M_Jup "
+                         f"(M*={m_star:.2f} Msun, P={period_days:.2f} d)")
+            if implied_mjup > RV_PLANET_MASS_CEILING_MJUP:
+                return (f"HARPS RV Bank: {star_name}, {len(rv)} epochs over {baseline_days:.0f} d show "
+                        f"{peak_to_peak:.0f} m/s of RV variation -- {mass_note}, above the "
+                        f"{RV_PLANET_MASS_CEILING_MJUP:.0f} M_Jup deuterium-burning limit, so the companion "
+                        f"would not be planetary", "", "LARGE_VARIATION")
+            return (f"HARPS RV Bank: {star_name}, {len(rv)} epochs over {baseline_days:.0f} d, RV variation "
+                    f"{peak_to_peak:.0f} m/s -- {mass_note}, within the planetary range "
+                    f"(upper bound: assumes all scatter is a companion at this period, and is not a fit "
+                    f"to it)", "", "CONSISTENT")
+
+        # No stellar mass on file -- fall back to the crude flat amplitude test
+        # and say so, rather than reporting a mass-based verdict we can't compute.
         if peak_to_peak > RV_LARGE_VARIATION_MS:
             return (f"HARPS RV Bank: {star_name}, {len(rv)} epochs over {baseline_days:.0f} d show "
-                    f"{peak_to_peak:.0f} m/s of RV variation -- large enough to suggest a stellar-mass "
-                    f"companion, not a planet", "", "LARGE_VARIATION")
+                    f"{peak_to_peak:.0f} m/s of RV variation -- exceeds the {RV_LARGE_VARIATION_MS:.0f} m/s "
+                    f"fallback threshold (no stellar mass on file, so no implied-mass test was possible)",
+                    "", "LARGE_VARIATION")
         return (f"HARPS RV Bank: {star_name}, {len(rv)} epochs over {baseline_days:.0f} d, RV variation "
-                f"{peak_to_peak:.0f} m/s -- consistent with no obvious massive stellar companion "
-                f"(not a fit to this candidate's specific period)", "", "CONSISTENT")
+                f"{peak_to_peak:.0f} m/s -- below the {RV_LARGE_VARIATION_MS:.0f} m/s fallback threshold; "
+                f"no stellar mass on file, so this is an amplitude check only, NOT an implied-mass test",
+                "", "CONSISTENT")
     except Exception as e:
         return f"RV archive query error: {e}", "", "ERROR"
 
@@ -850,7 +902,11 @@ def main():
                                        st_mass_err=row.get("st_mass_err"))
 
         verdict = plausibility_verdict(phys["planet_radius_earth"], blend_status, vsx_code == "HIT")
-        rv_status, rv_detail, rv_code = check_rv(ra, dec, phys["period_days"])
+        # st_mass is passed through so the RV check can convert its observed
+        # scatter into an implied companion mass rather than compare against a
+        # flat m/s cutoff that means different things for different stars.
+        rv_status, rv_detail, rv_code = check_rv(ra, dec, phys["period_days"],
+                                                  m_star=row.get("st_mass"))
 
         result = {
             "host": host,

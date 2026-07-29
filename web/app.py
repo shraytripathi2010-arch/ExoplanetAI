@@ -141,22 +141,120 @@ def candidate_detail(tic_id):
     multi_sector = db.get_multi_sector_evidence(tic_id)
     centroid = db.get_centroid_evidence(tic_id)
     reverify = db.get_reverify_status(tic_id)
+    exofop_refresh = db.get_exofop_refresh(tic_id)
     transit_anim = _transit_animation_params(char)
-    evidence_items = _evidence_items(char, centroid)
+    evidence_items = _evidence_items(char, centroid, candidate)
+    ctoi_summary = _build_ctoi_summary(candidate, char, multi_sector, centroid, exofop_refresh)
 
     return render_template("candidate_detail.html", c=candidate, char=char, history=history,
                             events=events, exofop_view_url=exofop_view_url,
                             exofop_account_url=exofop_account_url, has_plot=has_plot,
                             multi_sector=multi_sector, centroid=centroid, reverify=reverify,
+                            exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
                             transit_anim=transit_anim, evidence_items=evidence_items)
 
 
-def _evidence_items(char, centroid):
+def _fmt(value, spec, fallback="?"):
+    return format(value, spec) if value is not None else fallback
+
+
+def _build_ctoi_summary(candidate, char, multi_sector, centroid, exofop_refresh):
+    """Builds the copyable CTOI submission summary.
+
+    Lives here rather than inline in the template so the page render and the
+    Refresh button produce byte-identical text from one implementation --
+    duplicating this formatting in JS would guarantee the two drift apart,
+    and the whole point of the refresh is that the copied text matches what
+    the app currently knows.
+
+    Every value is read from what the pipeline has already stored. Nothing is
+    recomputed and no external service is queried here (the Re-verify and
+    ExoFOP buttons do that); this assembles the current state, including
+    results from checks that finished after the page was first opened."""
+    lines = [
+        f"TIC ID: {candidate['tic_id']}",
+        f"Host: {candidate['host']}",
+        f"RA / Dec: {char.get('ra')}, {char.get('dec')}",
+        f"Orbital period: {_fmt(char.get('period_days'), '.6f')} days",
+        f"Epoch (T0): {_fmt(char.get('epoch_bjd'), '.6f')} BJD",
+        f"Transit depth: {_fmt(char.get('transit_depth_ppm'), '.1f')} ppm",
+        f"Transit duration: {_fmt(char.get('transit_duration_hours'), '.3f')} hours",
+        f"Derived planet radius: {_fmt(char.get('planet_radius_earth'), '.2f')} R_earth",
+        f"Host spectral type (rough): {char.get('stellar_spectral_type_rough') or '?'}",
+        f"Classifier probability: {_fmt(candidate.get('predicted_probability'), '.3f')}",
+        f"Confidence tier: {candidate.get('confidence_tier') or '?'} "
+        f"(NOT a confirmation -- automated screening only)",
+        f"Plausibility verdict: {char.get('plausibility_verdict')}",
+        f"Gaia blend risk: {char.get('blending_status')}",
+        f"Variable-star check: {char.get('vsx_status')}",
+    ]
+
+    # These three checks are on-demand, so a candidate may have picked any of
+    # them up since the last full pipeline run. They were missing from the
+    # copied text entirely, which meant the most recent -- and for follow-up
+    # purposes most interesting -- evidence was the evidence least likely to
+    # be passed along. Only completed results are included; a failed or
+    # never-run check contributes nothing rather than an empty-looking line.
+    if multi_sector and multi_sector.get("status") == "completed":
+        lines.append(
+            f"Multi-sector re-analysis (sectors {multi_sector.get('sectors_used')}): "
+            f"period {_fmt(multi_sector.get('period_days'), '.6f')} days, "
+            f"{int(multi_sector.get('transit_count') or 0)} transits, "
+            f"SDE {_fmt(multi_sector.get('sde'), '.1f')}"
+            + ("" if multi_sector.get("plausible") else " [flagged as a likely search artifact]"))
+    if centroid and centroid.get("status") == "completed":
+        lines.append(
+            f"Pixel-level centroid check (sector {centroid.get('sector_used')}): "
+            f"{centroid.get('verdict')}")
+    if exofop_refresh and exofop_refresh.get("status") == "completed":
+        toi = exofop_refresh.get("toi_designation")
+        lines.append(
+            f"ExoFOP status as of {exofop_refresh.get('computed_at')}: "
+            + (f"listed as {toi}" if toi else "no TOI designation"))
+
+    lines.extend([
+        f"Reasons this could be real: {char.get('supporting_evidence')}",
+        f"Reasons for doubt: {char.get('doubting_evidence')}",
+    ])
+    # The "not previously flagged" line is only true while the candidate is
+    # still unknown. Once a check finds it in the archive/TOI lists, keeping
+    # that sentence would put a flatly false claim into text meant for
+    # submission, so the flagged case gets its own line instead.
+    if candidate.get("current_status") == "unknown_candidate":
+        lines.append("Not previously flagged by ExoFOP/TOI/archive as of: "
+                     f"{char.get('last_verified_unknown_utc')}")
+    else:
+        lines.append(f"NOW FLAGGED in the archive/TOI lists ({candidate.get('current_status')}) "
+                     f"as of {char.get('last_verified_unknown_utc')} -- this is no longer an "
+                     f"unknown candidate and should not be submitted as one.")
+    return "\n".join(lines)
+
+
+def _evidence_items(char, centroid, candidate=None):
     """Maps each already-computed check's existing status field/code to a
     display-only pass/fail/caution/skip classification for the evidence
     grid's status icons. Purely presentational -- reads values 08 already
     computed and stored, assigns no new judgement, changes no stored data."""
     items = []
+
+    # Model-stability band, so a wide interval is visible as evidence rather
+    # than only as a small "+/-" next to the headline number. The thresholds
+    # are descriptive labels for the reader, not a new gate -- nothing about
+    # the candidate's tier or probability depends on them.
+    if candidate is not None and candidate.get("uncertainty_std") is not None:
+        std = candidate["uncertainty_std"]
+        p16, p84 = candidate.get("uncertainty_p16"), candidate.get("uncertainty_p84")
+        u_status = "pass" if std < 0.05 else "caution" if std < 0.12 else "fail"
+        descriptor = ("tight -- the model is stable here" if std < 0.05
+                      else "moderate" if std < 0.12
+                      else "WIDE -- this score is unstable to how the model was trained")
+        items.append({
+            "label": "Prediction stability (bootstrap)",
+            "status": u_status,
+            "value": (f"+/- {std:.3f} ({descriptor}); 68% of "
+                      f"{candidate.get('uncertainty_n_members')} refits fall in "
+                      f"{p16:.3f}-{p84:.3f}"),
+        })
 
     plausible = char.get("radius_plausible")
     items.append({
@@ -207,6 +305,16 @@ def _evidence_items(char, centroid):
         c_status = "fail" if "contaminant" in verdict.lower() else "pass"
         items.append({"label": "Pixel-level centroid check", "status": c_status,
                       "value": f"{verdict} (shift {centroid.get('shift_pixels'):.3f} px)"})
+    elif centroid and centroid.get("status") == "failed":
+        # Was "Not run yet" for these too, which is simply untrue -- it WAS
+        # run and it did not produce a usable answer, which is a materially
+        # different thing for a reviewer to know (and, for the depth-mismatch
+        # guard in particular, is itself informative).
+        items.append({"label": "Pixel-level centroid check", "status": "skip",
+                      "value": f"Attempted, no usable result: {centroid.get('error_message')}"})
+    elif centroid and centroid.get("status") == "running":
+        items.append({"label": "Pixel-level centroid check", "status": "skip",
+                      "value": "Currently running -- see the centroid check section below."})
     else:
         items.append({"label": "Pixel-level centroid check", "status": "skip",
                       "value": "Not run yet -- see the centroid check section below."})
@@ -336,6 +444,60 @@ def reverify_candidate(tic_id):
 @app.route("/candidates/<int:tic_id>/reverify/status")
 def reverify_status(tic_id):
     status = db.get_reverify_status(tic_id)
+    if status is None:
+        return jsonify({"status": "never_run"})
+    return jsonify(status)
+
+
+@app.route("/candidates/<int:tic_id>/ctoi_update", methods=["POST"])
+def ctoi_update(tic_id):
+    """Starts a live ExoFOP/archive re-check for this candidate on behalf of
+    the CTOI section's Update button.
+
+    Deliberately runs the SAME job as the ExoFOP button rather than only
+    re-rendering text: the summary quotes a "not previously flagged as of
+    <time>" timestamp, and the only honest way for that timestamp to move to
+    now is for a check to actually have run to now. The button therefore
+    refreshes the data first and the text second."""
+    candidate = db.get_candidate(tic_id)
+    if candidate is None:
+        return jsonify({"error": "not found"}), 404
+    existing = db.get_exofop_refresh(tic_id)
+    if existing and existing["status"] == "running":
+        return jsonify({"error": "already running"}), 409
+    job_runner.start_exofop_refresh(candidate)
+    return jsonify({"started": True})
+
+
+@app.route("/candidates/<int:tic_id>/ctoi_summary")
+def ctoi_summary(tic_id):
+    """Re-renders the CTOI submission text from current stored state, so the
+    Refresh button can update it in place without a page reload."""
+    candidate = db.get_candidate(tic_id)
+    if candidate is None:
+        return jsonify({"error": "not found"}), 404
+    text = _build_ctoi_summary(
+        candidate, candidate["characterization"],
+        db.get_multi_sector_evidence(tic_id), db.get_centroid_evidence(tic_id),
+        db.get_exofop_refresh(tic_id))
+    return jsonify({"text": text, "last_verified_date": candidate.get("last_verified_date")})
+
+
+@app.route("/candidates/<int:tic_id>/exofop_refresh", methods=["POST"])
+def start_exofop_refresh(tic_id):
+    candidate = db.get_candidate(tic_id)
+    if candidate is None:
+        return "Candidate not found", 404
+    existing = db.get_exofop_refresh(tic_id)
+    if existing and existing["status"] == "running":
+        return jsonify({"error": "already running"}), 409
+    job_runner.start_exofop_refresh(candidate)
+    return redirect(url_for("candidate_detail", tic_id=tic_id))
+
+
+@app.route("/candidates/<int:tic_id>/exofop_refresh/status")
+def exofop_refresh_status(tic_id):
+    status = db.get_exofop_refresh(tic_id)
     if status is None:
         return jsonify({"status": "never_run"})
     return jsonify(status)

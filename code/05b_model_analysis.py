@@ -76,9 +76,13 @@ def load_data_and_split():
     comparable to what's already in results/tables/model_comparison.csv."""
     df = train_models.load_and_report_class_balance()
     X, y = train_models.build_feature_matrix(df)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, stratify=y, random_state=RANDOM_SEED
-    )
+    # BUG FIXED: this reconstructed the split positionally, which silently
+    # reshuffles whenever training.csv grows -- so this whole validation
+    # suite could end up scoring the saved model on stars it was trained on.
+    # split_by_host keys membership to stable star IDs (see 05's docstring).
+    train_mask, test_mask = train_models.split_by_host(df)
+    X_train, X_test = X[train_mask], X[test_mask]
+    y_train, y_test = y[train_mask], y[test_mask]
     print(f"Split reconstructed: train={len(X_train)} ({y_train.sum()} pos / {len(y_train)-y_train.sum()} neg), "
           f"test={len(X_test)} ({y_test.sum()} pos / {len(y_test)-y_test.sum()} neg)")
     return X, y, X_train, X_test, y_train, y_test
@@ -492,9 +496,13 @@ def reverify_no_leakage(df):
 def main():
     full_df = train_models.load_and_report_class_balance()
     X, y = train_models.build_feature_matrix(full_df)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, stratify=y, random_state=RANDOM_SEED
-    )
+    # BUG FIXED: this reconstructed the split positionally, which silently
+    # reshuffles whenever training.csv grows -- so this whole validation
+    # suite could end up scoring the saved model on stars it was trained on.
+    # split_by_host keys membership to stable star IDs (see 05's docstring).
+    train_mask, test_mask = train_models.split_by_host(full_df)
+    X_train, X_test = X[train_mask], X[test_mask]
+    y_train, y_test = y[train_mask], y[test_mask]
     print(f"Split reconstructed: train={len(X_train)} ({y_train.sum()} pos / {len(y_train)-y_train.sum()} neg), "
           f"test={len(X_test)} ({y_test.sum()} pos / {len(y_test)-y_test.sum()} neg)")
 

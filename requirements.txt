@@ -1,0 +1,40 @@
+# ExoplanetAI dependencies.
+#
+# Versions are pinned to what this project was actually developed and
+# validated against. Two of these pins matter more than the rest:
+#
+#   scikit-learn -- models/best_model.joblib is a pickled scikit-learn
+#     object. Loading it under a different major/minor version may emit
+#     InconsistentVersionWarning or fail outright. If you only want to RUN
+#     the saved model, match this pin. If you intend to retrain from
+#     scratch (code/05_train_models.py), any recent version works.
+#
+#   numpy -- lightkurve, astropy and transitleastsquares all build on it;
+#     mixing a numpy 1.x environment with these 2.x-era pins will break.
+#
+# Install:  python3 -m pip install -r requirements.txt
+
+# --- core pipeline (stages 01-08: download, preprocess, TLS, train, score) ---
+numpy==2.4.6
+pandas==2.3.3
+scipy==1.17.1
+scikit-learn==1.9.0
+joblib==1.5.3
+matplotlib==3.11.0
+tqdm==4.68.3
+requests==2.34.2
+
+# --- astronomy: MAST light curves, catalog queries, transit search ---
+lightkurve==2.6.0
+astropy==8.0.1
+astroquery==0.4.11
+transitleastsquares==1.32
+
+# --- web app (web/app.py) ---
+Flask==3.1.3
+
+# --- OPTIONAL: only needed to re-run the injection-recovery and CNN
+# --- experiments under code/experiments/. The main pipeline, the deployed
+# --- model, and the web app all work without these.
+batman-package==2.5.3
+torch==2.13.0

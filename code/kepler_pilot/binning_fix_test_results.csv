@@ -1,0 +1,9 @@
+host,status,elapsed_s,transit_shape_ratio
+KIC_5631630,Required feature(s) not computable: ['transit_shape_ratio'],4706.08473610878,
+KIC_7219825,Required feature(s) not computable: ['transit_shape_ratio'],7008.6102340221405,
+KIC_3645438,Required feature(s) not computable: ['transit_shape_ratio'],7562.296454906464,
+KIC_9391506,Required feature(s) not computable: ['transit_shape_ratio'],7838.635752916336,
+KIC_3937519,Required feature(s) not computable: ['transit_shape_ratio'],8902.590896844864,
+KIC_7584650,Success,8950.226727247238,-21.817362626146448
+KIC_8573193,Required feature(s) not computable: ['transit_shape_ratio'],8969.780771970749,
+KIC_7288306,Required feature(s) not computable: ['transit_shape_ratio'],9758.112208127975,
