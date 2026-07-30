@@ -160,7 +160,22 @@ def _safe_download(search_result):
 # =====================================
 # SETTINGS
 # =====================================
-PER_STAR_DOWNLOAD_TIMEOUT = 45
+# Per-star download ceiling, in seconds. Overridable because 45s is tuned for
+# a WARM lightkurve cache and a responsive MAST, and a first run has neither.
+#
+# Measured in a clean-clone reproduction test: with an empty cache, all 10
+# stars in the documented quick-start failed with "Timed out after 45s" --
+# while one of those same downloads actually completed at 4.3 MB shortly
+# after being abandoned. A new user following the README would see
+# "Downloaded: 0, Failed: 10" and reasonably conclude the pipeline is broken,
+# when nothing was broken except this number being too small for a cold start.
+#
+# The default is left at 45 because that is what the project's own bulk runs
+# were validated against, and raising it globally would slow the (common)
+# warm-cache case for every star that genuinely has no data. Cold-start users
+# should raise it instead:
+#     EXOPLANETAI_DOWNLOAD_TIMEOUT=300 python3 06_download_unknown.py ...
+PER_STAR_DOWNLOAD_TIMEOUT = int(os.environ.get("EXOPLANETAI_DOWNLOAD_TIMEOUT", "45"))
 NETWORK_TIMEOUT = 30
 DOWNLOAD_WORKERS = 8
 TLS_WORKERS = max(1, (os.cpu_count() or 4) - 1)
