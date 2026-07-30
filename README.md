@@ -270,7 +270,35 @@ Restore it afterwards with `mv ../unknown_features.csv.bak
 so keep the backup inside the repo rather than in `/tmp`, where the OS may
 delete it.
 
-**Not yet verified:** cloning from GitHub specifically. The tests above cloned
-from a local copy of this repository, which reproduces exactly what a `git
-clone` delivers (tracked files only, no local state) but does not exercise the
-GitHub transport itself.
+That workaround was then run in a fresh clone: it reaches stage E
+(preprocessing) and stage F (TLS), rebuilds `unknown_features.csv` from nothing
+(9 lines, not the shipped 2,455), scores, and ranks — confirming it exercises
+what the quick-start skips.
+
+### Verified from GitHub, not just locally
+
+The checks above were originally run against clones of a *local* copy. They have
+since been repeated against an anonymous `git clone` of the public GitHub
+repository, in a fresh virtualenv, on a machine with none of this project's
+state:
+
+| Check | Result |
+|---|---|
+| `git clone` with no credentials | 189 files, 105 MB |
+| `pip install -r requirements.txt` into a new venv | exit 0, 3m44s, 729 MB (faster than the 8m19s first measurement — that one populated a cold pip cache) |
+| Core imports | 13/13, on scikit-learn 1.9.0 / numpy 2.4.6 as pinned |
+| `split_manifest.json` delivered | 4,392 train / 1,099 test hosts |
+| Hosts appearing on both sides of the split | **0** |
+| ROC-AUC on the frozen manifest test set | **0.9031559838** vs metadata `0.9031559838` — delta **0.0000000000** |
+| Precision / Recall | 0.8972 / 0.9654 |
+| Web app | `/`, `/candidates`, `/models` all HTTP 200, no errors logged |
+
+**One honest subtlety about that exact reproduction.** Evaluated on *all* rows
+currently in `training.csv`, the same model scores **0.9035** on 1,110 test
+stars, not 0.9032 on 1,099. Nothing is wrong: `training.csv` keeps growing as
+the scheduler appends newly-labelled stars, and hosts added after the manifest
+was frozen are assigned by stable hash, so the test set slowly gains members the
+published figure was never measured on. The headline number reproduces *exactly*
+against the frozen 1,099 hosts it was computed on, and drifts by ~0.0003 against
+today's larger set. Quote the frozen figure when comparing to this README;
+expect the live one to wander slightly.
