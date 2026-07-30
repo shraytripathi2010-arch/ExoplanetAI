@@ -175,7 +175,32 @@ def _safe_download(search_result):
 # warm-cache case for every star that genuinely has no data. Cold-start users
 # should raise it instead:
 #     EXOPLANETAI_DOWNLOAD_TIMEOUT=300 python3 06_download_unknown.py ...
-PER_STAR_DOWNLOAD_TIMEOUT = int(os.environ.get("EXOPLANETAI_DOWNLOAD_TIMEOUT", "45"))
+#
+# Validated rather than passed straight to int(): a non-numeric value used to
+# raise a bare ValueError traceback at import time, and 0 or a negative value
+# was accepted silently -- which aborts every download instantly and looks
+# exactly like a total network failure. Both now fail loudly and say what is
+# wrong, which is the whole point of having the knob.
+def _read_download_timeout():
+    raw = os.environ.get("EXOPLANETAI_DOWNLOAD_TIMEOUT")
+    if raw is None or raw.strip() == "":
+        return 45
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        raise SystemExit(
+            f"EXOPLANETAI_DOWNLOAD_TIMEOUT must be a whole number of seconds, "
+            f"got {raw!r}. Example: EXOPLANETAI_DOWNLOAD_TIMEOUT=300"
+        )
+    if value < 1:
+        raise SystemExit(
+            f"EXOPLANETAI_DOWNLOAD_TIMEOUT must be at least 1 second, got {value}. "
+            f"A value of 0 or less would abandon every download before it started."
+        )
+    return value
+
+
+PER_STAR_DOWNLOAD_TIMEOUT = _read_download_timeout()
 NETWORK_TIMEOUT = 30
 DOWNLOAD_WORKERS = 8
 TLS_WORKERS = max(1, (os.cpu_count() or 4) - 1)

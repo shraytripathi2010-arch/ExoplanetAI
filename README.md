@@ -71,7 +71,7 @@ Both are optional; nothing requires a credential to run.
 |---|---|---|
 | `ADS_API_KEY` | unset | Enables the NASA ADS literature check in `08_characterize_candidates.py`. Without it the pipeline silently falls back to arXiv and says so in the UI. Free key: <https://ui.adsabs.harvard.edu/user/settings/token> |
 | `PORT` | `5050` | Port for the web app |
-| `EXOPLANETAI_DOWNLOAD_TIMEOUT` | `45` | Per-star download ceiling in seconds. **Raise this on your first run** — see below. |
+| `EXOPLANETAI_DOWNLOAD_TIMEOUT` | `45` | Per-star download ceiling in **whole seconds**. Any integer ≥ 1; 300 is a good cold-start value. Non-numeric, `0`, or negative values are rejected at startup with an explanatory message rather than silently accepted. **Raise this on your first run** — see below. |
 
 ### If your first run reports "Downloaded: 0, Failed: N"
 
@@ -245,17 +245,30 @@ this README — using no knowledge of the original development machine.
 | `--sample-size` silently ignored when a cached candidate list existed; the quick-start started a 2,000-star, ~25-hour download | **real bug** | resume path now truncates to the requested size |
 | `torch` (~2 GB) in core requirements for packages the pipeline never imports | packaging | moved to `requirements-experiments.txt`; core install ~8 min |
 | 45s download timeout fails every star on a cold cache | configuration, not portable | `EXOPLANETAI_DOWNLOAD_TIMEOUT` env var + documented above |
+| `EXOPLANETAI_DOWNLOAD_TIMEOUT=abc` raised a bare `ValueError` traceback; `0` and negative values were accepted silently, abandoning every download instantly | **input validation** | validated at startup with an explanatory message; valid range documented |
+| The workaround below used a repo-root-relative `mv` path, but the quick-start leaves you in `code/` — following both in order failed with "No such file or directory" | **documentation bug** | corrected below with an explicit `cd` |
+
+The download-timeout variable was then re-tested end to end against a real MAST
+download: at `1` the pipeline reports `Timed out after 1s` in 1.0s, at `300` and
+at the unset default of `45` the same star returns `Success` in ~7s. The knob
+genuinely governs behaviour rather than merely being read.
 
 **Known limitation, not fixed:** the quick-start does not exercise
 preprocessing or the transit search in a fresh clone, because the repo ships a
 2,454-row `data/catalogs/unknown_features.csv` and the resume logic correctly
 skips stars that already have features. To force a genuine from-scratch run of
-those stages, move that file aside first:
+those stages, move that file aside first. Note the `cd ../` — the quick-start
+above leaves you in `code/`, and the path below is relative to the repo root:
 
 ```bash
-mv data/catalogs/unknown_features.csv /tmp/
-EXOPLANETAI_DOWNLOAD_TIMEOUT=300 python3 06_download_unknown.py --sample-size 10 --top-n 5
+cd ../ && mv data/catalogs/unknown_features.csv unknown_features.csv.bak
+cd code && EXOPLANETAI_DOWNLOAD_TIMEOUT=300 python3 06_download_unknown.py --sample-size 10 --top-n 5
 ```
+
+Restore it afterwards with `mv ../unknown_features.csv.bak
+../data/catalogs/unknown_features.csv` — those 2,454 rows are real prior work,
+so keep the backup inside the repo rather than in `/tmp`, where the OS may
+delete it.
 
 **Not yet verified:** cloning from GitHub specifically. The tests above cloned
 from a local copy of this repository, which reproduces exactly what a `git
