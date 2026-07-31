@@ -24,6 +24,11 @@ web/exoplanet.db
 
 # Regenerated logs and on-demand plot images.
 web/job_logs/
+
+# Scheduler log + heartbeat: live operational state of one machine's running
+# app, rotated on disk. Useful for watching an unattended run, meaningless in
+# version control (and the heartbeat rewrites every 60s).
+web/logs/
 web/static/plots/
 
 # Bootstrap uncertainty ensemble -- 32 refits of the production model, ~150MB.

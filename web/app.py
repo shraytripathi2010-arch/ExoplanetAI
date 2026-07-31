@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import db
 import sync
 import job_runner
+import scheduler_log
 
 app = Flask(__name__)
 
@@ -558,6 +559,41 @@ def job_status(run_id):
     if run is None:
         return jsonify({"error": "not found"}), 404
     return jsonify(run)
+
+
+@app.route("/health")
+def health():
+    """External liveness check for long unattended runs.
+
+    Answers the question the hibernation incident could not: is the SCHEDULER
+    still ticking? Process-level "is it up" is not enough -- during that
+    freeze the process was up the whole time while progress was dead.
+
+    Returns HTTP 503 (not 200) when the scheduler looks stalled, so a plain
+    `curl -f` or any uptime monitor treats it as down without parsing JSON.
+    A tick is expected every 60s; 300s of silence is unambiguous.
+    """
+    hb, age = scheduler_log.read_heartbeat()
+    thread_alive = job_runner.scheduler_is_alive()
+    stalled = (age is None) or (age > 300) or (not thread_alive)
+
+    try:
+        n_labels = db.count_processed_watch_labels_since("2000-01-01 00:00:00 UTC")
+    except Exception:
+        n_labels = None
+
+    body = {
+        "status": "stalled" if stalled else "ok",
+        "scheduler_thread_alive": thread_alive,
+        "last_tick_at": (hb or {}).get("last_tick_at"),
+        "seconds_since_last_tick": None if age is None else round(age, 1),
+        "hours_since_last_tick": None if age is None else round(age / 3600.0, 2),
+        "last_tick_detail": hb,
+        "processed_watch_labels": n_labels,
+        "retrain_threshold": 50,
+        "log_file": scheduler_log.LOG_PATH,
+    }
+    return jsonify(body), (503 if stalled else 200)
 
 
 if __name__ == "__main__":

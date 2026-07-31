@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "code"))
 
 import db
+import scheduler_log
 import sync
 
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
@@ -309,6 +310,10 @@ def start_update_job(sample_size):
 # /jobs/update endpoint this scheduler calls internally.
 SCHEDULER_POLL_SECONDS = 60
 
+# Named so scheduler_is_alive() can distinguish "the scheduler thread is
+# running" from "the process is running" -- see the /health endpoint.
+_SCHEDULER_THREAD_NAME = "exoplanetai-scheduler"
+
 
 # Continuous-retraining tick (Item 2, Part B) runs on its own, much coarser
 # interval than the 60s Update-due check above -- it queries the live
@@ -327,8 +332,18 @@ def _retrain_tick_due():
 
 
 def _scheduler_loop():
+    log = scheduler_log.get_logger()
+    log.info("SCHEDULER  thread started (poll=%ss, retrain tick every %sh)",
+             SCHEDULER_POLL_SECONDS, RETRAIN_TICK_INTERVAL_HOURS)
+    scheduler_log.write_heartbeat(event="thread_started")
+    tick = 0
+
     while True:
         time.sleep(SCHEDULER_POLL_SECONDS)
+        tick += 1
+        update_status = "idle"
+        retrain_status = "not_due"
+
         try:
             cfg = db.get_scheduler_config()
             if cfg["enabled"] and cfg["next_run_at"]:
@@ -339,24 +354,67 @@ def _scheduler_loop():
                     db.set_scheduler_next_run(
                         new_next.strftime("%Y-%m-%d %H:%M:%S UTC"), db.now_iso()
                     )
+                    update_status = "started"
+                    log.info("UPDATE     scheduled Update job started (sample_size=%s); "
+                             "next run %s", cfg["sample_size"], new_next)
+                elif db.get_running_run():
+                    update_status = "skipped_run_in_progress"
+            else:
+                update_status = "disabled"
         except Exception:
-            pass  # scheduler thread must never die from one bad tick
+            # WAS `except Exception: pass`. A failing due-check -- an
+            # unparseable next_run_at, a locked DB -- vanished with no record
+            # anywhere, so scheduled Updates could stop firing forever and the
+            # only symptom was silence. exception() logs the full traceback.
+            update_status = "error"
+            log.exception("UPDATE     due-check raised; scheduler continues")
 
         try:
             if _retrain_tick_due():
                 import retrain_pipeline
+                log.info("RETRAIN    tick due -- querying archives, processing labels")
                 retrain_pipeline.scheduler_tick()
                 db.set_last_retrain_tick_at(db.now_iso())
-        except Exception as e:
-            print(f"Continuous-retraining tick failed (does not affect Update jobs): {e}")
+                retrain_status = "ran"
+                try:
+                    n = db.count_processed_watch_labels_since("2000-01-01 00:00:00 UTC")
+                    log.info("RETRAIN    tick complete -- %s processed watch labels "
+                             "(threshold %s to trigger a retrain attempt)",
+                             n, getattr(retrain_pipeline, "RETRAIN_THRESHOLD", "?"))
+                except Exception:
+                    log.exception("RETRAIN    post-tick counter read failed")
+        except Exception:
+            retrain_status = "error"
+            log.exception("RETRAIN    tick raised (does not affect Update jobs)")
+
+        # Heartbeat EVERY tick, including boring ones. A log that only records
+        # interesting events cannot tell "healthy and idle" from "dead", which
+        # is the one question this whole mechanism exists to answer.
+        scheduler_log.write_heartbeat(
+            tick=tick, update=update_status, retrain=retrain_status)
+        if tick % 60 == 0:  # hourly liveness line, keeps the log greppable
+            log.info("SCHEDULER  alive -- tick %s, update=%s, retrain=%s",
+                     tick, update_status, retrain_status)
 
 
 def start_scheduler_thread():
     """Starts the always-on background thread that checks, once a minute,
     whether a scheduled Update is due. Safe to call once at app startup --
     if scheduling is disabled it just polls and does nothing."""
-    thread = threading.Thread(target=_scheduler_loop, daemon=True)
+    thread = threading.Thread(target=_scheduler_loop, daemon=True,
+                              name=_SCHEDULER_THREAD_NAME)
     thread.start()
+    return thread
+
+
+def scheduler_is_alive():
+    """True only if the scheduler THREAD is running -- not merely that the
+    process is up. Those differ, and the difference is what made the
+    hibernation freeze invisible: the process looked fine throughout."""
+    for t in threading.enumerate():
+        if t.name == _SCHEDULER_THREAD_NAME and t.is_alive():
+            return True
+    return False
 
 
 # ---- single-candidate re-verify (Phase 3) ----

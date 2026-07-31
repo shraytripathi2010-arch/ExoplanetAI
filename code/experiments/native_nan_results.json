@@ -1,0 +1,38 @@
+{
+  "n_train": 4418,
+  "n_test": 1110,
+  "hosts_on_both_sides": 0,
+  "cv": {
+    "A_current_imputer": {
+      "mean": 0.915484781018877,
+      "std": 0.008875565184506202
+    },
+    "B_native_nan": {
+      "mean": 0.9178333361295452,
+      "std": 0.007387263766386379
+    },
+    "C_add_indicator": {
+      "mean": 0.9163218149976092,
+      "std": 0.009556164982648087
+    }
+  },
+  "test_auc": {
+    "A_current_imputer": 0.8972760269688598,
+    "B_native_nan": 0.896404316199538,
+    "C_add_indicator": 0.9005215489857128
+  },
+  "comparisons": {
+    "B_native_nan": {
+      "mean_diff": -0.0008348501845285679,
+      "ci_lower": -0.007346698898270984,
+      "ci_upper": 0.005863600394544564,
+      "clears_promotion_bar": false
+    },
+    "C_add_indicator": {
+      "mean_diff": 0.003253340170347405,
+      "ci_lower": -0.0005038146951095667,
+      "ci_upper": 0.007192335129305653,
+      "clears_promotion_bar": false
+    }
+  }
+}
