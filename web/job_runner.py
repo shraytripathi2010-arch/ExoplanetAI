@@ -331,6 +331,16 @@ def _retrain_tick_due():
     return datetime.now(timezone.utc) - last_dt >= timedelta(hours=RETRAIN_TICK_INTERVAL_HOURS)
 
 
+def _safe_label_count():
+    """Progress toward the retrain threshold, in the liveness line itself, so
+    the log answers 'is it alive AND is it getting anywhere' in one grep.
+    Never raises -- a counter read must not be able to kill the scheduler."""
+    try:
+        return db.count_processed_watch_labels_since("2000-01-01 00:00:00 UTC")
+    except Exception:
+        return "?"
+
+
 def _scheduler_loop():
     log = scheduler_log.get_logger()
     log.info("SCHEDULER  thread started (poll=%ss, retrain tick every %sh)",
@@ -392,9 +402,16 @@ def _scheduler_loop():
         # is the one question this whole mechanism exists to answer.
         scheduler_log.write_heartbeat(
             tick=tick, update=update_status, retrain=retrain_status)
-        if tick % 60 == 0:  # hourly liveness line, keeps the log greppable
-            log.info("SCHEDULER  alive -- tick %s, update=%s, retrain=%s",
-                     tick, update_status, retrain_status)
+        # Every 5 minutes, not hourly. The heartbeat file records EVERY tick,
+        # but the stated requirement is that the LOG ALONE shows whether the
+        # scheduler is alive and when it last ticked -- and an hourly line
+        # leaves up to 59 minutes where the log cannot answer that. At 60s
+        # polling this is 288 lines/day, which rotation absorbs easily.
+        if tick % 5 == 0:
+            log.info("SCHEDULER  alive -- tick %s, update=%s, retrain=%s, "
+                     "processed_labels=%s",
+                     tick, update_status, retrain_status,
+                     _safe_label_count())
 
 
 def start_scheduler_thread():
