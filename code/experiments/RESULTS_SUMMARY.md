@@ -143,6 +143,90 @@ own, at this coverage rate (49%) and with this simple a feature
 (raw displacement magnitude, not a noise-normalized significance version),
 to move the model.
 
+### Re-tested at 77.6% coverage -- STILL NEGATIVE, but no longer confounded
+
+The result above had a real confound: at ~53% coverage, the other ~47% was
+median-imputed, so "centroid displacement carries no signal" could not be
+distinguished from "we only measured it on half the stars". The single-sector
+check gave up if the first sector's depth disagreed with the ephemeris, and
+**96% of its 2,377 failures were exactly that guard**. Trying up to 6 sectors
+(`MAX_CENTROID_SECTORS_TO_TRY`) addresses precisely that population.
+
+Re-ran the full 5,086-star scale test with multi-sector selection:
+
+| | single-sector | multi-sector |
+|---|---|---|
+| usable centroids | 2,709 / 5,086 = 53.3% | **3,945 / 5,086 = 77.6%** |
+| prior failures recovered | -- | 1,292 / 2,377 = 54.4% |
+| regressions | -- | 56 (all transient network errors) |
+
+Agreement check: on the 2,653 stars usable in BOTH runs, `shift_pixels` is
+**bit-identical** (`max|diff| = 0.00e+00`) and from the same sector. The change
+is purely additive -- it only engages when the first sector fails, and never
+perturbs an existing measurement.
+
+Leakage re-check at the new coverage: missing rate 31.9% positive vs 16.3%
+negative, still skewed the SAFE way (positives more likely to be MISSING, so
+data presence cannot shortcut the label); AUC of the missingness indicator
+alone 0.422 (below chance); raw `shift_pixels` single-feature AUC 0.536.
+
+Retrain, frozen split via `split_by_host` (0 hosts on both sides -- the
+original script still used a positional `train_test_split` that predates the
+Phase 1 contamination fix, which would have reshuffled on today's larger
+`training.csv`):
+
+| | 5-fold CV | held-out test ROC-AUC |
+|---|---|---|
+| base | 0.9161 +/- 0.0084 | 0.8964 |
+| + centroid | 0.9162 +/- 0.0067 | 0.8996 |
+
+Paired bootstrap: mean **+0.0032**, 95% CI **[-0.0012, +0.0076]** -- moved in
+the right direction from +0.0021 / [-0.0020, +0.0059], but still includes zero.
+**Does not clear the promotion bar.** Production model untouched.
+
+The verdict is now a clean negative rather than a confounded one: measured on
+78% of stars, difference-image centroid displacement moves this classifier by
+~0.003 AUC, indistinguishable from noise. The multi-sector work still paid off
+for the EVIDENCE layer -- 1,292 more candidates now carry a real photocenter
+measurement on their detail pages, and per-candidate centroid failures dropped
+from 37% to 13%.
+
+Scripts: `compute_training_centroids.py` (multi-sector),
+`retrain_with_centroid_multisector.py`; results
+`training_centroid_results_multisector.csv`,
+`retrain_centroid_multisector_results.json`.
+
+## Median-imputation vs HGB native NaN handling -- NEGATIVE RESULT
+
+`05_train_models.build_models()` imputes before HistGradientBoosting with an
+explicit comment that HGB could handle NaN natively, and that the imputer is
+there so all three candidate models see identical input. That was correct for
+the original bake-off -- LogisticRegression and RandomForest cannot take NaN --
+but HGB won, and the DEPLOYED pipeline still carries an imputer whose only
+purpose was fairness to two models no longer in use.
+
+Worth testing because missingness here is not random: `transit_shape_ratio` is
+30.4% missing and absent exactly when the shape fit fails; `FAP` is absent when
+TLS cannot compute a false-alarm probability. Both are properties of weak or
+ambiguous detections, i.e. correlated with the label. Median-imputing erases
+that; HGB's native handling learns a per-split direction for missing values.
+
+Frozen split, identical hyperparameters, identical rows:
+
+| arm | 5-fold CV | test ROC-AUC | paired bootstrap vs current |
+|---|---|---|---|
+| A: current (SimpleImputer median) | 0.9155 | 0.8973 | -- |
+| B: native NaN (no imputer) | 0.9178 | 0.8964 | -0.0008, CI [-0.0073, +0.0059] |
+| C: SimpleImputer(add_indicator=True) | 0.9163 | **0.9005** | **+0.0033, CI [-0.0005, +0.0072]** |
+
+Neither clears `ci_lo > 0`. Arm C misses by **0.0005** -- the closest any
+change has come to the bar in this project -- and is the obvious candidate to
+retest once the training set grows. Deliberately NOT promoted, and deliberately
+not followed by a search for a variant that squeaks past, which would be
+p-hacking the same bar every other experiment here has had to clear.
+
+Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
+
 ## Part B: injection-recovery synthetic data system -- BUILT, VALIDATED
 
 - `injection.py`: batman-based transit injector + EB-like negative injector,
