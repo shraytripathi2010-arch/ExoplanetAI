@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.exoplanetai.app.plist -- runs the Flask app itself under launchd.
+
+  This is the piece the app can never do for itself. The scheduler lives in a
+  daemon=True thread inside app.py, so if the Flask main thread dies the
+  scheduler dies with it and nothing brings it back. KeepAlive below is what
+  actually restarts it; /health only makes the failure visible.
+
+  Install (see web/README_SCHEDULING.md, Option C):
+    cp web/com.exoplanetai.app.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.exoplanetai.app.plist
+
+  NOTE: paths are absolute and machine-specific by necessity -- launchd does
+  not expand ~ or inherit a shell. Edit them if the repo moves.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.exoplanetai.app</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/Frameworks/Python.framework/Versions/3.11/bin/python3</string>
+        <string>-u</string>
+        <string>app.py</string>
+    </array>
+
+    <!-- app.py resolves sibling modules and ../code relative to its own
+         directory, but the DB and logs/ are opened relative to CWD. -->
+    <key>WorkingDirectory</key>
+    <string>/Users/anujtripathi/Downloads/ExoplanetAI/web</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- The whole point: restart the process if it exits for any reason,
+         including a crash, a logout, or a reboot. -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Don't hammer a genuinely broken app: wait 30s between restarts.
+         Without this, a config error that kills the app at startup becomes a
+         tight respawn loop. -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>5050</string>
+        <!-- launchd starts with a minimal PATH; astroquery/lightkurve shell
+             out rarely, but give them a sane one rather than debugging it
+             later. -->
+        <key>PATH</key>
+        <string>/Library/Frameworks/Python.framework/Versions/3.11/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/anujtripathi/Downloads/ExoplanetAI/web/logs/launchd_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/anujtripathi/Downloads/ExoplanetAI/web/logs/launchd_stderr.log</string>
+</dict>
+</plist>

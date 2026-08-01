@@ -91,3 +91,71 @@ If `app.py` isn't running when the `curl` fires, the request will simply
 fail (connection refused) and get logged to
 `/tmp/exoplanetai_scheduled_update.log` -- nothing destructive happens,
 it just won't trigger an Update that time.
+
+---
+
+## Option C: let `launchd` run `app.py` itself (recommended for unattended use)
+
+Options A and B both assume `app.py` is already running. This option makes
+launchd own the process, which is the piece the app **cannot** do for itself:
+the scheduler lives in a `daemon=True` thread inside `app.py`, so if the Flask
+main thread dies the scheduler dies with it and nothing brings it back.
+`KeepAlive` is what actually restarts it. `/health` only makes the failure
+*visible*; this is what makes it *recover*.
+
+A ready-made plist is in the repo at `web/com.exoplanetai.app.plist`. **Its
+paths are absolute** -- launchd does not expand `~` and inherits no shell -- so
+edit them if the repo lives somewhere else.
+
+**Install:**
+```bash
+cp web/com.exoplanetai.app.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.exoplanetai.app.plist
+```
+
+`bootstrap` is the modern replacement for `launchctl load`, which still works
+but is deprecated.
+
+**Check it:**
+```bash
+launchctl print gui/$(id -u)/com.exoplanetai.app | grep -E "state|pid|runs"
+curl -s http://127.0.0.1:5050/health
+```
+
+A launchd-owned process has **PPID 1**. That is how you tell it apart from a
+leftover `nohup python3 app.py` started by hand:
+```bash
+lsof -ti tcp:5050 | xargs ps -o pid,ppid,command -p
+```
+
+**Verify auto-restart actually works** (worth doing once -- it is the whole
+point of this option):
+```bash
+kill -9 $(lsof -ti tcp:5050)
+sleep 40 && curl -s http://127.0.0.1:5050/health
+```
+It should come back with a new PID. `ThrottleInterval` is 30s, so allow ~30-40
+seconds; that delay is deliberate, to stop a genuinely broken app from becoming
+a tight respawn loop.
+
+**Stop / uninstall:**
+```bash
+launchctl bootout gui/$(id -u)/com.exoplanetai.app
+rm ~/Library/LaunchAgents/com.exoplanetai.app.plist
+```
+
+**What this does NOT solve.** launchd restarts the app if the *process* dies.
+It does not keep the *machine* awake. A Mac that sleeps -- including a
+battery-triggered "Low Power Sleep", which `caffeinate -i` does not block --
+stops the scheduler for the duration, and that time is lost permanently: the
+24h retrain gate is keyed to a persisted timestamp and does not catch up. For
+genuinely unattended operation, keep the machine on AC power, or run this on an
+always-on host.
+
+**Monitoring it from outside:**
+```bash
+curl -sf http://127.0.0.1:5050/health || echo "scheduler stalled"
+tail -f web/logs/scheduler.log
+```
+`/health` returns **503** when the last tick is more than 300s old, so plain
+`curl -f` is enough for any uptime monitor -- no JSON parsing needed.

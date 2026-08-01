@@ -46,6 +46,12 @@ models/bootstrap_ensemble/
 code/experiments/*.log
 code/kepler_pilot/*.log
 code/experiments/training_with_new_features.csv
+# Merged feature table for the multi-sector centroid retrain: training.csv
+# left-joined with the centroid results, rebuilt in seconds by
+# retrain_with_centroid_multisector.py. The RESULTS (the .json) and the
+# per-star measurements (training_centroid_results_multisector.csv) are
+# tracked; this join is not.
+code/experiments/training_with_centroid_multisector.csv
 
 # Python bytecode cache.
 __pycache__/

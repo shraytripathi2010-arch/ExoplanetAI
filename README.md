@@ -183,8 +183,31 @@ python3 web/app.py
 The SQLite databases (`web/*.db`) are gitignored — they are live application
 state, not source. The app creates them on first run.
 
-Scheduled runs only fire while `app.py` is running. For a schedule that
-survives the machine sleeping, see `web/README_SCHEDULING.md`.
+Scheduled runs only fire while `app.py` is running. For a setup that survives
+terminal closures, logouts, reboots and crashes, see **Option C** in
+`web/README_SCHEDULING.md` -- a launchd agent (`web/com.exoplanetai.app.plist`)
+that owns the process and restarts it automatically. That is the one thing the
+app cannot do for itself: its scheduler is a `daemon=True` thread, so it dies
+with the Flask process and nothing otherwise brings it back.
+
+### Checking on a long unattended run
+
+```bash
+curl -sf http://127.0.0.1:5050/health || echo "scheduler stalled"
+```
+
+`/health` reports whether the scheduler **thread** is alive (not merely whether
+the process is up -- those differ, and the difference is what made one silent
+7-hour freeze invisible), how long since its last tick, and progress toward the
+retrain threshold. It returns **503** once the last tick is over 300s old, so
+`curl -f` alone is enough for an uptime monitor.
+
+`web/logs/scheduler.log` carries a tagged liveness line every 5 minutes plus a
+full traceback for any failure:
+
+```
+2026-08-01 19:09:26 UTC  INFO  SCHEDULER  alive -- tick 1385, update=disabled, retrain=not_due, processed_labels=118
+```
 
 ---
 
