@@ -224,16 +224,38 @@ def now_utc_iso():
 # =====================================
 # 1. FRESH "ALREADY FLAGGED?" CHECK
 # =====================================
-def _read_csv_url(url, timeout=30):
+def _read_csv_url(url, timeout=90, attempts=3, backoff=5):
     """pd.read_csv(url) has NO timeout of its own -- it can hang indefinitely
     on a stalled connection (confirmed root cause of the reverify action
     appearing to hang for 90+ seconds). Fetch with an explicit requests
-    timeout first, then hand the text to pandas."""
+    timeout first, then hand the text to pandas.
+
+    TIMEOUT RAISED 30 -> 90 AND RETRIES ADDED, after this aborted a whole
+    characterization run before a single candidate was processed. These are
+    multi-MB bulk catalogs (the full TOI table), not small API calls, and
+    ExoFOP is simply slow: three consecutive fetches measured 20.8s, 32.1s
+    and 24.5s. A 30s ceiling sits right on top of that distribution, so
+    roughly a third of attempts failed -- and because this runs during
+    startup, one slow reply killed the entire stage rather than degrading one
+    check. Retries cover the genuinely transient case; 90s covers the merely
+    slow one.
+    """
     import io
+    import time as _time
     import requests
-    r = requests.get(url, timeout=timeout)
-    r.raise_for_status()
-    return pd.read_csv(io.StringIO(r.text))
+    last = None
+    for i in range(attempts):
+        try:
+            r = requests.get(url, timeout=timeout)
+            r.raise_for_status()
+            return pd.read_csv(io.StringIO(r.text))
+        except Exception as e:
+            last = e
+            if i < attempts - 1:
+                wait = backoff * (i + 1)
+                print(f"  fetch failed ({type(e).__name__}), retry {i+2}/{attempts} in {wait}s: {url}")
+                _time.sleep(wait)
+    raise last
 
 
 def fetch_fresh_exclusion_data():
