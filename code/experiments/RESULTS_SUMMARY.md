@@ -196,6 +196,62 @@ Scripts: `compute_training_centroids.py` (multi-sector),
 `training_centroid_results_multisector.csv`,
 `retrain_centroid_multisector_results.json`.
 
+## Small-lift trio: class weighting / engineered ratios / stacking -- ALL NEGATIVE
+
+Three ideas that use only what is already in the pipeline, tested independently
+against the production configuration refit on the frozen split (4,491 train /
+1,140 test, 0 hosts on both sides), then combined.
+
+TWO PREMISES WERE WRONG AND WERE CORRECTED BEFORE TESTING:
+
+- Class weighting was NOT unaddressed. `05_train_models.build_models()` already
+  passes `class_weight="balanced"` to all three models, and the deployed
+  artifact confirms it. So the real question was whether "balanced" is the
+  right choice for a 3.88:1 imbalance -- not whether to add weighting.
+- A stacked ensemble had already been tried (Part C above: HGB + GP + CNN,
+  0.9018 vs 0.9016). This run used a different roster (HGB + RF + LR), so not a
+  duplicate, but the prior pointed the wrong way and said so up front: RF is
+  MORE correlated with HGB than GP or CNN were.
+
+| Arm | Test ROC-AUC | delta vs base | 95% CI | Clears ci_lo > 0 |
+|---|---|---|---|---|
+| baseline (production config) | 0.8999 | -- | -- | -- |
+| no class weighting | 0.8979 | -0.0022 | [-0.0083, +0.0039] | NO |
+| sqrt-inverse-frequency weights | 0.8979 | -0.0021 | [-0.0072, +0.0033] | NO |
+| + 4 engineered ratios | 0.9001 | +0.0001 | [-0.0055, +0.0057] | NO |
+| stacked (HGB+RF+LR) | 0.9039 | +0.0039 | [-0.0022, +0.0106] | NO |
+| **combined (stacking on engineered features)** | **0.9043** | **+0.0042** | **[-0.0043, +0.0134]** | **NO** |
+
+Findings worth keeping:
+
+- **The existing `balanced` weighting is the best of the three schemes.** Both
+  alternatives were worse, not better. A settled question, now measured.
+- **The engineered ratios measure what they were designed to measure, and the
+  model already knew it.** `duty_cycle` and `odd_even_significance` both scored
+  single-feature AUC 0.353 -- well BELOW 0.5, i.e. high values predict the
+  negative class, exactly as the eclipsing-binary physics predicts. The
+  features are not broken; the information is already extractable from the raw
+  columns. Net effect +0.0001.
+- **Stacking fails for a measurable reason, not a mysterious one.** hgb-rf
+  correlation on test is 0.941, and the meta-learner assigns LR a NEGATIVE
+  coefficient (-0.454) while LR alone scores 0.774. Two near-identical models
+  plus one being subtracted out cannot add independent signal. This is the
+  second independent confirmation of Part C's finding.
+- The combined run adds essentially nothing over stacking alone (+0.0042 vs
+  +0.0039) and its CI is WIDER, which is what combining two changes with no
+  real effect should look like.
+
+Methodology caveat: the refit baseline is the bare Pipeline(SimpleImputer+HGB),
+whereas production wraps it in CalibratedClassifierCV. Sigmoid calibration is
+monotonic so AUC comparisons are unaffected, but the baseline's Brier/ECE are
+not representative of the deployed model's calibration (separately measured at
+ECE 0.0199).
+
+Each arm got ONE honest attempt. No arm was re-tuned after seeing its result.
+
+Scripts: `small_lift_trio.py`, `small_lift_combined.py`; results
+`small_lift_trio_results.json`, `small_lift_combined_results.json`.
+
 ## Median-imputation vs HGB native NaN handling -- NEGATIVE RESULT
 
 `05_train_models.build_models()` imputes before HistGradientBoosting with an

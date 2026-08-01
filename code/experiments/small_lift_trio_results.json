@@ -1,0 +1,85 @@
+{
+  "n_train": 4491,
+  "n_test": 1140,
+  "hosts_both_sides": 0,
+  "deployed_auc": 0.9040570723739041,
+  "arms": {
+    "base_balanced": {
+      "cv_mean": 0.9193509615665377,
+      "cv_std": 0.008285705196294475,
+      "test_auc": 0.8999423751899,
+      "brier": 0.10814831915611534,
+      "ece": 0.0858566128567114
+    },
+    "weight_none": {
+      "cv_mean": 0.9227720729321257,
+      "cv_std": 0.006997898768754394,
+      "test_auc": 0.897880264216898,
+      "brier": 0.09129368276884822,
+      "ece": 0.023941341917621345,
+      "mean_delta": -0.002230612766671328,
+      "ci_lower": -0.008323431870743695,
+      "ci_upper": 0.00392014888755653,
+      "clears_bar": false
+    },
+    "weight_sqrt_inverse": {
+      "cv_mean": 0.9216151624593584,
+      "cv_std": 0.006367835480345745,
+      "test_auc": 0.8979326504078979,
+      "brier": 0.09435973837795793,
+      "ece": 0.04222618579641017,
+      "mean_delta": -0.002077731961131547,
+      "ci_lower": -0.0072124713429497864,
+      "ci_upper": 0.003298785133900637,
+      "clears_bar": false
+    },
+    "engineered_features": {
+      "cv_mean": 0.9174978055359212,
+      "cv_std": 0.006493826619013029,
+      "test_auc": 0.9000995337629001,
+      "brier": 0.10601999546613707,
+      "ece": 0.08005259980741192,
+      "mean_delta": 9.647957594775337e-05,
+      "ci_lower": -0.00553957904700037,
+      "ci_upper": 0.005667657303842264,
+      "clears_bar": false
+    },
+    "stacked": {
+      "test_auc": 0.9039189633249041,
+      "brier": 0.08956018485583517,
+      "ece": 0.036250210852936934,
+      "meta_coefficients": {
+        "hgb": 2.846,
+        "rf": 4.19,
+        "lr": -0.454
+      },
+      "base_correlations": {
+        "hgb_rf": 0.9413506795089138,
+        "hgb_lr": 0.7026942933222282,
+        "rf_lr": 0.7317109318326579
+      },
+      "mean_delta": 0.003884426655558488,
+      "ci_lower": -0.0021507589273539293,
+      "ci_upper": 0.010594181684960851,
+      "clears_bar": false
+    }
+  },
+  "feature_leakage": {
+    "duty_cycle": {
+      "single_feature_auc": 0.35343467747776713,
+      "pct_missing": 2.0067483573077607
+    },
+    "duration_vs_expected": {
+      "single_feature_auc": 0.4540189563392503,
+      "pct_missing": 4.652814775350737
+    },
+    "secondary_ratio": {
+      "single_feature_auc": 0.49297080030520324,
+      "pct_missing": 2.0067483573077607
+    },
+    "odd_even_significance": {
+      "single_feature_auc": 0.35337007756514854,
+      "pct_missing": 5.6650683715148284
+    }
+  }
+}
