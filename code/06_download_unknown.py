@@ -810,6 +810,31 @@ FEATURE_METADATA_PATH = os.path.join(MODELS_FOLDER, "best_model_metadata.json")
 # the star.
 OPTIONAL_FEATURES = {"transit_shape_ratio", "FAP"}
 
+# Triage floor, chosen deliberately from the threshold sweep in
+# code/experiments/audit_calibration_threshold_errors.py rather than inherited
+# as a default. The pipeline never actually applied a binary threshold -- it
+# ranked by probability and took the top N -- so 0.5 existed only as a
+# reporting parameter for the training-time confusion matrix, never as a
+# deployment decision.
+#
+# WHY 0.30 AND NOT 0.5. A human reviews every candidate that reaches the
+# shortlist, so the two error types are not symmetric: a false positive costs
+# review time, a false negative is a permanently lost discovery. On the frozen
+# test set, moving 0.5 -> 0.30 lifts recall 0.966 -> 0.988, recovering 20 of
+# 31 missed planets, for ~59 more candidates to look at. 0.30 also sits at the
+# F2 optimum (recall weighted 2x), which matches that asymmetry better than F1.
+#
+# This is a FLOOR, not a classification threshold: nothing above it is called a
+# planet, and ranking within the shortlist is unchanged. It only stops the
+# bottom of a weak batch from consuming expensive characterization and human
+# attention.
+#
+# CAVEAT recorded here so it is not lost: the test set is 79.7% positive while
+# the real unknown-star pool is overwhelmingly not planets, so the precision
+# figures behind this choice are an upper bound and do NOT transfer to
+# deployment. Recall transfers; precision does not.
+TRIAGE_PROBABILITY_FLOOR = 0.30
+
 
 def bin_lightcurve(time_arr, flux_arr, flux_err_arr):
     n = len(time_arr)
@@ -1317,7 +1342,17 @@ def split_and_rerank(ranked_df):
     out-of-distribution (flagged, needs independent stellar-param
     verification) tables, each re-sorted on its own by predicted probability
     -- not just the original list with a warning column bolted on."""
-    in_dist = ranked_df[ranked_df["in_distribution"]].sort_values(
+    # Triage floor -- see TRIAGE_PROBABILITY_FLOOR. Recorded as a column on the
+    # full ranked table (nothing is deleted, and the full table is still
+    # written) but held out of the in-distribution shortlist, which is the
+    # thing that feeds characterization and human review.
+    ranked_df = ranked_df.copy()
+    ranked_df["below_triage_floor"] = (
+        ranked_df["predicted_probability"] < TRIAGE_PROBABILITY_FLOOR)
+    n_below = int(ranked_df["below_triage_floor"].sum())
+
+    keep = ranked_df["in_distribution"] & ~ranked_df["below_triage_floor"]
+    in_dist = ranked_df[keep].sort_values(
         "predicted_probability", ascending=False).reset_index(drop=True)
     out_dist = ranked_df[~ranked_df["in_distribution"]].sort_values(
         "predicted_probability", ascending=False).reset_index(drop=True)
@@ -1331,6 +1366,10 @@ def split_and_rerank(ranked_df):
     print("OUT-OF-DISTRIBUTION IMPACT SUMMARY")
     print("=" * 60)
     print(f"Total ranked candidates: {len(ranked_df)}")
+    if n_below:
+        print(f"Below the {TRIAGE_PROBABILITY_FLOOR:.2f} triage floor: {n_below} "
+              f"-- kept in the full ranked table (column below_triage_floor) but "
+              f"held out of the shortlist below, so review effort goes to the rest.")
     print(f"In-distribution (trustworthy shortlist): {len(in_dist)} -- saved to {in_dist_path}")
     print(f"Out-of-distribution (needs stellar-param verification first): {len(out_dist)} -- "
           f"saved to {out_dist_path}")

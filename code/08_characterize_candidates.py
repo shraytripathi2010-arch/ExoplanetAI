@@ -743,6 +743,33 @@ def confidence_tier(row):
             doubt.append(f"marginal detection statistics: SDE={sde:.1f}, only {int(n_transits)} distinct transits observed"
                           + (" -- the period itself is less certain with this few" if n_transits < 3 else ""))
 
+    # Large host star + strong signal = the regime where this model is least
+    # reliable, which is exactly the regime the SDE bonus above rewards.
+    #
+    # Measured on the frozen test set (code/experiments/
+    # audit_calibration_threshold_errors.py): stars that are neither
+    # large-radius nor high-SDE have a 5.8% classifier error rate; large radius
+    # AND high SDE is 21.1%, and the two single-factor cells are 17-18%. 74% of
+    # all false negatives fall in the top SNR quartile, 3.0x over-represented.
+    #
+    # Physically this is the eclipsing-binary corner: deep, long, high-SNR
+    # events on giants and subgiants (st_rad in the top quartile reaches
+    # 102 R_sun) look exactly like the strong detections the SDE bonus is meant
+    # to reward. The -1 deliberately does not cancel the +2 -- the detection IS
+    # strong, and pretending otherwise would be its own distortion. It tempers
+    # a net +2 down to +1 and, more importantly, puts the reason in writing on
+    # the candidate page so a human knows to weigh the blend and secondary-
+    # eclipse evidence harder here.
+    st_rad = row.get("st_rad")
+    if pd.notna(st_rad) and pd.notna(sde) and st_rad >= 1.5 and sde >= 10:
+        doubt.append(
+            f"host star is large (R = {st_rad:.2f} R_sun) and the detection is strong "
+            f"(SDE = {sde:.1f}) -- the classifier is measurably least reliable in this "
+            f"combination (21% error vs 6% elsewhere on held-out data), because deep, "
+            f"long eclipses on giant stars mimic strong planet detections; treat the "
+            f"blend and secondary-eclipse checks as decisive here")
+        score -= 1
+
     if row.get("radius_plausible"):
         support.append(f"physically plausible derived radius ({row.get('planet_radius_earth'):.1f} R_earth)")
         score += 1
