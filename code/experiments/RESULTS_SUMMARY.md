@@ -380,6 +380,121 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## FFI (coarse-cadence) expansion -- COVERAGE LEVER, NOT AN ACCURACY LEVER. Part 1 only.
+
+Investigated whether TESS full-frame-image light curves could grow the training
+set. Part 1 (feasibility + distribution shift) answered it without downloading
+anything, because **the training set already contains coarse-cadence data**.
+
+### The premise needed correcting twice
+
+`01_download_known.py:try_search` prefers `author='SPOC'` but falls back to
+whatever product MAST returns first -- QLP, CDIPS, TASOC, all FFI-derived --
+and nothing ever recorded which pipeline produced each file. Cadence has been
+an invisible column. Measured directly from the light curves (median delta-t,
+not filenames or logs):
+
+| group | rows | positives | negatives |
+|---|---|---|---|
+| FINE (< 1 min, 20s SPOC) | 401 | 322 | 79 |
+| 2-min SPOC | 4,852 | 3,940 | 912 |
+| **COARSE (> 2.6 min, FFI-derived)** | **231** | 70 | 161 |
+
+COARSE is strongly class-asymmetric: 14.0% of negatives vs 1.6% of positives.
+
+**A REAL ERROR, CORRECTED AND RECORDED.** The first analysis lumped everything
+non-2-min into one bucket and called it the FFI proxy. **401 of those 632 rows
+are SUB-MINUTE 20-second SPOC data -- FINER than 2-min, the opposite of FFI.**
+Every number from that pass described 20s data as much as FFI, and the
+apparently strong "+0.0128, CLEARS" result it produced was not an FFI result at
+all. The corrected analysis excludes FINE rows from every arm so COARSE is
+isolated.
+
+**A SECOND BUG, ALSO CORRECTED.** The down-weighted arm passed `sample_weight`
+to a `CalibratedClassifierCV` wrapping a Pipeline. sklearn warned that it
+"does not appear to accept sample_weight [so] sample weights will only be used
+for the calibration itself" -- the down-weighting never reached the classifier,
+and that arm was silently identical to the un-weighted one. All arms now fit
+the BARE production Pipeline, which accepts `clf__sample_weight`. Sigmoid
+calibration is monotonic, so AUC comparisons are unaffected.
+
+### The decisive number: domain classifier AUC 0.9717
+
+A classifier separates 2-min from COARSE feature vectors at **AUC 0.9717** --
+*higher* than the 0.9654 that made synthetic data actively harmful. Four of 24
+features shift more than 0.5 SD:
+
+| feature | standardized mean difference (COARSE - 2min) |
+|---|---|
+| duration | **+0.85** |
+| rp_rs | -0.65 |
+| depth_duration_ratio | -0.56 |
+| FAP | -0.51 |
+
+The `duration` shift is the physics, not an artifact: coarse sampling cannot
+detect short transits, so the COARSE population is selected toward long ones
+(median duration 2.33h vs 0.90h for 2-min). Sampling adequacy confirms it --
+COARSE rows have a median of **6.6 in-transit samples** and **38.5% have fewer
+than 5** (2-min: 26.9 median, 5.3% under five).
+
+### Does mixing help? Only for the rows it serves
+
+Arms on the frozen clean split, FINE rows excluded throughout, production
+hyperparameters:
+
+| evaluated on | A: 2-min + COARSE | B: 2-min only | C: COARSE weighted 0.25 |
+|---|---|---|---|
+| full clean test (n=1,023, 55 COARSE) | 0.8980 | 0.8868 | 0.9012 |
+| **2-min-only test (n=968, 0 COARSE)** | 0.8902 | 0.8920 | 0.8929 |
+
+| comparison | full test | 2-min-only test |
+|---|---|---|
+| adding COARSE (B->A) | **+0.0113 CI [+0.0020, +0.0205] CLEARS** | -0.0018 CI [-0.0094, +0.0061] no |
+| adding down-weighted (B->C) | **+0.0144 CI [+0.0051, +0.0240] CLEARS** | +0.0008 CI [-0.0060, +0.0078] no |
+
+**The entire gain is confined to the coarse rows in the test set.** On the 2-min
+population -- 89% of the data and the population production actually serves --
+the effect is zero. Coarse training rows teach the model to handle coarse stars
+and transfer nothing to the rest.
+
+This is materially better than synthetic data, which HURT (-0.018). COARSE data
+is real, correctly labelled, and merely *inert* outside its own population. But
+it is not a general accuracy lever, and the learning curve's +0.013-per-doubling
+does not apply to it, because that figure was explicitly conditioned on
+same-distribution data and 0.9717 says this is not that.
+
+### The operational argument fails too
+
+If production had to classify FFI-observed candidates, training on FFI would
+matter regardless of the headline AUC. It does not: sampling the candidate
+pipeline's own light curves found **0% coarse** in both
+`processed_unknown` (250 sampled: 11.6% fine, 88.4% 2-min) and
+`processed_unknown_widesector` (250 sampled: 33.2% fine, 66.8% 2-min). The
+model never meets a coarse-cadence star in production.
+
+### Verdict: closed as an accuracy lever
+
+Part 2 was NOT run, and should not be. FFI would add rows that serve a
+population production does not encounter, at a distribution distance that
+exceeds the one which already caused measurable harm once. The one legitimate
+future use is coverage: if the project ever wants to vet stars that have no
+2-min data, these 231 rows show the pipeline can process them and that the
+model can be taught to handle them without damaging the 2-min population.
+
+**Side finding worth keeping:** the mixed-cadence composition mildly inflates
+the headline metric. The same model scores 0.8980 on the full clean test set
+but 0.8902 on its 2-min-only subset, because the coarse test rows are enriched
+in easy-to-classify negatives (14.0% of negatives are coarse vs 1.6% of
+positives). Cadence itself only weakly predicts the label (AUC 0.4506 raw,
+0.4411 for a not-2-min indicator), and the per-feature correlation between
+label-separating and cadence-separating power is **-0.247** -- negative, so the
+features that carry class signal are NOT the ones that carry instrument signal.
+There is no instrument shortcut, but the population mix is worth remembering
+when quoting a single number.
+
+Scripts: `cadence_audit.py`, `ffi_mixing_effect.py`; results
+`cadence_audit_results.json`, `cadence_per_star.csv`, `ffi_mixing_results.json`.
+
 ## INFRASTRUCTURE: the label-watch pipeline duplicated stars and leaked the split -- FIXED
 
 Found while checking whether the POSITIVE class could still grow. The answer to

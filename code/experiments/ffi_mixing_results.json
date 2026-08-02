@@ -1,0 +1,88 @@
+{
+  "n_fine": 401,
+  "n_2min": 4852,
+  "n_coarse": 231,
+  "domain_auc_2min_vs_coarse": 0.9716678622284558,
+  "standardized_mean_diff": {
+    "SDE": 0.07105836478117747,
+    "SDE_raw": 0.12346995193789118,
+    "FAP": -0.5076398733033872,
+    "period": 0.12355740179758397,
+    "period_uncertainty": 0.2700745989528158,
+    "duration": 0.8492691026570521,
+    "depth": 0.3503905857294129,
+    "depth_mean": 0.07993084055028608,
+    "depth_mean_std": -0.0784151694370176,
+    "depth_mean_even": 0.032168318911624506,
+    "depth_mean_odd": 0.23662163845613646,
+    "odd_even_mismatch": 0.2302774113230283,
+    "rp_rs": -0.6466217889157443,
+    "snr": 0.1487587576937209,
+    "transit_count": -0.16453653140993033,
+    "distinct_transit_count": -0.2368984868822172,
+    "empty_transit_count": 0.15838866770077803,
+    "st_rad": 0.21459120756314132,
+    "st_teff": 0.39288806340320953,
+    "chi2red_min": -0.10688251437464538,
+    "depth_consistency_std": -0.2411343974604617,
+    "secondary_eclipse_depth": 0.06072133058801967,
+    "transit_shape_ratio": 0.029368543458687137,
+    "depth_duration_ratio": -0.5560195490353012
+  },
+  "n_features_shifted_gt_0.5sd": 4,
+  "n_train_A": 4060,
+  "n_train_B": 3884,
+  "n_coarse_train": 176,
+  "arms": {
+    "full_clean_test": {
+      "n": 1023,
+      "n_coarse": 55,
+      "auc_A_all": 0.8979678478433148,
+      "auc_B_2min_only": 0.8868221442318578,
+      "auc_C_downweighted": 0.9011660817389336,
+      "delta_add_coarse": {
+        "mean": 0.011299968420722005,
+        "ci_lower": 0.0019572567280493752,
+        "ci_upper": 0.020482961771402273,
+        "clears": true
+      },
+      "delta_add_coarse_downweighted": {
+        "mean": 0.014419609868547803,
+        "ci_lower": 0.005074149741000014,
+        "ci_upper": 0.024043691076546008,
+        "clears": true
+      }
+    },
+    "2min_only_test": {
+      "n": 968,
+      "n_coarse": 0,
+      "auc_A_all": 0.8902212557384971,
+      "auc_B_2min_only": 0.8920368644506576,
+      "auc_C_downweighted": 0.8928997963480722,
+      "delta_add_coarse": {
+        "mean": -0.0017729351200401942,
+        "ci_lower": -0.009430205098586848,
+        "ci_upper": 0.00611055008823708,
+        "clears": false
+      },
+      "delta_add_coarse_downweighted": {
+        "mean": 0.0008260382068232981,
+        "ci_lower": -0.006005875037235397,
+        "ci_upper": 0.00775473222816431,
+        "clears": false
+      }
+    }
+  },
+  "sampling": {
+    "2-min": {
+      "median_duration_h": 0.8973019775399509,
+      "median_in_transit_points": 26.91918105972688,
+      "pct_under_5_points": 5.317394888705689
+    },
+    "COARSE": {
+      "median_duration_h": 2.328795180697001,
+      "median_in_transit_points": 6.617989250304395,
+      "pct_under_5_points": 38.52813852813853
+    }
+  }
+}

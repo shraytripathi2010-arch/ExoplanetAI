@@ -1,0 +1,169 @@
+{
+  "crosstab": {
+    "label=0.0": {
+      "10-min FFI": 12,
+      "2-min (SPOC)": 912,
+      "200s FFI": 23,
+      "30-min FFI": 126,
+      "sub-minute": 79
+    },
+    "label=1.0": {
+      "10-min FFI": 11,
+      "2-min (SPOC)": 3940,
+      "200s FFI": 17,
+      "30-min FFI": 42,
+      "sub-minute": 322
+    },
+    "total": {
+      "10-min FFI": 23,
+      "2-min (SPOC)": 4852,
+      "200s FFI": 40,
+      "30-min FFI": 168,
+      "sub-minute": 401
+    },
+    "pct_label=0.0": {
+      "10-min FFI": 1.0416666667,
+      "2-min (SPOC)": 79.1666666667,
+      "200s FFI": 1.9965277778,
+      "30-min FFI": 10.9375,
+      "sub-minute": 6.8576388889
+    },
+    "pct_label=1.0": {
+      "10-min FFI": 0.2539242844,
+      "2-min (SPOC)": 90.9510618652,
+      "200s FFI": 0.3924284395,
+      "30-min FFI": 0.9695290859,
+      "sub-minute": 7.433056325
+    }
+  },
+  "pct_non_2min_positive": 9.04893813481071,
+  "pct_non_2min_negative": 20.833333333333336,
+  "auc_cadence_raw": 0.450591267665692,
+  "auc_not_2min_indicator": 0.4410780240073869,
+  "domain_auc": 0.9466338101474532,
+  "standardized_mean_diff": {
+    "SDE": -0.05980091094410883,
+    "SDE_raw": -0.056888547363251676,
+    "FAP": -0.1969990848959628,
+    "period": -0.23807117011336226,
+    "period_uncertainty": 0.1912991271984568,
+    "duration": 0.2723821821347017,
+    "depth": 0.3199403087613547,
+    "depth_mean": 0.09406117494057517,
+    "depth_mean_std": -0.07089088828753617,
+    "depth_mean_even": 0.04081858750181222,
+    "depth_mean_odd": 0.24920470428837088,
+    "odd_even_mismatch": 0.04168410145405248,
+    "rp_rs": -0.7715770861902564,
+    "snr": -0.2938036667384929,
+    "transit_count": 0.3952578632176565,
+    "distinct_transit_count": 0.3547677008694613,
+    "empty_transit_count": 0.33292471950462044,
+    "st_rad": 0.08024049489023082,
+    "st_teff": 0.2230396905428149,
+    "chi2red_min": -0.10030086466931046,
+    "depth_consistency_std": -0.2109236947630123,
+    "secondary_eclipse_depth": 0.03297797809157766,
+    "transit_shape_ratio": -0.07845342564908316,
+    "depth_duration_ratio": -0.06283116548609795
+  },
+  "label_vs_cadence_auc_correlation": -0.24707568233396646,
+  "per_feature": {
+    "depth_mean": {
+      "label_auc": 0.43300236144023163,
+      "cadence_auc": 0.7381434395774338
+    },
+    "depth_mean_odd": {
+      "label_auc": 0.4293159427375044,
+      "cadence_auc": 0.7363215732460447
+    },
+    "depth_mean_even": {
+      "label_auc": 0.43383353258853113,
+      "cadence_auc": 0.7362241589947353
+    },
+    "rp_rs": {
+      "label_auc": 0.567388469260137,
+      "cadence_auc": 0.2680872714613752
+    },
+    "chi2red_min": {
+      "label_auc": 0.6380103426145339,
+      "cadence_auc": 0.268252294591392
+    },
+    "depth": {
+      "label_auc": 0.44439314660921314,
+      "cadence_auc": 0.715821219489288
+    },
+    "depth_mean_std": {
+      "label_auc": 0.6529058262572407,
+      "cadence_auc": 0.31235096034758625
+    },
+    "depth_consistency_std": {
+      "label_auc": 0.6446688794655628,
+      "cadence_auc": 0.33809118023008095
+    },
+    "snr": {
+      "label_auc": 0.2829710949842022,
+      "cadence_auc": 0.37193033546892673
+    },
+    "st_rad": {
+      "label_auc": 0.2768930551104248,
+      "cadence_auc": 0.6127068654179797
+    },
+    "transit_count": {
+      "label_auc": 0.5225228533109532,
+      "cadence_auc": 0.6116035026410395
+    },
+    "empty_transit_count": {
+      "label_auc": 0.5084417374275935,
+      "cadence_auc": 0.6083109062548118
+    },
+    "distinct_transit_count": {
+      "label_auc": 0.5218716059439178,
+      "cadence_auc": 0.6035150261426094
+    },
+    "period_uncertainty": {
+      "label_auc": 0.4337232564020488,
+      "cadence_auc": 0.41426586834404117
+    },
+    "st_teff": {
+      "label_auc": 0.30179479086862127,
+      "cadence_auc": 0.581193615662907
+    },
+    "period": {
+      "label_auc": 0.45570263131911526,
+      "cadence_auc": 0.4259370836764341
+    },
+    "transit_shape_ratio": {
+      "label_auc": 0.43340236969126333,
+      "cadence_auc": 0.44962533114344055
+    },
+    "depth_duration_ratio": {
+      "label_auc": 0.7013238875724066,
+      "cadence_auc": 0.5446744056824192
+    },
+    "duration": {
+      "label_auc": 0.2978942453264876,
+      "cadence_auc": 0.4568533135171684
+    },
+    "FAP": {
+      "label_auc": 0.7524983648815018,
+      "cadence_auc": 0.4660783560478779
+    },
+    "secondary_eclipse_depth": {
+      "label_auc": 0.49356065281068984,
+      "cadence_auc": 0.4851720190395855
+    },
+    "SDE_raw": {
+      "label_auc": 0.2605431078152252,
+      "cadence_auc": 0.508890370146201
+    },
+    "SDE": {
+      "label_auc": 0.311126580614548,
+      "cadence_auc": 0.4986169738174001
+    },
+    "odd_even_mismatch": {
+      "label_auc": 0.46491419292910263,
+      "cadence_auc": 0.5008306442619354
+    }
+  }
+}
