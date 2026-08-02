@@ -11,11 +11,20 @@ came back negative, and the pixel-level centroid-displacement feature
 position, not light-curve shape/TLS statistics) tested as an actual model
 input rather than displayed-only evidence.
 
-**This is the ninth and final feature/architecture experiment against the
-classical model** (see "Multi-transit consistency + frequency-domain
-features" below) -- per explicit user instruction, the ~0.90 ROC-AUC
-ceiling for this feature family is now treated as final. No further
-feature engineering will be attempted without an explicit new request.
+A previous version of this header called the multi-transit/frequency-domain
+work "the ninth and final feature/architecture experiment" and declared the
+~0.90 ceiling final. That is superseded: a small-lift tier, a medium-lift
+tier, and an injection-recovery diagnostic have since been run at explicit
+request. **Thirteen** feature/architecture changes have now been tested and
+none has cleared `ci_lo > 0`.
+
+**The ceiling's cause has changed, though.** A real-data learning curve run
+during the injection-recovery work is still climbing at the full training-set
+size and predicts roughly **+0.013 AUC from doubling the real data** -- larger
+than any of the thirteen feature attempts. The long-standing "flat learning
+curve, therefore feature-starved" premise did not survive scrutiny; see
+"Real-data learning curve" below. The ceiling is now best understood as
+substantially a DATA-VOLUME limit, not purely a feature limit.
 
 ## Multi-transit consistency + frequency-domain features -- NEGATIVE RESULT
 
@@ -252,6 +261,94 @@ Each arm got ONE honest attempt. No arm was re-tuned after seeing its result.
 Scripts: `small_lift_trio.py`, `small_lift_combined.py`; results
 `small_lift_trio_results.json`, `small_lift_combined_results.json`.
 
+## Medium-lift Item 1: multi-sector depth consistency -- ARTIFACT, NOT PROMOTED
+
+**The most instructive result in this file.** It cleared the promotion bar,
+survived nested CV and calibration, and was still wrong.
+
+Feasibility was checked before any code was written: 97.8% of stars have >1
+sector (median 7), and `n_sectors` alone scored AUC 0.479 (Mann-Whitney
+p=0.459), so observation history does not predict the label and the feature
+could not inherit that shortcut. Design note: re-running TLS per sector would
+have cost ~118 hours and is the wrong tool anyway -- TLS exists to find an
+UNKNOWN period, and period/T0/duration are already known for every training
+star. Folding at the known ephemeris needs no search, collapsing the cost to
+the download (~4.5h for 5,137 stars, storage bounded by download-measure-delete).
+
+Extraction: 4,964/5,137 usable, 92.2% with >=2 sectors. Features:
+`sector_depth_frac_scatter`, `sector_depth_chi2red` (uncertainty-weighted,
+so it separates real disagreement from a noisy sector), `n_sectors_measured`.
+
+| | 5-fold CV | test AUC | Brier | ECE |
+|---|---|---|---|---|
+| base | 0.9194 +/- 0.0083 | 0.8999 | 0.1081 | 0.0859 |
+| + multi-sector | 0.9248 +/- 0.0105 | **0.9094** | 0.1001 | 0.0755 |
+
+Paired bootstrap: **+0.0094, 95% CI [+0.0008, +0.0177] -- CLEARS the bar.**
+Nested CV agreed (0.9202 -> 0.9276). Calibration agreed (0.8907 -> 0.9009).
+
+**The control that caught it.** Missingness was strongly class-asymmetric:
+19.1% of positives lacked the features vs 3.5% of negatives, because 494
+positive-class stars have no resolvable TIC ID -- a property of this project's
+name-to-TIC cross-match, not of the stars. `multisector_missingness_control.py`
+fitted a model with ONLY a binary "are these features present" indicator and no
+measured values at all:
+
+| arm | delta vs base | 95% CI | clears |
+|---|---|---|---|
+| indicator only (no measurements) | **+0.0102** | [+0.0043, +0.0164] | yes |
+| full features | +0.0094 | [+0.0008, +0.0177] | yes |
+| restricted population (missingness held constant) | +0.0021 | [-0.0064, +0.0107] | **no** |
+
+**A single binary "do I have this data" column reproduces 108% of the gain.**
+Restricting to stars that HAVE the features -- so missingness is constant --
+leaves +0.0021 with a CI spanning zero. The result is bookkeeping, not physics.
+Not promoted.
+
+**Corrected project heuristic.** This project had been treating
+"missingness skewed toward the positive class" as the SAFE direction, on the
+reasoning that data *presence* then cannot shortcut the label. That is only
+half the check. Absence can predict the label just as well as presence, and
+here it did. Any future feature with class-asymmetric missingness must run the
+indicator-only control, not just report the skew direction.
+
+Scripts: `multisector_feasibility.py`, `multisector_consistency.py`,
+`validate_multisector.py`, `multisector_missingness_control.py`.
+
+## Medium-lift Item 2: phase-folded flux distribution statistics -- NEGATIVE
+
+Nine features asking a question TLS never answers: given the known ephemeris,
+what SHAPE is the flux distribution? In/out-of-transit skewness and kurtosis
+(a real transit is flat-bottomed and roughly symmetric; a grazing eclipse or
+blend is V-shaped and skews), their differences (which cancel each star's own
+noise character), and relative energy in the 3 finest Haar detail levels of the
+phase-folded binned curve (a transit is one coherent dip whose energy sits at
+coarse scales; noise lives at fine scales).
+
+Extraction: 5,380/5,631 usable (95.5%). No downloads, no TLS re-run -- reads
+the already-preprocessed light curves. Missingness indicator AUC 0.502, i.e.
+no missingness shortcut at all, unlike Item 1.
+
+| | 5-fold CV | test AUC | Brier | ECE |
+|---|---|---|---|---|
+| base | 0.9188 | 0.9009 | 0.1067 | 0.0857 |
+| + flux stats | 0.9172 | 0.8938 | 0.1065 | 0.0768 |
+
+Paired bootstrap: **-0.0072, 95% CI [-0.0153, +0.0010] -- does not clear.**
+Nested CV flat (0.9202 vs 0.9204).
+
+**A bug found before the result was trusted.** The first run printed
+"feature counts: base 24 -> with new 24" -- `build_feature_matrix` selects only
+`FEATURE_COLUMNS`, so merging the new columns into the dataframe never put them
+in X. It would have reported a perfectly null result for a comparison that
+never actually differed. The new columns must be concatenated onto X explicitly.
+
+No combined Item1+Item2 run was performed, deliberately: combining a
+bookkeeping artefact with a measurably negative change is a search for a
+passing number, not a hypothesis.
+
+Scripts: `flux_distribution_features.py`, `validate_flux_distribution.py`.
+
 ## Median-imputation vs HGB native NaN handling -- NEGATIVE RESULT
 
 `05_train_models.build_models()` imputes before HistGradientBoosting with an
@@ -282,6 +379,220 @@ not followed by a search for a variant that squeaks past, which would be
 p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
+
+## Injection-recovery diagnostic (2026-08) -- CONFOUNDED NULL, plus two real findings
+
+Run to answer one question: is the ~0.90 ceiling caused by lack of DATA
+VOLUME or lack of REPRESENTATIONAL CAPACITY in the 24-feature TLS approach?
+**It could not answer that question**, for a reason worth recording. It did
+produce two solid results: synthetic augmentation is definitively closed, and
+a leakage bug in the earlier Part B run was found and corrected.
+
+Synthetic examples are NOT evidentiarily equivalent to real confirmed
+detections anywhere below. batman injects a perfectly periodic, TTV-free,
+activity-free signal into a negative-class host. This is a controlled
+diagnostic, not a claim that synthetic examples substitute for real ones.
+Nothing here was promoted; production remains untouched.
+
+### Injection system validation (Part 1)
+
+The injector and completeness curve already existed (Part B below) and were
+re-validated rather than rebuilt. The **SNR axis was missing** and was added --
+`completeness_curve.py` fixed duration at 5% of period, so N_in_transit and
+point noise are both recoverable after the fact with no TLS re-run:
+
+| expected SNR | recovery | n |
+|---|---|---|
+| <5 | 4.5% | 22 |
+| 5-10 | 27.3% | 11 |
+| 10-20 | 28.6% | 21 |
+| 20-40 | 86.7% | 15 |
+| 40-80 | 90.0% | 10 |
+| >80 | 95.2% | 21 |
+
+Monotonic, 50% recovery near SNR ~19 (median point noise 1,422 ppm). That is
+MORE conservative than the SNR ~7-10 typical of idealised transit-search
+completeness -- expected, since recovery here demands the period back within
+1%, TLS runs on production's coarse grid, and injection hosts are TOI false
+positives (often variable, hence noisy). Conservative is the safe direction:
+the injector is not manufacturing easy signals. Script: `completeness_snr.py`.
+
+### A leakage bug in the original Part B augmentation
+
+`augment_classical_dataset.py` picks injection hosts uniformly from
+`data/processed_negative/` with no reference to the train/test split -- it
+predates the split freeze. Checked against the frozen manifest:
+
+    953 usable synthetic rows
+    163 of them (17%) injected into a HELD-OUT TEST star, across 111 test hosts
+
+The label is not leaked (it is the injected signal), but the star's noise
+realisation, systematics, and real `st_rad`/`st_teff` are -- the generator
+copies those from the host for realism. That run also used a positional
+`train_test_split` (4392/1099) rather than the frozen split. Its recorded
+-0.0131 is therefore not trustworthy in either direction.
+
+Fixed by construction in `augment_train_only.py`: the source pool is
+intersected with the train split BEFORE sampling (925 train-split curves; 231
+test-split excluded), so a test star cannot be drawn. New batch: 1,800
+attempted, **1,727 usable (95.9%)**, 861 transit-positive / 866 EB-negative.
+That yield is far above the original batch's 59.6% and the failure modes differ
+(odd/even mismatch here vs `transit_shape_ratio` there); the difference is
+recorded but not explained, since no mechanism was verified.
+
+Combined decontaminated pool: **2,517 synthetic rows** (1,221 positive, 1,296
+negative) = 55.8% of the real training set. Every row carries
+`is_synthetic=True`, `synthetic_kind`, `source_file` and `source_split` in the
+saved CSV, never blended silently.
+
+### THE CONTROL THAT INVALIDATES THE DIAGNOSTIC
+
+Train a classifier to tell real rows from synthetic ones. If it succeeds
+easily, the synthetic rows are off-distribution and a null result says nothing
+about data-starvation.
+
+**Real-vs-synthetic discriminator AUC: 0.9654.** Trivially separable. The
+shifts sit exactly where they matter:
+
+| feature | standardized mean diff (synthetic - real) |
+|---|---|
+| FAP | **-1.02** |
+| SDE | **+0.83** |
+| SDE_raw | +0.82 |
+| snr | +0.47 |
+
+Injected transits have HIGHER detection significance and LOWER false-alarm
+probability than real confirmed planets. The completeness curve validated that
+injected signals are *recoverable*; it never tested whether their recovered
+FEATURE VECTORS resemble real ones, and they do not.
+
+### Results (frozen split, synthetic never in the test set)
+
+| arm | test AUC | delta | 95% CI | clears |
+|---|---|---|---|---|
+| a. real only | 0.8949 | -- | -- | -- |
+| b. real + 2,517 synthetic | 0.8770 | -0.0180 | [-0.0291, -0.0079] | no |
+| c. down-weighted w=0.5 | 0.8929 | -0.0021 | [-0.0102, +0.0056] | no |
+| c. down-weighted w=0.25 | 0.8906 | -0.0043 | [-0.0110, +0.0017] | no |
+| c. down-weighted w=0.1 | 0.8973 | +0.0023 | [-0.0039, +0.0085] | no |
+
+Scale curve: -0.0002 (315 rows), -0.0035 (629), -0.0056 (1,258), -0.0180
+(2,517). A clean dose-response -- harm grows with how much synthetic data is
+added.
+
+Covariate-shift corrections, driven by cross-validated p(synthetic) so no row
+is scored by a model that saw it:
+
+| correction | rows used | delta | 95% CI |
+|---|---|---|---|
+| rejection, p(syn) < 0.5 | 182 / 2,517 (7.2%) | -0.0002 | [-0.0068, +0.0066] |
+| rejection, p(syn) < 0.75 | 618 / 2,517 (24.6%) | -0.0042 | [-0.0121, +0.0040] |
+| importance weighting | eff. n 315 | -0.0013 | [-0.0110, +0.0088] |
+
+Only 7% of synthetic rows land in the overlap region at all. Corrected, they
+are **inert** -- neither helping nor hurting. Calibration: real-only Brier
+0.0952 / ECE 0.0325 vs real+synthetic 0.1064 / 0.0689, i.e. synthetic data
+degrades calibration too. Nested CV is reported but NOT comparable across arms
+(the real+synthetic folds contain synthetic rows); the held-out real test set
+is the honest number.
+
+### What this does and does not establish
+
+- **Establishes:** synthetic augmentation of this construction is a dead end
+  for this classifier. On-distribution synthetic rows are inert; off-distribution
+  ones harm in proportion to dose. Closed, with a mechanism.
+- **Does NOT establish:** anything about data-starvation. No arm was positive,
+  but "adding off-distribution data didn't help" is fully explained by the
+  distribution mismatch. The pre-registered decision rule for this experiment
+  assumed a clean null; this null is confounded, so that rule was NOT applied.
+
+The question was therefore put to real data instead -- see the next section,
+which is where the actual answer came from.
+
+Scripts: `injection_diagnostic.py`, `augment_train_only.py`,
+`completeness_snr.py`; results `injection_diagnostic_results.json`,
+`augmented_train_only.csv`, `completeness_snr_results.csv`.
+
+## Real-data learning curve -- THE CEILING IS SUBSTANTIALLY A DATA LIMIT
+
+This overturns a premise this project had carried for a long time. It was run
+because the injection-recovery diagnostic (below) turned out to be confounded
+and could not answer the data-vs-features question, so the question was put to
+real data directly, with no synthetic examples and no injector assumptions.
+
+Ten sample sizes, 7 independent host-level subsamples each (class balance
+preserved within every draw), production HGB configuration, every model scored
+against the SAME frozen real test set:
+
+| train rows | test ROC-AUC |
+|---|---|
+| 449 | 0.8427 +/- 0.0095 |
+| 899 | 0.8641 +/- 0.0062 |
+| 1,347 | 0.8678 +/- 0.0075 |
+| 1,797 | 0.8769 +/- 0.0036 |
+| 2,247 | 0.8877 +/- 0.0048 |
+| 2,922 | 0.8893 +/- 0.0028 |
+| 3,595 | 0.8970 +/- 0.0034 |
+| 4,045 | 0.8948 +/- 0.0036 |
+| 4,269 | 0.8978 +/- 0.0025 |
+| 4,494 | 0.8996 (single draw) |
+
+Monotonic apart from scatter at the ~0.003 noise floor. Saturating power-law
+fit `AUC(n) = a - b*n^(-c)`: c = 0.193, residual RMS 0.0023. **The fitted
+asymptote runs to its 1.0 bound** -- the data cannot locate a ceiling, which is
+itself the finding: there is no sign of saturation in the measured range.
+
+| training set | predicted AUC | 95% CI | gain |
+|---|---|---|---|
+| 9,564 (2.1x) | 0.9125 | [0.9027, 0.9143] | **+0.0129** |
+| 20,000 (4.5x) | 0.9241 | [0.9042, 0.9262] | +0.0245 |
+| 50,000 (11.1x) | 0.9364 | [0.9049, 0.9388] | +0.0368 |
+
+**Doubling the real training data is worth ~+0.013 AUC with a positive lower CI
+bound -- more than any of the thirteen feature/architecture experiments, none of
+which cleared +0.01.**
+
+### Why this project previously believed the curve was flat
+
+Traced to `05b_model_analysis.py:377-415`. Three reasons the old verdict does
+not support the conclusion drawn from it:
+
+1. It was run on **RandomForest (tuned)**, not the deployed
+   HistGradientBoosting -- the code comment says so explicitly ("on whichever
+   tree model is currently the tuned RF, for interpretability").
+2. It measured **CV score inside the training set**, not held-out AUC on the
+   frozen test set.
+3. Its verdict is a hard-coded threshold, `if last3_slope > 0.00005`, i.e. it
+   demands +0.05 AUC per 1,000 examples before calling a model data-starved.
+
+Applied to today's curve, that rule returns **"PLATEAUED"** -- measured slope
+2.89e-6, seventeen times below the cutoff -- for a curve that gains +0.0119
+from doubling its data. The threshold is a reasonable tripwire in the
+very-low-data regime and blind above it. The old output was not wrong about
+what it measured; the inference drawn from it was too strong.
+
+### Limits on this result
+
+- The far extrapolations (11x) rest on an unidentifiable asymptote and should
+  be discounted heavily. The 2x figure is the trustworthy one.
+- **The final step of the curve is noise-dominated and must not be quoted on
+  its own.** A coarser 4-point version run inside `injection_diagnostic.py`
+  gave a last-quartile gain of +0.0042 on one run and +0.0010 on another --
+  the same quantity, twice, differing by more than either value. The
+  load-bearing evidence is the full-range trend (0.843 at n=449 to 0.900 at
+  n=4,494, ten points, residual RMS 0.0023) and the fitted exponent, not any
+  single adjacent-point difference.
+- This describes more data **from the same distribution**. Kepler is a
+  different mission (cadence, bandpass, noise), and this project's own Kepler
+  pilot already hit a real SNR wall at 36.4% yield plus a mission-identity
+  leakage concern. This result raises the value of more real data without by
+  itself validating Kepler as the source of it.
+- `training.csv` grows continuously (the live label-watch scheduler), so
+  absolute AUCs drift slightly between runs. Each run is internally
+  consistent, so within-run comparisons hold.
+
+Script: `learning_curve_extrapolation.py`; results
+`learning_curve_extrapolation.json`, `learning_curve_points.csv`.
 
 ## Part B: injection-recovery synthetic data system -- BUILT, VALIDATED
 
