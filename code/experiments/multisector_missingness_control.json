@@ -1,0 +1,26 @@
+{
+  "indicator_only": {
+    "test_auc": 0.9102481676739103,
+    "mean_delta": 0.010176082891130683,
+    "ci_lower": 0.004274939405320241,
+    "ci_upper": 0.01642079944867784,
+    "clears": true
+  },
+  "full_features": {
+    "test_auc": 0.9094480876659095,
+    "mean_delta": 0.009447836960682634,
+    "ci_lower": 0.0008147810458021432,
+    "ci_upper": 0.017678295211215434,
+    "clears": true
+  },
+  "base_auc": 0.8999423751899,
+  "restricted": {
+    "n_test": 957,
+    "mean_delta": 0.0020604710028819325,
+    "ci_lower": -0.006424699604441628,
+    "ci_upper": 0.010686103487308378,
+    "clears": false
+  },
+  "indicator_fraction_of_gain_pct": 107.70807046606181,
+  "verdict": "MOSTLY BOOKKEEPING -- the gain is largely the missingness pattern, not the measurements. Do not promote."
+}

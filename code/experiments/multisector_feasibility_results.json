@@ -1,0 +1,13 @@
+{
+  "n_failed": 0,
+  "n_ok": 400,
+  "pct_multisector": 97.75,
+  "median_sectors": 7.0,
+  "positive_mean_sectors": 11.635,
+  "positive_pct_multi": 96.0,
+  "negative_mean_sectors": 9.095,
+  "negative_pct_multi": 99.5,
+  "n_sectors_single_feature_auc": 0.4786625,
+  "mannwhitney_p": 0.4589898416495062,
+  "leakage_verdict": "no meaningful label correlation"
+}
