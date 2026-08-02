@@ -69,42 +69,103 @@ def _read_csv_url(url):
     return pd.read_csv(url)
 
 
+def _training_tic_ids(confirmed):
+    """Every star already in training.csv, as a set of TIC ids.
+
+    BUG FIXED (2026-08-02): this used to compare the archive's `TIC_<id>` name
+    against training.csv's `host` column directly, on the stated assumption
+    that host "is always 'TIC_<id>'". That is true of the negative class and of
+    rows this pipeline itself added, but NOT of the original positive class,
+    which `01_download_known.py` names by HOSTNAME (`11_Com`, `Kepler-142`).
+
+    So every confirmed planet already in the training set under its hostname
+    looked brand new, got re-queued as `TIC_<id>`, and was re-downloaded and
+    appended as a SECOND row for the same star. Measured from only 137
+    processed watch labels: 144 stars duplicated, and 56 of them landed on
+    opposite sides of the frozen split -- the model training on a star and
+    then being scored on it. 4,243 labels were still queued behind that.
+
+    The resolution uses the `confirmed` frame this function already downloads,
+    which carries hostname alongside tic_id, so the authoritative
+    hostname -> TIC mapping is free. Names are matched both raw and with
+    spaces replaced by underscores, since that is the transform
+    01_download_known.py applies when it builds file/host names.
+
+    Stars that resolve to no TIC at all (microlensing events, KMT-*-BLG-*)
+    cannot collide with a TESS target and are simply absent from this set.
+    """
+    if not os.path.exists(TRAINING_CSV):
+        return set()
+    hosts = pd.read_csv(TRAINING_CSV)["host"].astype(str)
+
+    known = set(
+        pd.to_numeric(hosts.str.extract(r"^TIC_(\d+)", expand=False),
+                      errors="coerce").dropna().astype("int64")
+    )
+
+    name_to_tic = {}
+    for h, t in zip(confirmed["hostname"].astype(str),
+                    confirmed["_tic"]):
+        if pd.isna(t):
+            continue
+        t = int(t)
+        name_to_tic.setdefault(h, t)
+        name_to_tic.setdefault(h.replace(" ", "_"), t)
+    for h in hosts:
+        t = name_to_tic.get(h)
+        if t is not None:
+            known.add(t)
+    return known
+
+
 def find_new_labeled_examples():
     """Live re-query, same URL pattern already validated in
     08_characterize_candidates.py's fetch_fresh_exclusion_data. Returns a
-    list of {host, label, source} dicts for stars not already a row in
-    training.csv (matched by host, which is always 'TIC_<id>')."""
-    existing_hosts = set()
-    if os.path.exists(TRAINING_CSV):
-        existing_hosts = set(pd.read_csv(TRAINING_CSV)["host"].astype(str))
+    list of {host, label, source} dicts for stars not already in training.csv.
+
+    Membership is decided by TIC ID (see _training_tic_ids), NOT by host
+    string -- the positive class is hostname-named, so a string comparison
+    silently re-queues stars that are already present.
+    """
     already_watched = db.get_known_watch_hosts()
 
     confirmed_url = ("https://exoplanetarchive.ipac.caltech.edu/TAP/sync?"
                       "query=select+hostname,tic_id+from+pscomppars&format=csv")
     confirmed = _read_csv_url(confirmed_url)
-    confirmed_tics = set(
-        confirmed["tic_id"].dropna().astype(str).str.replace("TIC ", "", regex=False).astype("int64")
-    )
+    confirmed["_tic"] = pd.to_numeric(
+        confirmed["tic_id"].astype(str).str.replace("TIC ", "", regex=False),
+        errors="coerce")
+    confirmed_tics = set(confirmed["_tic"].dropna().astype("int64"))
 
     toi_url = ("https://exoplanetarchive.ipac.caltech.edu/TAP/sync?"
                "query=select+tid,tfopwg_disp+from+toi&format=csv")
     toi = _read_csv_url(toi_url)
     fp_tics = set(toi[toi["tfopwg_disp"] == "FP"]["tid"].dropna().astype("int64"))
 
+    existing_tics = _training_tic_ids(confirmed)
+
     new_rows = []
+    skipped_already_present = 0
     for tic_id in confirmed_tics:
         host = f"TIC_{tic_id}"
-        if host not in existing_hosts and host not in already_watched:
+        if tic_id in existing_tics:
+            skipped_already_present += 1
+            continue
+        if host not in already_watched:
             new_rows.append({"host": host, "label": 1, "source": "pscomppars_confirmed"})
     for tic_id in fp_tics:
         host = f"TIC_{tic_id}"
-        if host not in existing_hosts and host not in already_watched:
+        if tic_id in existing_tics:
+            skipped_already_present += 1
+            continue
+        if host not in already_watched:
             new_rows.append({"host": host, "label": 0, "source": "toi_false_positive"})
 
     n_added = db.add_watched_labels(new_rows)
     print(f"find_new_labeled_examples: {len(confirmed_tics)} confirmed, {len(fp_tics)} FP live "
-          f"(archive), {len(new_rows)} not already in training.csv or the watch queue, "
-          f"{n_added} newly queued.")
+          f"(archive); {len(existing_tics)} stars already in training.csv by TIC, "
+          f"{skipped_already_present} archive entries skipped as already present; "
+          f"{len(new_rows)} genuinely new, {n_added} newly queued.")
     return new_rows
 
 

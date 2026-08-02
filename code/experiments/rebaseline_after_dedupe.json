@@ -1,0 +1,35 @@
+{
+  "contaminated_split": {
+    "train": 4507,
+    "test": 1143
+  },
+  "clean_split": {
+    "train": 4386,
+    "test": 1098
+  },
+  "leaked_rows_auc": null,
+  "n_leaked_test_rows": 45,
+  "A_production_contaminated": {
+    "auc": 0.9043347003873319,
+    "ci": [
+      0.8795755394346311,
+      0.9260590102641952
+    ]
+  },
+  "B_production_clean": {
+    "auc": 0.9031241730203668,
+    "ci": [
+      0.8783875744859264,
+      0.9248611279329337
+    ]
+  },
+  "D_refit_clean": {
+    "auc": 0.9021105768510613,
+    "ci": [
+      0.8770555411558447,
+      0.9238864386898793
+    ],
+    "brier": 0.0896204097916817
+  },
+  "contamination_correction": -0.0012105273669650307
+}

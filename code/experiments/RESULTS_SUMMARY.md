@@ -380,6 +380,130 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## INFRASTRUCTURE: the label-watch pipeline duplicated stars and leaked the split -- FIXED
+
+Found while checking whether the POSITIVE class could still grow. The answer to
+that question turned out to be "no, and by the way the thing that was supposed
+to grow it has been corrupting the dataset".
+
+**The bug, in one assumption.** `retrain_pipeline.find_new_labeled_examples`
+queried `select hostname,tic_id from pscomppars`, enqueued every confirmed
+planet as `TIC_<id>`, and decided "already have it?" by comparing that string
+against training.csv's `host` column -- its docstring stated host "is always
+'TIC_<id>'". True for the negative class and for rows this pipeline added
+itself. **False for the original positive class**, which
+`01_download_known.py` names by HOSTNAME (`11_Com`, `Kepler-142`). So every
+confirmed planet already present under its hostname looked brand new, was
+re-queued, re-downloaded, and appended as a SECOND row for the same star.
+
+**Measured damage** (from only 137 of 4,405 queued labels actually processed):
+
+| | |
+|---|---|
+| stars present twice under two names | **144** |
+| duplicate rows | 310 |
+| duplicates straddling the frozen train/test split | **56** |
+| duplicates with CONFLICTING labels | 3 |
+
+A straddling star is trained on and then scored on. The worst case was
+byte-identical on both sides:
+
+    HIP_77900     train  period 0.795409  depth 0.999562  SDE 5.971785
+    TIC_24133681  test   period 0.795409  depth 0.999562  SDE 5.971785
+
+Others (`Kepler-1574`, `Kepler-142`) were the same star re-processed to a
+different TLS solution -- still leaking the star's noise, systematics and
+stellar parameters, just less blatantly.
+
+**Identity resolution.** Deduping needs star identity, not names. The NASA
+archive's own `hostname -> tic_id` mapping from `pscomppars` resolves 5,576 of
+5,650 training rows; the earlier coordinate cross-match
+(`positive_class_tic_ids.csv`) left 352 unresolved. The 74 that still do not
+resolve are all microlensing events (`KMT-*-BLG-*`) -- distant bulge stars with
+no TIC entry, which cannot collide with a TESS target.
+
+**The three conflicting-label cases** were each a star present in the
+confirmed-planet catalog AND on the TOI false-positive list:
+`Kepler-1517`/`TIC_158555987`, `TOI-1836`/`TIC_207468071`,
+`TOI-2084`/`TIC_441738827`. The confirmed-planet label wins, and two of the
+three (`207468071`, `441738827`) are independently now TOI disposition `KP`/`CP`,
+confirming that. Not auto-resolved silently -- listed in `dedupe_report.json`.
+
+**Re-baseline on the cleaned data.** Every AUC this project quoted recently was
+measured on a test set containing stars the model had trained on:
+
+| measurement | AUC | 95% CI |
+|---|---|---|
+| A. production, CONTAMINATED test (the number on record) | 0.9043 | [0.8796, 0.9261] |
+| B. production, CLEAN test (same model, honest set) | **0.9031** | [0.8784, 0.9249] |
+| D. refit on clean train -> clean test (go-forward baseline) | 0.9021 | [0.8771, 0.9239] |
+
+**Leakage was inflating the reported number by 0.0012** -- real and
+one-directional, but inside the +/-0.003 noise floor. The severity is in the
+mechanism, not this number: 4,243 labels were still queued behind the 137 that
+did the damage above, and draining them would have compounded it. The 45 leaked
+test rows were all POSITIVES and drew a mean predicted probability of 0.9286 --
+the confidence signature of memorised stars -- which is also why the AUC damage
+stayed small: the model is already strong on positives, so re-scoring memorised
+ones barely moved the ranking.
+
+**Fixes applied:**
+1. `find_new_labeled_examples` now decides membership by TIC id via
+   `_training_tic_ids()`, which resolves hostname-named rows using the
+   `confirmed` frame the function already downloads. Verified live: it now
+   reports `5358 stars already in training.csv by TIC, 5361 archive entries
+   skipped as already present, 0 genuinely new, 0 newly queued` -- against the
+   old code's 4,405 queued.
+2. `dedupe_training_by_tic.py` removed 166 duplicate rows. Split is now
+   4,386 train / 1,098 test with **0 duplicated stars and 0 straddling**.
+   Survivor selection prefers the row whose host is in `split_manifest.json`,
+   so no surviving row changes sides. Previous dataset preserved at
+   `training_pre_dedupe_backup.csv`.
+3. `purge_stale_watch_queue.py` retired the 3,998 already-queued entries that
+   were duplicates, marking them `skipped_duplicate` rather than deleting, and
+   left the 339 genuinely-absent entries pending.
+
+Class balance moved from 4,495:1,155 (3.89:1) to 4,332:1,152 (3.76:1) --
+slightly LESS imbalanced, since the duplicates were almost entirely positives.
+
+Scripts: `dedupe_training_by_tic.py`, `rebaseline_after_dedupe.py`,
+`purge_stale_watch_queue.py`; results `dedupe_report.json`,
+`dedupe_dropped_rows.csv`, `rebaseline_after_dedupe.json`,
+`watch_queue_purged_rows.csv`.
+
+## POSITIVE-CLASS EXPANSION: EXHAUSTED -- no pipeline run performed
+
+Every prior data-expansion attempt targeted the negative class (TOI FP, TOI FA,
+Kepler, synthetic). This checked the confirmed-planet side. Live archive
+queries (2026-08-02):
+
+| source | archive total (unique TIC) | already have | apparently new |
+|---|---|---|---|
+| TESS-discovered confirmed (`disc_facility like '%TESS%'`) | 771 | 683 | 88 |
+| all confirmed with a TIC | 4,462 | 3,901 | 561 |
+| TOI disposition KP/CP | 1,206 | 1,046 | 160 |
+
+**Every one of those "new" counts was a naming artifact.** Of the 561, **552
+had already been attempted** (409 logged `Success` -- they were in training
+under hostnames the old TIC map could not resolve; 291 returned `No TESS Data`
+and would fail again). Only 9 had never been attempted, all `disc_year 2026`.
+With the corrected TIC resolver the count is exactly **0 genuinely new**.
+
+The original pull is recent (`confirmed_planets.csv` written 2026-07-19, light
+curves from 2026-07-08) and the archive confirms roughly 150-180 TESS planets
+per YEAR (2024: 178, 2025: 129, 2026: 178 so far). There is no backlog.
+
+**No download or pipeline run was performed** -- correctly, since at ~4,332
+positives the realistic addition would have been a ~1.6% increase, and at the
+learning curve's fitted exponent (c=0.193) that predicts **~+0.0004 AUC**, an
+order of magnitude below the +/-0.003 noise floor and nowhere near `ci_lo > 0`.
+
+**Is there a recurring stream worth tracking?** Yes, but a thin one: 339 watch
+entries survive the purge as genuinely absent from training, and the archive
+adds ~150-180 TESS planets per year. The scheduler should keep watching -- now
+that it deduplicates by star identity, it will queue only real additions. It is
+a trickle, not a lever.
+
 ## INFRASTRUCTURE: the retrain promotion gate compared unequal models -- FIXED
 
 Found while verifying state after the injection-recovery work. This is an

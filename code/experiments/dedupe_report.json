@@ -1,0 +1,29 @@
+{
+  "n_rows": 5650,
+  "n_resolved": 5576,
+  "n_unresolved": 74,
+  "n_duplicate_stars": 144,
+  "n_duplicate_rows": 310,
+  "n_straddling": 56,
+  "n_conflicting_labels": 3,
+  "conflicting_label_tics": [
+    158555987,
+    207468071,
+    441738827
+  ],
+  "before": {
+    "positives": 4495,
+    "negatives": 1155
+  },
+  "after": {
+    "positives": 4332,
+    "negatives": 1152
+  },
+  "n_dropped": 166,
+  "after_dedupe_duplicates": 0,
+  "after_dedupe_straddling": 0,
+  "after_split": {
+    "train": 4386,
+    "test": 1098
+  }
+}
