@@ -380,6 +380,101 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## INFRASTRUCTURE: the retrain promotion gate compared unequal models -- FIXED
+
+Found while verifying state after the injection-recovery work. This is an
+infrastructure/methodology bug of the same family as the frozen-split fix and
+the stale-module yield bug, and it sat in the one comparison that decides which
+model users actually get.
+
+**The mismatch.** The incumbent every challenger had to beat is the deployed
+`models/best_model.joblib` -- a TUNED, calibration-wrapped model. The challenger
+was built from `m05.build_models()["HistGradientBoosting"]`, the UNTUNED default
+config. Measured side by side on the same frozen test set:
+
+| | old challenger | production (incumbent) |
+|---|---|---|
+| wrapper | `Pipeline` (none) | `CalibratedClassifierCV(cv=5)` |
+| `l2_regularization` | 0.0 | 0.5 |
+| `learning_rate` | 0.05 | 0.1 |
+| `max_depth` | 4 | None |
+| `max_iter` | 300 | 500 |
+| `max_leaf_nodes` | 31 | 63 |
+
+Five differing hyperparameters plus the wrapper. The wrapper is not merely a
+monotonic recalibration -- `CalibratedClassifierCV(cv=5)` averages five
+sub-models, so it acts as an ensemble and moves AUC in its own right.
+
+**Measured cost.** On the frozen split (4,507 train / 1,143 test):
+
+| model | test ROC-AUC |
+|---|---|
+| production (deployed) | 0.9043 |
+| old challenger (m05 defaults) | 0.8949 |
+| new challenger (clone of production) | 0.9039 |
+
+The handicap is **+0.0090** (CI [-0.0018, +0.0200]). Every retrain attempt
+opened ~0.009 in the hole for reasons unrelated to whether new data helped, and
+had to out-run that before it could even begin to show a data-driven gain.
+Effect on the gate:
+
+| gate | delta vs production | 95% CI | decision |
+|---|---|---|---|
+| old (mismatched) | -0.0094 | [-0.0205, +0.0012] | no promotion |
+| new (matched) | -0.0004 | [-0.0038, +0.0029] | no promotion |
+
+Same decision today, but the CI is ~6x tighter and the point estimate is
+essentially zero -- which is the correct result for "production's own recipe,
+refit on more data". The gate now measures the effect of data alone.
+
+**The fix is structural, not a copied literal.** `sklearn.base.clone(prod_model)`
+reproduces the deployed estimator's class and every hyperparameter, unfitted, so
+the challenger IS production's recipe by construction. If production's config
+ever changes -- a future tuning promotion, a different wrapper, even a different
+model class -- the challenger follows automatically and this bug cannot silently
+reappear. `best_model_metadata.json` does NOT record hyperparameters (checked:
+it stores `model_name`, `feature_columns`, `random_seed`, threshold and metrics
+only), so the joblib artifact is the single source of truth and the correct
+thing to clone from.
+
+First-ever-retrain edge case: with no production model on disk there is nothing
+to clone, so it falls back to m05's HGB config. That fallback is near-inert --
+the gate already refuses to promote at all without a baseline to compare
+against -- so it only affects what gets logged for that first attempt, never
+what ships.
+
+**Were the two past non-promotions affected?** Both were logged under the
+mismatched gate:
+
+| attempt | date | n rows | challenger AUC | production AUC | logged ci_lo | promoted |
+|---|---|---|---|---|---|---|
+| #2 | 2026-07-31 | 5,586 | 0.8975 | 0.9041 | -0.0177 | no |
+| #3 | 2026-08-02 | 5,650 | 0.8949 | 0.9043 | -0.0205 | no |
+
+Attempt #3's logged numbers reproduce EXACTLY in the offline check above
+(0.8949 / 0.9043), confirming the reconstruction is faithful. Under a matched
+challenger, #3 becomes -0.0004 with CI [-0.0038, +0.0029] -- **still no
+promotion**, now measured directly rather than estimated. For #2, adding the
++0.0090 handicap to 0.8975 gives ~0.9065 vs 0.9041, i.e. a delta of roughly
++0.002; with a CI of comparable width that lower bound still sits below zero, so
+**it would very probably not have promoted either** -- though this one is an
+estimate, since reproducing it exactly would need that day's dataset snapshot.
+The honest summary: neither past attempt was robbed of a promotion, but #2 moves
+from decisively worse (-0.0177) to statistically indistinguishable (~+0.002).
+
+Validated offline via `validate_challenger_config.py` and through the pipeline's
+own documented `dry_run=True` path, which wrote nothing: retrain_attempts stayed
+at 2, model_versions at 2, and `best_model.joblib` md5 unchanged at
+`341f1a3907e77f6ec294f182833e613c`. No live retrain was triggered.
+
+Scope: only challenger CONSTRUCTION changed. The promotion criterion
+(`ci_lo > 0`), the paired bootstrap, the scheduling/threshold logic, and every
+data/feature path are untouched.
+
+Script: `validate_challenger_config.py`; results
+`challenger_config_validation.json`. Fix in `web/retrain_pipeline.py`
+(`_build_challenger`).
+
 ## Injection-recovery diagnostic (2026-08) -- CONFOUNDED NULL, plus two real findings
 
 Run to answer one question: is the ~0.90 ceiling caused by lack of DATA

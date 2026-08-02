@@ -30,6 +30,7 @@ import importlib
 
 import numpy as np
 import pandas as pd
+from sklearn.base import clone
 
 WEB_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(WEB_DIR, "..", "code")
@@ -221,6 +222,34 @@ def _paired_bootstrap_auc_diff(y_test, proba_a, proba_b, n_bootstrap=N_BOOTSTRAP
     return float(diffs.mean()), float(lo), float(hi)
 
 
+def _build_challenger(prod_model):
+    """Builds the unfitted challenger for a retrain attempt.
+
+    The challenger must be production's OWN recipe, so that a promotion means
+    "the same model, trained on more data, is genuinely better" rather than
+    "one configuration beat a different configuration". `clone` copies the
+    estimator's class and hyperparameters without any fitted state, so this
+    tracks production automatically if its configuration ever changes.
+
+    Returns (unfitted_estimator, human_readable_source).
+
+    FIRST-EVER-RETRAIN CASE: with no production model on disk there is nothing
+    to clone, so this falls back to m05's HistGradientBoosting config -- the
+    same model family the project has always deployed. That fallback is close
+    to inert in practice: the caller refuses to promote at all when there is no
+    production baseline to compare against ("No existing production model to
+    compare against -- not auto-promoting"), so the fallback config only
+    determines what gets LOGGED for that first attempt, never what ships. It
+    matters more now than before the fix only in the sense that it is now the
+    single remaining path that can produce a config mismatch, and it can only
+    do so when a mismatch is impossible to define.
+    """
+    if prod_model is None:
+        return (m05.build_models()["HistGradientBoosting"],
+                "m05.build_models()['HistGradientBoosting'] (no production model to clone)")
+    return clone(prod_model), f"clone of production {type(prod_model).__name__}"
+
+
 def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
     """Checks how many NEW rows have been appended since the last retrain
     attempt (any attempt, promoted or not -- re-testing after every batch
@@ -281,24 +310,50 @@ def maybe_trigger_retrain(threshold=RETRAIN_THRESHOLD, dry_run=False):
     X_train, X_test = X[train_mask], X[test_mask]
     y_train, y_test = y[train_mask], y[test_mask]
 
-    models = m05.build_models()
-    hgb_pipeline = models["HistGradientBoosting"]
-    hgb_pipeline.fit(X_train, y_train)
-    new_proba = hgb_pipeline.predict_proba(X_test)[:, 1]
-    new_auc = roc_auc_score(y_test, new_proba)
-
+    # BUG FIXED (2026-08-02): the challenger used to be built from
+    # m05.build_models()["HistGradientBoosting"] -- the UNTUNED default config
+    # -- while the incumbent it had to beat is the TUNED, calibration-wrapped
+    # production model. Measured side by side on the same frozen test set,
+    # five hyperparameters differed (l2_regularization 0.0 vs 0.5,
+    # learning_rate 0.05 vs 0.1, max_depth 4 vs None, max_iter 300 vs 500,
+    # max_leaf_nodes 31 vs 63) plus the CalibratedClassifierCV(cv=5) wrapper,
+    # which is not merely monotonic -- it averages five sub-models, so it acts
+    # as an ensemble and moves AUC in its own right.
+    #
+    # The effect was the same KIND of silent bias as the split-drift bug
+    # documented above: every retrain attempt started in a hole that had
+    # nothing to do with whether the new data helped. A challenger had to
+    # out-run a hyperparameter handicap before it could even begin to
+    # demonstrate a data-driven improvement.
+    #
+    # The fix is structural rather than a copied literal. sklearn.base.clone
+    # reproduces the production estimator's class and every parameter, leaving
+    # it unfitted -- so the challenger IS production's recipe by construction,
+    # retrained on more data. If production's configuration ever changes (a
+    # future tuning promotion, a different wrapper, even a different model
+    # class), the challenger follows automatically and this bug cannot silently
+    # come back. The joblib artifact is the single source of truth here;
+    # best_model_metadata.json does NOT record hyperparameters, so it cannot
+    # serve that role.
     production_auc = None
     production_proba = None
+    prod_model = None
     if os.path.exists(PRODUCTION_MODEL_PATH):
         import joblib
         prod_model = joblib.load(PRODUCTION_MODEL_PATH)
         production_proba = prod_model.predict_proba(X_test)[:, 1]
         production_auc = roc_auc_score(y_test, production_proba)
 
+    hgb_pipeline, challenger_source = _build_challenger(prod_model)
+    hgb_pipeline.fit(X_train, y_train)
+    new_proba = hgb_pipeline.predict_proba(X_test)[:, 1]
+    new_auc = roc_auc_score(y_test, new_proba)
+
     if production_proba is not None:
         mean_diff, ci_lo, ci_hi = _paired_bootstrap_auc_diff(y_test, production_proba, new_proba)
         promoted = ci_lo > 0
         reasoning = (
+            f"Challenger built as {challenger_source}. "
             f"New model test ROC-AUC {new_auc:.4f} vs production {production_auc:.4f}. "
             f"Paired bootstrap on (new - production): mean {mean_diff:+.4f}, "
             f"95% CI [{ci_lo:+.4f}, {ci_hi:+.4f}]. "
