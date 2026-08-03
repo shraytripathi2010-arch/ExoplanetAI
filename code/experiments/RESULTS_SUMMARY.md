@@ -1,7 +1,20 @@
 # Model architecture experiments -- honest results summary
 
 Production model is **unchanged**: `models/best_model.joblib`
-(HistGradientBoosting, test ROC-AUC 0.9032) remains deployed. Nothing here
+(HistGradientBoosting, test ROC-AUC **0.9031** on the 1,098-star deduplicated
+clean test set; md5 `341f1a3907e77f6ec294f182833e613c`) remains deployed.
+
+**Which baseline a new experiment is measured against.** Use **0.9021**, the
+refit-on-clean-train figure, not 0.9031. A challenger is itself a refit, so
+0.9021 is the like-for-like comparison; 0.9031 is the deployed artefact and
+carries ~0.001 of refit luck that a challenger does not get. Older sections
+below quote **0.9043** — that is the retired pre-deduplication number, measured
+on a test set containing stars the model had trained on, and is kept only as
+the "before" side of that fix. It is never a current claim. The TOI-restricted
+**0.8151** is a supplementary measurement on a different evaluation population
+and never replaces the headline; see its own section.
+
+Nothing here
 beat it by a real margin, so nothing was merged -- same standard as every
 other experiment in this project. This now includes the full-TLS-search
 classical-model augmentation path (see Part B below), which was originally
@@ -1665,6 +1678,68 @@ Script: `learning_curve_extrapolation.py`; results
   e_rad/e_mass to the TIC catalog query in `06_download_unknown.py`, call
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
+
+## HOUSEKEEPING: consistency audit of the model-improvement round (2026-08-03)
+
+An audit pass over the last several experiments, verifying state rather than
+trusting the prior write-ups. **Nothing was retrained, tuned or promoted; no
+data was downloaded.** Production model md5 re-checked as
+`341f1a3907e77f6ec294f182833e613c`, unchanged throughout.
+
+**All ten experiment sections were present and complete** -- small lift, medium
+lift, injection-recovery, positive-class exhaustion, FFI, multi-task, tabular
+architectures + feature selection, retrieval metrics, pseudo-labelling,
+TOI-restricted. Nothing had been reported as documented while only existing in
+a commit message.
+
+**Four real inconsistencies were found and fixed:**
+
+1. **The README quoted a superseded headline.** `0.9032 (1,099 held-out stars)`
+   with a training-set size of 5,506 -- both pre-deduplication. Now
+   `0.9031 (1,098 stars)` / 5,485, with an explicit three-number table
+   distinguishing the headline (0.9031), the refit-clean baseline for new work
+   (0.9021), and the metadata checksum (0.9031559838). Two dated
+   clean-clone-test paragraphs quoting 0.9032/1,105/1,110 were labelled as
+   records of that run rather than current claims.
+2. **This file's own header quoted 0.9032** and gave no guidance on which
+   baseline a new experiment competes against. Fixed, with the retired 0.9043
+   and the supplementary 0.8151 both explicitly scoped.
+3. **The model-history page showed the metadata figure with no context**, so
+   the UI read 0.9032 while the README read 0.9031. Both are correct and they
+   are different measurements; the page now says so.
+4. **`/health` reported a misleading retrain counter.** It showed
+   `processed_watch_labels: 138` beside `retrain_threshold: 50`, which reads as
+   an overdue retrain. The gating count is labels processed *since the last
+   attempt*, which was **1** of 50. Both counts are now reported, and the
+   scheduler log line shows `since_last_attempt/all_time`. Display only -- the
+   trigger logic, threshold and gate are untouched.
+
+**Verified working, no change needed:** the TFOP evidence layer (both branches
+exercised -- 3 live candidate pages render the not-found branch, the found
+branch renders correctly for TOI 119.02 and 121.01; export snapshot 2026-08-02,
+7,799 TOIs, one day old). Git tree clean and pushed. **The running app was NOT
+stale** -- every `web/` file predated the process start.
+
+**Phase 3 Item 2 status (read only, nothing actioned):** 2 retrain attempts, **0
+promoted**. Both failed the gate honestly (attempt #2 CI `[-0.0177, +0.0040]`,
+attempt #3 `[-0.0205, +0.0012]` -- neither `ci_lo > 0`). Scheduler alive, last
+retrain tick within the 24h interval, 314 watch labels pending. Not stalled.
+
+**Undocumented environment workarounds are now durable** in
+[`ENVIRONMENT_NOTES.md`](../../ENVIRONMENT_NOTES.md) -- the libomp/rpath fix,
+the SIP `DYLD_*` stripping, the double-OpenMP segfault, `OMP_NUM_THREADS=1`,
+the missing `timeout`, the stale-module trap, and port 5000 vs 5050. They had
+existed only inside one experiment's section.
+
+**New reusable module:** `domain_separability.py`, extracting the
+source-discriminator diagnostic that had been written inline three times. Its
+self-check reproduces both recorded cadence numbers to **zero delta**
+(0.9466338101 for 2-min vs non-2-min, 0.9716678622 for 2-min vs COARSE) --
+these are two different groupings and only the second underpins the FFI
+decision.
+
+Groundwork for the non-TESS survey question is in
+[`NON_TESS_SURVEYS_PREP.md`](NON_TESS_SURVEYS_PREP.md).
 
 ## Files
 

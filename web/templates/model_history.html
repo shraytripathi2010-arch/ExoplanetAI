@@ -36,6 +36,13 @@
     <p class="muted">This is the original hand-trained model -- the continuous-retraining
     pipeline has not yet promoted a replacement.</p>
   {% endif %}
+  <p class="muted">The ROC-AUC above is read straight from the model's metadata file:
+    it is what this model scored <em>at the time it was trained</em>, on the test hosts
+    frozen in the split manifest, and serves as a checksum that the deployed file is the
+    one that was validated. Re-measured on today's deduplicated test set (1,098 stars,
+    166 duplicate rows since removed) the same model scores <strong>0.9031</strong> --
+    that is the figure to quote. A model refit on the clean training split scores 0.9021,
+    which is the like-for-like baseline any challenger below is really competing with.</p>
   {% else %}
     <p class="muted">No production model metadata found.</p>
   {% endif %}

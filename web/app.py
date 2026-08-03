@@ -583,10 +583,29 @@ def health():
     thread_alive = job_runner.scheduler_is_alive()
     stalled = (age is None) or (age > 300) or (not thread_alive)
 
+    # Two different label counts, and only one of them gates a retrain.
+    # `processed_watch_labels` is all-time; the retrain trigger compares the
+    # count SINCE THE LAST ATTEMPT against the threshold. Reporting only the
+    # all-time number next to the threshold read as "138/50, why hasn't it
+    # fired?" when the real answer was 1/50.
     try:
         n_labels = db.count_processed_watch_labels_since("2000-01-01 00:00:00 UTC")
     except Exception:
         n_labels = None
+    try:
+        last = db.list_retrain_attempts(limit=1)
+        since = last[0]["triggered_at"] if last else "2000-01-01 00:00:00 UTC"
+        n_since = db.count_processed_watch_labels_since(since)
+    except Exception:
+        since, n_since = None, None
+    # Imported here, not at module scope: retrain_pipeline drags in sklearn and
+    # pandas, and /health must stay cheap enough to poll. Falls back to the
+    # documented default rather than failing the health check outright.
+    try:
+        import retrain_pipeline
+        threshold = retrain_pipeline.RETRAIN_THRESHOLD
+    except Exception:
+        threshold = 50
 
     body = {
         "status": "stalled" if stalled else "ok",
@@ -596,7 +615,9 @@ def health():
         "hours_since_last_tick": None if age is None else round(age / 3600.0, 2),
         "last_tick_detail": hb,
         "processed_watch_labels": n_labels,
-        "retrain_threshold": 50,
+        "processed_since_last_retrain_attempt": n_since,
+        "last_retrain_attempt_at": since,
+        "retrain_threshold": threshold,
         "log_file": scheduler_log.LOG_PATH,
     }
     return jsonify(body), (503 if stalled else 200)

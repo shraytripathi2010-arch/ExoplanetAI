@@ -35,6 +35,13 @@ python3 -m pip install -r requirements.txt
 have a C compiler (`xcode-select --install` on macOS, `build-essential` on
 Debian/Ubuntu).
 
+**Platform gotchas are written down** in [`ENVIRONMENT_NOTES.md`](ENVIRONMENT_NOTES.md):
+the OpenMP/`libomp` setup that LightGBM and XGBoost need on a Mac without
+Homebrew, why `DYLD_LIBRARY_PATH` silently fails under SIP, the nested-parallelism
+setting that turns 37% CPU into 307%, and the stale-module trap that has cost
+this project four separate debugging sessions. Read it before debugging anything
+that fails with no traceback.
+
 ---
 
 ## Quickest thing that proves it works
@@ -149,15 +156,40 @@ host name, so they too stay put.
 | | |
 |---|---|
 | Model | HistGradientBoosting + sigmoid calibration |
-| Test ROC-AUC | **0.9032** (1,099 held-out stars) |
-| Precision / Recall | 0.8972 / 0.9654 at the 0.5 operating point |
-| Training set | 5,506 stars (4,351 confirmed-planet hosts, 1,155 TOI false positives) |
+| Test ROC-AUC | **0.9031** (1,098 held-out stars, deduplicated) |
+| Precision / Recall | 0.8971 / 0.9654 at the 0.5 operating point |
+| Training set | 5,485 stars (4,333 confirmed-planet hosts, 1,152 TOI false positives) |
 
 Reproduce that number:
 
 ```bash
 cd code && python3 05b_model_analysis.py
 ```
+
+**Three numbers, and which one to quote.** They are close enough to be confused
+and different enough to matter:
+
+| number | what it is | quote it when |
+|---|---|---|
+| **0.9031** | the deployed model on today's deduplicated test set (1,098 stars) | **this is the headline** — any external claim about how well the model works |
+| 0.9021 | a model *refit* on the clean training split, evaluated on the same clean test set | comparing a new experiment against a like-for-like baseline |
+| 0.9031559838 | the figure in `models/best_model_metadata.json`, measured at training time on the 1,099-host manifest | verifying that the saved model file is the one that was validated |
+
+The metadata figure and the headline agree to four decimals by coincidence, not
+by construction: they are the same model measured on test sets that differ by
+one star. Nothing needs reconciling — but do not treat `0.9031559838` as a
+re-measurement of today's data, and do not compare a new experiment against it.
+Use **0.9021** for that, because a challenger is also a refit and the ~0.001
+gap between "the deployed model" and "a model retrained on the same data" is
+real refit variance, not skill.
+
+A retired **0.9043** appears in older result files
+(`rebaseline_after_dedupe.json`, `challenger_config_validation.json`) and in
+historical sections of `code/experiments/RESULTS_SUMMARY.md`. That figure was
+measured on a test set contaminated by duplicate stars and is superseded — it
+is preserved only as the "before" side of the dedup fix, never as a current
+claim. See "the label-watch pipeline duplicated stars and leaked the split" in
+RESULTS_SUMMARY.md.
 
 **Scope this figure honestly.** It describes performance on stars that clear
 the pipeline's own data requirements — SPOC or FFI photometry available, and
@@ -251,8 +283,12 @@ this README — using no knowledge of the original development machine.
 
 - `pip install -r requirements.txt` into a fresh venv; all 13 core imports load
 - `models/best_model.joblib` loads and reproduces its published metrics exactly:
-  **ROC-AUC 0.9032**, precision 0.8979, recall 0.9657 on the frozen 1,105-star
-  test split
+  ROC-AUC **0.9032**, precision 0.8979, recall 0.9657 on the frozen 1,105-star
+  test split *as `training.csv` stood on the day of that clean-clone test*.
+  Those numbers are a dated record of the reproduction run, not the current
+  headline — the test set has since had 166 duplicate rows removed and stands
+  at 1,098 stars, where the same model scores **0.9031**. See "Three numbers,
+  and which one to quote" above.
 - The web app starts with `python3 web/app.py`; dashboard, candidate list and
   model-history pages all serve
 - Stages A–H of `06_download_unknown.py` all execute, including classifier
@@ -316,12 +352,17 @@ state:
 | Precision / Recall | 0.8972 / 0.9654 |
 | Web app | `/`, `/candidates`, `/models` all HTTP 200, no errors logged |
 
-**One honest subtlety about that exact reproduction.** Evaluated on *all* rows
-currently in `training.csv`, the same model scores **0.9035** on 1,110 test
-stars, not 0.9032 on 1,099. Nothing is wrong: `training.csv` keeps growing as
-the scheduler appends newly-labelled stars, and hosts added after the manifest
-was frozen are assigned by stable hash, so the test set slowly gains members the
-published figure was never measured on. The headline number reproduces *exactly*
-against the frozen 1,099 hosts it was computed on, and drifts by ~0.0003 against
-today's larger set. Quote the frozen figure when comparing to this README;
-expect the live one to wander slightly.
+**One honest subtlety about that exact reproduction.** The metadata figure was
+computed on the 1,099 hosts frozen in the manifest, and reproduces against them
+bit-for-bit. Evaluated on whatever `training.csv` holds *today*, the same model
+scores slightly differently, because the split membership is frozen but the
+dataset is not: the scheduler appends newly-labelled stars, and hosts added
+after the manifest was frozen are assigned to a side by stable hash, so the test
+set slowly gains members the published figure was never measured on.
+
+At the time of the clean-clone test that drift was +0.0003 (0.9035 on 1,110
+stars). It has since gone the other way, for a substantive reason rather than
+drift: 166 rows were removed as duplicate stars, and the test set is now 1,098
+stars where the model scores **0.9031**. Quote 0.9031; treat the metadata figure
+as a checksum on the model file rather than a performance claim about today's
+data.

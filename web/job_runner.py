@@ -334,9 +334,19 @@ def _retrain_tick_due():
 def _safe_label_count():
     """Progress toward the retrain threshold, in the liveness line itself, so
     the log answers 'is it alive AND is it getting anywhere' in one grep.
+
+    Reports BOTH counts as `since_last_attempt/all_time`, because only the
+    first one gates a retrain. Logging the all-time count alone was actively
+    misleading: it read `processed_labels=138` against a threshold of 50 while
+    the trigger was actually sitting at 1 of 50, which looks like a stall and
+    is not one.
+
     Never raises -- a counter read must not be able to kill the scheduler."""
     try:
-        return db.count_processed_watch_labels_since("2000-01-01 00:00:00 UTC")
+        allt = db.count_processed_watch_labels_since("2000-01-01 00:00:00 UTC")
+        last = db.list_retrain_attempts(limit=1)
+        since = last[0]["triggered_at"] if last else "2000-01-01 00:00:00 UTC"
+        return f"{db.count_processed_watch_labels_since(since)}/{allt}"
     except Exception:
         return "?"
 
