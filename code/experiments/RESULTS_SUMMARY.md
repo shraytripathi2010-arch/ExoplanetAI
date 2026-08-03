@@ -380,6 +380,104 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## Multi-task learning on FP subtypes -- CLOSED AT THE GATE. Part 1 only.
+
+Investigated whether false-positive SUBTYPE labels could serve as auxiliary
+targets in a multi-task setup. Closed in Part 1 for two independent reasons,
+either of which is sufficient.
+
+### The labels do exist -- but mostly not the usable kind
+
+Sources checked in order of authority:
+
+1. **NASA archive `toi` table** -- 90 columns, exactly ONE disposition field
+   (`tfopwg_disp`: FP/PC/KP/CP/APC/FA). No comment, note, subtype,
+   classification or flag column exists (confirmed against
+   `TAP_SCHEMA.columns`). Cannot supply subtypes.
+2. **ExoFOP-TESS TOI export** -- carries a free-text `Comments` field written by
+   the TFOP working groups. This is the only real source.
+3. **Per-working-group columns (SG1A..SG5)** -- 100% non-null but effectively
+   constant: SG1A is `5` for 1,146 of 1,152 negatives. A status code, not a
+   subtype. No discriminative content.
+
+Coverage against the 1,152 negatives: **100% matched** to an ExoFOP row,
+**95.9% (1,105) have a non-empty comment**, and keyword extraction over that
+human-written text yields **688 recognised subtypes** across 7 categories.
+
+**On raw count that clears the >=400 gate.** It does not survive the leakage
+check.
+
+### Why most of those labels are unusable
+
+Many TFOP dispositions are written AFTER ground-based follow-up the pipeline
+never sees. Splitting on that:
+
+| subtype | total | leaky | usable |
+|---|---|---|---|
+| nearby_eb_blend | 327 | **327** | **0** |
+| eclipsing_binary | 252 | 47 | 205 |
+| centroid_offset | 69 | 2 | 67 |
+| odd_even | 18 | 0 | 18 |
+| stellar_variability | 11 | 0 | 11 |
+| systematic_artifact | 8 | 0 | 8 |
+| stellar_companion | 3 | 0 | 3 |
+| **TOTAL** | **688** | **376** | **312** |
+
+The largest category is entirely lost. "NEB" means the eclipse is on a
+*neighbouring* star, a determination that requires spatially resolving the pair
+-- TFOP's "retired as NEB" (102 occurrences) is seeing-limited photometry from
+SG1. TESS difference imaging can sometimes reach the same conclusion and this
+pipeline does compute a centroid, so the call is genuinely ambiguous; it is
+excluded CONSERVATIVELY and reported separately rather than buried. Even
+counting all 327 as usable gives 639 with NEB then the dominant class at 51%
+and the top two holding 83% -- the same shape of problem.
+
+**After leakage adjustment: 312 usable labels, top two categories holding 87%,
+and four tails with 3-18 examples each.** That is exactly the stated failure
+condition -- below the 400-500 threshold, collapsed into one dominant category
+with tiny tails. **Leakage-adjusted gate FAILS.**
+
+### The mechanism was never there anyway
+
+This is the more fundamental reason, and it holds regardless of label counts.
+
+Multi-task learning helps by shaping a **learned shared representation** --
+auxiliary gradients pull a shared hidden layer toward features useful for both
+tasks. This model has **24 fixed hand-engineered features and a gradient-boosted
+tree ensemble**. There is no shared representation to shape. sklearn's
+multi-output classification fits *independent* estimators per output, so a
+"multi-task GBM" shares nothing at all; it is two models in a trench coat.
+
+The plausible alternatives degrade to things already tested or already known:
+- **Hierarchical (planet vs not, then subtype)** -- adds interpretability to the
+  second stage, cannot improve the first, which is the metric in question.
+- **Subtype-aware sample weighting** -- reweighting, and the small-lift trio
+  already established that `balanced` beats both alternatives tried.
+- **Subtype as an input feature** -- not available at prediction time; it is a
+  label, and an externally-assigned post-hoc one at that.
+
+Deriving subtypes heuristically from the existing 24 features was explicitly
+ruled out and was not done: auxiliary labels manufactured from the same features
+the auxiliary task is meant to improve would be circular and would produce a
+number rather than a finding.
+
+### Verdict
+
+Closed without running Part 2. The prerequisite labels are too few and too
+imbalanced once post-hoc knowledge is removed, and the mechanism by which
+multi-task learning usually pays does not exist for a tabular GBM over fixed
+features. This was always unlikely to help here; the label audit is the part
+worth keeping.
+
+**Reusable by-product:** `exofop_toi_export.csv` now caches TFOP comments and
+per-SG dispositions for all 8,113 TOIs, and 1,105 of our negatives carry human
+vetting text. That is genuinely useful for the EVIDENCE layer -- explaining to a
+human WHY a star is a known false positive -- even though it is not usable as a
+training target.
+
+Script: `fp_subtype_feasibility.py`; results `fp_subtype_feasibility.json`,
+`exofop_toi_export.csv`.
+
 ## FFI (coarse-cadence) expansion -- COVERAGE LEVER, NOT AN ACCURACY LEVER. Part 1 only.
 
 Investigated whether TESS full-frame-image light curves could grow the training

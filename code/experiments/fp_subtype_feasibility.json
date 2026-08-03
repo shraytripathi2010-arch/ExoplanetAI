@@ -1,0 +1,78 @@
+{
+  "n_negatives": 1152,
+  "n_matched_exofop": 1152,
+  "n_with_comment": 1105,
+  "sg_coverage": {
+    "SG1A": 1152,
+    "SG1B": 1152,
+    "SG2": 1152,
+    "SG3": 1152,
+    "SG4": 1152,
+    "SG5": 1152
+  },
+  "subtype_counts": {
+    "other_uncategorised": 417,
+    "nearby_eb_blend": 327,
+    "eclipsing_binary": 252,
+    "centroid_offset": 69,
+    "None": 47,
+    "odd_even": 18,
+    "stellar_variability": 11,
+    "systematic_artifact": 8,
+    "stellar_companion": 3
+  },
+  "n_any_subtype": 1105,
+  "n_recognised_subtype": 688,
+  "n_comments_referencing_followup": 35,
+  "subtype_leakage_breakdown": {
+    "centroid_offset": {
+      "total": 69,
+      "leaky": 2,
+      "usable": 67
+    },
+    "eclipsing_binary": {
+      "total": 252,
+      "leaky": 47,
+      "usable": 205
+    },
+    "nearby_eb_blend": {
+      "total": 327,
+      "leaky": 327,
+      "usable": 0
+    },
+    "odd_even": {
+      "total": 18,
+      "leaky": 0,
+      "usable": 18
+    },
+    "stellar_companion": {
+      "total": 3,
+      "leaky": 0,
+      "usable": 3
+    },
+    "stellar_variability": {
+      "total": 11,
+      "leaky": 0,
+      "usable": 11
+    },
+    "systematic_artifact": {
+      "total": 8,
+      "leaky": 0,
+      "usable": 8
+    }
+  },
+  "n_usable_after_leakage": 312,
+  "dominant_subtype_pct": 47.52906976744186,
+  "n_distinct_subtypes": 7,
+  "gate_passes_raw": true,
+  "gate_passes_after_leakage": false,
+  "clean_subtype_sizes": {
+    "eclipsing_binary": 205,
+    "centroid_offset": 67,
+    "odd_even": 18,
+    "stellar_variability": 11,
+    "systematic_artifact": 8,
+    "stellar_companion": 3
+  },
+  "clean_top2_share_pct": 87.17948717948718
+}
