@@ -22,6 +22,7 @@ import db
 import sync
 import job_runner
 import scheduler_log
+import exofop_vetting
 
 app = Flask(__name__)
 
@@ -146,13 +147,18 @@ def candidate_detail(tic_id):
     transit_anim = _transit_animation_params(char)
     evidence_items = _evidence_items(char, centroid, candidate)
     ctoi_summary = _build_ctoi_summary(candidate, char, multi_sector, centroid, exofop_refresh)
+    # External TFOP vetting cross-check. Read-only lookup against a cached
+    # ExoFOP export -- no network call on page render, so a slow or down
+    # ExoFOP cannot make candidate pages hang.
+    tfop = exofop_vetting.lookup(tic_id)
 
     return render_template("candidate_detail.html", c=candidate, char=char, history=history,
                             events=events, exofop_view_url=exofop_view_url,
                             exofop_account_url=exofop_account_url, has_plot=has_plot,
                             multi_sector=multi_sector, centroid=centroid, reverify=reverify,
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
-                            transit_anim=transit_anim, evidence_items=evidence_items)
+                            transit_anim=transit_anim, evidence_items=evidence_items,
+                            tfop=tfop)
 
 
 def _fmt(value, spec, fallback="?"):
