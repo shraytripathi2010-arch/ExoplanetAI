@@ -380,6 +380,136 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## Alternative tabular architectures + feature selection -- BOTH NEGATIVE
+
+Two cheap experiments sharing one validation harness. Both landed inside the
+noise floor, as expected -- but one arm cleared on a single fit and had to be
+killed by replication, which is the part worth remembering.
+
+### Experiment 1: architectures
+
+Baseline is the production recipe refit on clean train. Each family got light
+tuning via RandomizedSearchCV in an INNER loop, so this is not "tuned HGB vs
+default CatBoost".
+
+| model | nested CV | full test | delta vs base | clears | 2-min test | delta | clears |
+|---|---|---|---|---|---|---|---|
+| baseline (production recipe) | -- | 0.9021 | -- | -- | 0.8943 | -- | -- |
+| HGB retuned | 0.9178 | 0.9019 | -0.0002 [-0.0082,+0.0080] | no | 0.8949 | +0.0003 | no |
+| **CatBoost (single fit)** | 0.9240 | 0.9107 | **+0.0085 [+0.0004,+0.0171]** | **CLEARED** | 0.9050 | **+0.0105 [+0.0014,+0.0201]** | **CLEARED** |
+| LightGBM | 0.9220 | 0.9044 | +0.0013 [-0.0068,+0.0095] | no | 0.8985 | +0.0029 | no |
+| XGBoost | 0.9227 | 0.9077 | +0.0044 [-0.0024,+0.0113] | no | 0.9005 | +0.0050 | no |
+| TabPFN | -- | -- | BLOCKED | -- | -- | -- | -- |
+
+**THE CATBOOST RESULT DID NOT SURVIVE REPLICATION.** It was the first arm in
+23 experiments to clear on both populations, so it was stress-tested rather
+than believed. Ten seeds, each with a matched-seed HGB baseline:
+
+| | mean | sd | min | max | seeds clearing |
+|---|---|---|---|---|---|
+| delta full | +0.0013 | 0.0024 | -0.0024 | +0.0060 | **0/10** |
+| delta 2-min | +0.0038 | 0.0027 | -0.0001 | +0.0093 | **0/10** |
+
+The original +0.0085 sits well above the top of the replicated distribution
+(max +0.0060). Calibration is also worse: CatBoost+sigmoid gives Brier 0.0943 /
+ECE 0.0397 against the baseline's 0.0896 / 0.0264. **Not promoted.**
+
+Caveat stated plainly: the stress test used fixed mid-range CatBoost
+hyperparameters, not the search-selected config (those were lost when the main
+run crashed before writing its JSON), so part of the gap between +0.0085 and
++0.0013 may be tuning rather than seed. It does not change the conclusion --
+not one of ten seeds cleared, and even the best seed (+0.0060) falls short of
+`ci_lo > 0` at this test-set size.
+
+**A pattern worth keeping even though nothing cleared:** all three modern GBM
+libraries beat HGB on nested CV (0.9220 / 0.9227 / 0.9240 vs 0.9178) and on
+point-estimate test AUC. The direction is consistent. The effect is simply
+smaller than what 1,098 test rows can resolve -- which is the same conclusion
+the learning curve reached from the other direction.
+
+### Experiment 2: feature selection
+
+Selection ran INSIDE each CV fold (selector as step 1 of a Pipeline, refit per
+fold), never once on the full training set -- doing it once on all training
+data leaks fold information into the selection step and inflates the estimate.
+
+| arm | kept | full delta | 2-min delta | clears |
+|---|---|---|---|---|
+| SelectFromModel (0.5*mean) | 21/24 | +0.0019 [-0.0032,+0.0070] | +0.0022 | no |
+| SelectKBest k=20 | 20/24 | +0.0008 | +0.0018 | no |
+| drop poor-coverage (transit_shape_ratio, FAP) | 22/24 | +0.0002 | -0.0003 | no |
+| RFECV (forest ranker) | 18/24 | -0.0051 | -0.0054 | no |
+| SelectFromModel (mean) | 8/24 | -0.0199 | -0.0184 | no |
+| SelectKBest k=16 | 16/24 | -0.0225 | -0.0244 | no |
+| SelectKBest k=12 | 12/24 | -0.0364 | -0.0343 | no |
+| SelectKBest k=8 | 8/24 | -0.0592 | -0.0583 | no |
+
+Mild prunes flat, aggressive prunes sharply negative. The redundancy is real
+but the model is already handling it -- GBMs tolerate correlated inputs, and
+dropping columns removes signal faster than noise.
+
+### Feature audit (useful regardless of the null result)
+
+Permutation importance on the deployed model, clean test set:
+
+| feature | drop in AUC | missing % | 1-feature AUC |
+|---|---|---|---|
+| st_rad | **+0.0540** | 4.4 | 0.313 |
+| st_teff | **+0.0369** | 2.9 | 0.343 |
+| chi2red_min | **+0.0353** | 2.0 | 0.611 |
+| SDE | +0.0122 | 0.0 | 0.326 |
+| FAP | +0.0085 | 0.0 | 0.725 |
+| ... | | | |
+| transit_shape_ratio | +0.0001 | **30.3** | 0.433 |
+| rp_rs | **-0.0003** | 2.0 | 0.557 |
+| empty_transit_count | **-0.0008** | 2.0 | 0.531 |
+| depth_mean | **-0.0013** | 2.0 | 0.436 |
+
+The top three are STELLAR and fit-quality features, not transit-shape features.
+`st_rad` alone is worth more than four times `SDE`, the actual detection
+statistic. The top 5 carry 73% of total positive importance, and 3 of 24
+features have zero or negative importance. `transit_shape_ratio` -- built
+specifically to catch grazing eclipses -- contributes +0.0001 at 30% missing.
+
+**16 feature pairs at |Spearman| >= 0.80**, including `duration` <->
+`depth_duration_ratio` at **1.000** (perfectly rank-degenerate: the ratio adds
+no ordering information beyond duration), plus a `depth`/`depth_mean`/
+`depth_mean_even`/`depth_mean_odd`/`rp_rs` cluster all mutually above 0.92.
+
+### Environment: three real blockers, recorded
+
+1. **TabPFN is genuinely unavailable** -- `TabPFNLicenseError`, requires
+   one-time interactive license acceptance to download model weights, and there
+   is no interactive terminal. Not worked around. The dataset (4,386 x 24) would
+   have fit inside its ~10k row / ~500 feature envelope with no subsampling.
+2. **LightGBM/XGBoost needed OpenMP**, absent (no Homebrew on this machine).
+   Setting `DYLD_LIBRARY_PATH` worked in a shell but NOT in the run: **macOS SIP
+   strips `DYLD_*` when exec'ing a protected binary**, and the job went through
+   `/usr/bin/caffeinate`. Verified directly -- the variable read as None in the
+   child. Real fix: both dylibs declare `@rpath/libomp.dylib` with rpaths baked
+   to `/opt/homebrew/opt/libomp/lib`, so creating that directory (writable
+   without sudo) and placing torch's libomp there resolved it.
+3. **The ctypes-preload workaround then became the bug.** With the rpath
+   satisfied, preloading a second OpenMP runtime segfaulted the run (SIGSEGV,
+   exit 139) after the header and before any arm reported -- silent, because a
+   segfault is not a Python exception. `preload_libomp()` now probes first and
+   preloads only as a fallback.
+
+**Operational note, since nothing was promoted:** had CatBoost held up, adopting
+it would have meant a new production dependency (~1.2 MB wheel plus its own
+runtime), and on this platform LightGBM/XGBoost would additionally require a
+properly installed `libomp` rather than one borrowed from torch. Not a
+consideration now, but it is the cost any future GBM swap carries.
+
+**Baseline drift note:** the LightGBM/XGBoost arms ran after `training.csv`
+gained one row from the live label-watch scheduler, so their in-run baseline is
+0.9032/0.8955 rather than 0.9021/0.8943. Each arm is compared against the
+baseline fit in its own process, so the deltas are internally consistent.
+
+Scripts: `tabular_bakeoff.py`, `bakeoff_followup.py`, `feature_audit.py`;
+results `tabular_bakeoff.log`, `bakeoff_followup_results.json`,
+`bakeoff_followup_results_arms.json`, `feature_audit_results.json`.
+
 ## Multi-task learning on FP subtypes -- CLOSED AT THE GATE. Part 1 only.
 
 Investigated whether false-positive SUBTYPE labels could serve as auxiliary

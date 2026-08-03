@@ -1,0 +1,145 @@
+{
+  "libomp_path": "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/lib/libomp.dylib",
+  "arms": {
+    "LightGBM": {
+      "unavailable": "dlopen(/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/lightgbm/lib/lib_lightgbm.dylib, 0x0006): Library not loaded: @rpath/libomp.dylib\n  Referenced from: <59CCDAC2-EB"
+    },
+    "XGBoost": {
+      "unavailable": "\nXGBoost Library (libxgboost.dylib) could not be loaded.\nLikely causes:\n  * OpenMP runtime is not installed\n    - vcomp140.dll or libgomp-1.dll for Windows\n    - libomp.dylib for Mac OSX\n    - libgomp"
+    }
+  },
+  "seed_stress": {
+    "rows": [
+      {
+        "seed": 1000,
+        "cat_full": 0.9011369253583786,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": -0.002448570722008616,
+        "ci_lo_full": -0.012589375703006517,
+        "clears_full": false,
+        "delta_2min": -9.068916431616186e-05,
+        "ci_lo_2min": -0.011607534543225129,
+        "clears_2min": false
+      },
+      {
+        "seed": 1001,
+        "cat_full": 0.9033288894880591,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": -0.00024363079359849337,
+        "ci_lo_full": -0.011121785000316974,
+        "clears_full": false,
+        "delta_2min": 0.0017722037826487242,
+        "ci_lo_2min": -0.010373510841335976,
+        "clears_2min": false
+      },
+      {
+        "seed": 1002,
+        "cat_full": 0.9067391662547373,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": 0.003146410342180667,
+        "ci_lo_full": -0.0060426073785053965,
+        "clears_full": false,
+        "delta_2min": 0.006339419140407099,
+        "ci_lo_2min": -0.004531216858031201,
+        "clears_2min": false
+      },
+      {
+        "seed": 1003,
+        "cat_full": 0.904572167547946,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": 0.0009788164523966884,
+        "ci_lo_full": -0.009158000931787128,
+        "clears_full": false,
+        "delta_2min": 0.0036290016877703578,
+        "ci_lo_2min": -0.0077605965129988515,
+        "clears_2min": false
+      },
+      {
+        "seed": 1004,
+        "cat_full": 0.9034637027716612,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": -0.0001328175259336359,
+        "ci_lo_full": -0.010254495886810017,
+        "clears_full": false,
+        "delta_2min": 0.0020636708335032275,
+        "ci_lo_2min": -0.010005075065288058,
+        "clears_2min": false
+      },
+      {
+        "seed": 1005,
+        "cat_full": 0.9063646849113978,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": 0.002701865685064338,
+        "ci_lo_full": -0.007235453882205916,
+        "clears_full": false,
+        "delta_2min": 0.003924033706413286,
+        "ci_lo_2min": -0.008118679116791082,
+        "clears_2min": false
+      },
+      {
+        "seed": 1006,
+        "cat_full": 0.9095752382949616,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": 0.0060317166895791875,
+        "ci_lo_full": -0.00374375832474374,
+        "clears_full": false,
+        "delta_2min": 0.009278389108154695,
+        "ci_lo_2min": -0.0018202980609679925,
+        "clears_2min": false
+      },
+      {
+        "seed": 1007,
+        "cat_full": 0.9051114206823548,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": 0.0015253605815489983,
+        "ci_lo_full": -0.008013540443272769,
+        "clears_full": false,
+        "delta_2min": 0.004767949381053747,
+        "ci_lo_2min": -0.006692881305483567,
+        "clears_2min": false
+      },
+      {
+        "seed": 1008,
+        "cat_full": 0.9030942145128996,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": -0.0004760530530305331,
+        "ci_lo_full": -0.010585700178846105,
+        "clears_full": false,
+        "delta_2min": 0.001364377848452121,
+        "ci_lo_2min": -0.010760354801462138,
+        "clears_2min": false
+      },
+      {
+        "seed": 1009,
+        "cat_full": 0.9058953349610789,
+        "hgb_full": 0.9036334676473083,
+        "delta_full": 0.0022838328314370208,
+        "ci_lo_full": -0.007306797179754879,
+        "clears_full": false,
+        "delta_2min": 0.0046653554954614995,
+        "ci_lo_2min": -0.006869508344775862,
+        "clears_2min": false
+      }
+    ],
+    "delta_full_mean": 0.001336693048763562,
+    "delta_full_sd": 0.0023691048445601917,
+    "delta_2min_mean": 0.00377137118195486,
+    "delta_2min_sd": 0.0027157995657443846,
+    "n_clearing_full": 0,
+    "n_clearing_2min": 0,
+    "n_seeds": 10
+  },
+  "calibration": {
+    "baseline (production, as deployed)": {
+      "auc": 0.9021105768510613,
+      "brier": 0.0896204097916817,
+      "ece": 0.026415910729121944
+    },
+    "CatBoost + sigmoid": {
+      "auc": 0.8979313650593927,
+      "brier": 0.09430403542392113,
+      "ece": 0.039685823485612594
+    }
+  },
+  "seed_verdict": "NOT ROBUST -- the original clear was substantially a seed draw. Do not treat it as a genuine improvement."
+}

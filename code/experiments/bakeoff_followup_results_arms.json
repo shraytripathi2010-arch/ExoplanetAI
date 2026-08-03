@@ -1,0 +1,39 @@
+{
+  "libomp_path": "not needed -- both libraries load libomp via their own rpath",
+  "arms": {
+    "LightGBM": {
+      "nested_cv": 0.9219904954715756,
+      "test_auc_full": 0.9043724441648318,
+      "test_auc_2min": 0.898533015774395,
+      "delta_full": {
+        "mean": 0.0012592919483396035,
+        "ci_lower": -0.006792982315942123,
+        "ci_upper": 0.009548342052188673,
+        "clears": false
+      },
+      "delta_2min": {
+        "mean": 0.00293360091439132,
+        "ci_lower": -0.006307418300043288,
+        "ci_upper": 0.012178053635614607,
+        "clears": false
+      }
+    },
+    "XGBoost": {
+      "nested_cv": 0.9226536638797007,
+      "test_auc_full": 0.9076504041901966,
+      "test_auc_2min": 0.9005108556832695,
+      "delta_full": {
+        "mean": 0.0043652729133036895,
+        "ci_lower": -0.0023507322156934435,
+        "ci_upper": 0.011318969707676967,
+        "clears": false
+      },
+      "delta_2min": {
+        "mean": 0.0049640344201991905,
+        "ci_lower": -0.003566695870249209,
+        "ci_upper": 0.013583359510454135,
+        "clears": false
+      }
+    }
+  }
+}
