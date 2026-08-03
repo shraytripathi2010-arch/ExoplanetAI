@@ -380,6 +380,132 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## MEASUREMENT (not an experiment): retrieval metrics on the deployed model
+
+Nothing was trained, tuned, promoted or rejected here. This measures the
+EXISTING production model under metrics that match what the tool actually does:
+surface a ranked shortlist for human follow-up.
+
+**The operating points, located in code rather than assumed:**
+`06_download_unknown.py:815` states it outright -- *"The pipeline never actually
+applied a binary threshold -- it ranked by probability and took the top N"*.
+`TRIAGE_PROBABILITY_FLOOR = 0.30` is a floor that holds weak signals out of the
+shortlist, not a classifier cut. Tiers are 0.90 (Medium) / 0.97 (High) in
+`08_characterize_candidates.confidence_tier`. The `0.5` in
+`best_model_metadata.json` is a reporting convention only. So the tool is a
+ranker with a top-N cut, and precision@k is the structurally correct metric.
+
+### READ THIS BEFORE ANY NUMBER BELOW
+
+**The clean test set is 79.0% POSITIVE** -- 867 confirmed planets against 231
+vetted false positives. The majority class is planets. Consequences:
+
+1. A random ranking scores **precision@k = 0.790 at every k**.
+2. The PR-AUC no-skill baseline is **0.790, not 0.5**.
+3. This is the OPPOSITE of the live candidate queue, where real planets are
+   rare among unknown stars.
+
+So the flattering precision@k numbers below are largely a property of the test
+set's composition, not of the model. The prevalence-corrected table is the
+honest view.
+
+### Headline metrics
+
+| metric | full clean test | 2-min-only | no-skill |
+|---|---|---|---|
+| ROC-AUC | 0.9031 [0.8784, 0.9249] | 0.8953 [0.8679, 0.9201] | 0.500 |
+| PR-AUC, planets | 0.9670 [0.9533, 0.9774] | 0.9684 [0.9557, 0.9789] | **0.790 / 0.809** |
+| **PR-AUC, false positives** | **0.7816 [0.7284, 0.8276]** | 0.7337 [0.6683, 0.7911] | **0.210 / 0.191** |
+
+The planet-direction PR-AUC looks superb but is only a **1.22x lift** over
+no-skill. The false-positive direction -- the genuinely rare class here -- is a
+**3.72x lift**, and is where "average precision beats ROC-AUC on imbalanced
+data" actually applies in this dataset.
+
+### Precision@k and recall@k (full clean test)
+
+| k | P@k | R@k | P@k, SDE alone | P@k random | lift |
+|---|---|---|---|---|---|
+| 10 | 1.000 | 0.012 | 0.800 | 0.790 | +0.210 |
+| 20 | 1.000 | 0.023 | 0.750 | 0.790 | +0.210 |
+| 50 | 0.980 | 0.057 | 0.820 | 0.790 | +0.190 |
+| 100 | 0.990 | 0.114 | 0.710 | 0.790 | +0.200 |
+| 200 | 0.995 | 0.230 | 0.630 | 0.790 | +0.205 |
+
+Perfect precision at k=10 and k=20. But **recall@200 is only 0.230** -- the top
+200 of 1,098 captures under a quarter of the planets, which is inherent to
+ranking a set that is mostly planets. And **SDE alone reaches 0.80 at k=10**,
+so at very small k the trained model's margin over a single raw feature is
+modest; its advantage widens as k grows (0.995 vs 0.630 at k=200).
+
+### PREVALENCE-CORRECTED precision@k -- the honest view
+
+Positives subsampled to simulate rarer planet rates, all negatives kept, 200
+repeats. This approximates "what would the top-20 look like if planets were
+rare", using only labelled data.
+
+| simulated prevalence | n_pos | P@10 | P@20 | P@50 | P@100 | P@200 |
+|---|---|---|---|---|---|---|
+| 0.50 | 231 | 0.915 | 0.950 | 0.978 | 0.945 | 0.849 |
+| 0.25 | 77 | 0.900 | 0.925 | 0.781 | 0.618 | 0.379 |
+| **0.10** | 26 | 0.760 | **0.606** | 0.383 | 0.241 | 0.129 |
+| **0.05** | 12 | 0.481 | **0.332** | 0.198 | 0.114 | 0.060 |
+
+**Precision@20 falls from 1.000 to 0.61 at 10% prevalence and 0.33 at 5%.**
+That is the number to quote when asked "if I follow up your top 20, how many
+are real?" -- and the answer depends entirely on how rare planets are in the
+queue, which is not known.
+
+### Threshold table (full clean test)
+
+| threshold | n flagged | precision | recall | F1 | |
+|---|---|---|---|---|---|
+| 0.10 | 1052 | 0.823 | 0.999 | 0.903 | |
+| **0.30** | **991** | **0.864** | **0.987** | **0.921** | **triage floor (live)** |
+| 0.50 | 933 | 0.897 | 0.965 | 0.930 | reporting convention only |
+| 0.70 | 834 | 0.929 | 0.894 | 0.911 | |
+| **0.90** | **655** | **0.956** | **0.722** | **0.823** | **Medium tier** |
+| **0.97** | **396** | **0.985** | **0.450** | **0.618** | **High tier** |
+| 0.99 | 87 | 0.989 | 0.099 | 0.180 | |
+
+The tier structure is well-chosen: **High tier is 98.5% precise at 45% recall**,
+Medium 95.6% at 72%. The 0.30 floor keeps 98.7% recall, which is its purpose.
+
+### Do confident UNKNOWNS look like confident CORRECT positives?
+
+179 in-distribution ranked candidates vs the test populations:
+
+| quantile | unknown candidates | test positives | test false positives |
+|---|---|---|---|
+| 0.25 | 0.6835 | 0.8845 | 0.1509 |
+| 0.50 | 0.8704 | 0.9641 | 0.3936 |
+| 0.75 | 0.9384 | 0.9838 | 0.7088 |
+| 0.90 | 0.9715 | 0.9900 | 0.9071 |
+| mean | 0.7912 | 0.8976 | 0.4455 |
+| **frac >= 0.97 (High)** | **0.112** | **0.450** | 0.026 |
+
+Unknowns sit between the two labelled populations, much closer to the positives
+-- but **only 11.2% reach the High tier against 45.0% of true positives**. The
+tool's confident unknowns are measurably less confident than its confident
+correct answers. That is the expected direction (unknowns are genuinely harder,
+and the truly easy planets are already catalogued), and it is a mild reassurance
+rather than a validation. Note the "frac >= 0.30" row is definitionally 1.000
+for unknowns -- the triage floor already removed everything below it.
+
+### What these numbers do and do not predict
+
+They describe performance on **labelled** data: confirmed planets and vetted
+false positives, in a set that is 79% planets. The live tool runs on **unknown**
+stars whose class balance and difficulty are different and unmeasured.
+Precision@20 = 1.000 here is **not** a claim that 20 of the next 20 followed-up
+candidates will be planets. The prevalence-corrected table is the closest
+honest bracket, and the score-distribution comparison above is the only
+available sanity check against the real population -- it says the unknowns look
+plausible but harder, nothing stronger.
+
+Script: `ranking_metrics.py`; results `ranking_metrics_results.json`,
+`ranking_metrics.log`.
+
 ## Alternative tabular architectures + feature selection -- BOTH NEGATIVE
 
 Two cheap experiments sharing one validation harness. Both landed inside the
