@@ -1,0 +1,214 @@
+{
+  "training_rows": 5485,
+  "training_distinct_tics": 5357,
+  "confirmed_by_survey": [
+    {
+      "survey": "K2",
+      "facilities": [
+        "K2"
+      ],
+      "n_planets": 549,
+      "n_host_names": 401,
+      "n_stars_with_tic": 400,
+      "n_already_in_training": 388,
+      "n_genuinely_new": 12,
+      "pct_already": 97.0,
+      "new_examples": [
+        "K2-202",
+        "K2-255",
+        "K2-412",
+        "K2-365",
+        "K2-107",
+        "EPIC 206215704",
+        "K2-245",
+        "K2-385"
+      ]
+    },
+    {
+      "survey": "CoRoT",
+      "facilities": [
+        "CoRoT"
+      ],
+      "n_planets": 35,
+      "n_host_names": 33,
+      "n_stars_with_tic": 33,
+      "n_already_in_training": 30,
+      "n_genuinely_new": 3,
+      "pct_already": 90.9090909090909,
+      "new_examples": [
+        "CoRoT-35",
+        "CoRoT-36",
+        "CoRoT-27"
+      ]
+    },
+    {
+      "survey": "WASP",
+      "facilities": [
+        "SuperWASP",
+        "SuperWASP-South",
+        "WASP-South",
+        "SuperWASP-North"
+      ],
+      "n_planets": 170,
+      "n_host_names": 169,
+      "n_stars_with_tic": 169,
+      "n_already_in_training": 165,
+      "n_genuinely_new": 4,
+      "pct_already": 97.63313609467455,
+      "new_examples": [
+        "WASP-157",
+        "WASP-38",
+        "WASP-103",
+        "WASP-172"
+      ]
+    },
+    {
+      "survey": "HAT",
+      "facilities": [
+        "HATNet",
+        "HATSouth"
+      ],
+      "n_planets": 140,
+      "n_host_names": 139,
+      "n_stars_with_tic": 139,
+      "n_already_in_training": 138,
+      "n_genuinely_new": 1,
+      "pct_already": 99.28057553956835,
+      "new_examples": [
+        "HATS-58 A"
+      ]
+    },
+    {
+      "survey": "KELT",
+      "facilities": [
+        "KELT",
+        "KELT-North",
+        "KELT-South"
+      ],
+      "n_planets": 21,
+      "n_host_names": 21,
+      "n_stars_with_tic": 21,
+      "n_already_in_training": 21,
+      "n_genuinely_new": 0,
+      "pct_already": 100.0,
+      "new_examples": []
+    },
+    {
+      "survey": "NGTS",
+      "facilities": [
+        "Next-Generation Transit Survey (NGTS)"
+      ],
+      "n_planets": 22,
+      "n_host_names": 22,
+      "n_stars_with_tic": 22,
+      "n_already_in_training": 19,
+      "n_genuinely_new": 3,
+      "pct_already": 86.36363636363636,
+      "new_examples": [
+        "NGTS-16",
+        "NGTS-32",
+        "NGTS-25"
+      ]
+    },
+    {
+      "survey": "TRAPPIST",
+      "facilities": [
+        "TRAPPIST",
+        "TRAPPIST-South",
+        "TRAPPIST-North"
+      ],
+      "n_planets": 0,
+      "n_host_names": 0,
+      "n_stars_with_tic": 0,
+      "n_already_in_training": 0,
+      "n_genuinely_new": 0,
+      "pct_already": null,
+      "new_examples": []
+    }
+  ],
+  "k2_disposition_by_novelty": {
+    "NEW": {
+      "CANDIDATE": 895,
+      "CONFIRMED": 13,
+      "FALSE POSITIVE": 238,
+      "REFUTED": 6
+    },
+    "already have": {
+      "CANDIDATE": 12,
+      "CONFIRMED": 390,
+      "FALSE POSITIVE": 1,
+      "REFUTED": 2
+    }
+  },
+  "k2_new_labelled": 257,
+  "k2_new_unlabelled": 895,
+  "negative_class": {
+    "K2": {
+      "n_new": 244,
+      "note": "k2pandc disposition FALSE POSITIVE / REFUTED"
+    },
+    "CoRoT": {
+      "n_new": 0,
+      "note": "no queryable FP catalogue; per-paper VizieR tables only"
+    },
+    "WASP": {
+      "n_new": 0,
+      "note": "no queryable FP catalogue; SuperWASP VizieR holdings are variable-star/EB studies, not vetted planet FPs"
+    },
+    "HAT": {
+      "n_new": 0,
+      "note": "no queryable FP catalogue"
+    },
+    "KELT": {
+      "n_new": 0,
+      "note": "no queryable FP catalogue"
+    },
+    "NGTS": {
+      "n_new": 0,
+      "note": "no queryable FP catalogue"
+    },
+    "TRAPPIST": {
+      "n_new": 0,
+      "note": "no queryable FP catalogue"
+    }
+  },
+  "total_new_labelled": 268,
+  "predicted_gain": {
+    "K2 labelled only": {
+      "n_add": 257,
+      "auc_gain": 0.0010597539487205766
+    },
+    "all sources": {
+      "n_add": 268,
+      "auc_gain": 0.0011037936436396416
+    },
+    "K2 + its unlabelled candidates (if labelled)": {
+      "n_add": 1152,
+      "auc_gain": 0.004340324217844045
+    }
+  },
+  "training_depth_ppm": {
+    "p25": 510.6299319279639,
+    "median": 1821.2377117360345,
+    "p75": 5487.324849028807,
+    "p95": 19114.47305222223
+  },
+  "ground_reach": {
+    "SuperWASP": {
+      "table": "superwasptimeseries",
+      "sigma_point_ppm": 153372,
+      "median_npts": 10596,
+      "sigma_eff_ppm": 8602.297909967041,
+      "three_sigma_limit_ppm": 25806.893729901123,
+      "frac_training_detectable": 0.03099361896080219
+    },
+    "KELT": {
+      "table": "kelttimeseries",
+      "sigma_point_ppm": 17052,
+      "median_npts": 699,
+      "sigma_eff_ppm": 3723.712209345098,
+      "three_sigma_limit_ppm": 11171.136628035294,
+      "frac_training_detectable": 0.11449407474931632
+    }
+  }
+}

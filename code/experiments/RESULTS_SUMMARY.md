@@ -1679,6 +1679,124 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## NON-KEPLER SURVEYS -- CLOSED AT THE PART 1 GATE. No download performed.
+
+K2, CoRoT, WASP, HATNet/HATSouth, KELT, NGTS and TRAPPIST assessed as training
+-set expansions. **Closed on four measurements, not on argument.** Nothing was
+downloaded, nothing retrained. Script `survey_feasibility.py`, results
+`survey_feasibility.json`.
+
+### Measurement 1: the genuinely-new count is 268, and it is the wrong shape
+
+Identity resolved by **TIC**, never by host string -- these stars carry
+`WASP-*`, `HAT-*`, `EPIC_*`, `TIC_*` and a bare hostname simultaneously, which
+is the exact condition that produced the 144-duplicate bug.
+
+| survey | planets | stars w/ TIC | already ours | NEW | overlap |
+|---|---|---|---|---|---|
+| K2 (confirmed) | 549 | 400 | 388 | 12 | **97.0%** |
+| CoRoT | 35 | 33 | 30 | 3 | 90.9% |
+| WASP (4 facility names) | 170 | 169 | 165 | 4 | 97.6% |
+| HAT (HATNet + HATSouth) | 140 | 139 | 138 | 1 | **99.3%** |
+| KELT (3 facility names) | 21 | 21 | 21 | **0** | **100%** |
+| NGTS | 22 | 22 | 19 | 3 | 86.4% |
+| TRAPPIST | 0 | 0 | 0 | 0 | -- |
+
+The overlap is near-total because this project's positive class came from
+`pscomppars`, which already contains every one of these discoveries -- 173
+`WASP-*`, 139 `HAT*`, 346 `K2-*`, 30 `CoRoT-*` hosts are in `training.csv`
+today, holding **TESS** photometry. Re-fetching those stars from their
+discovery survey would create a second row for one star: the duplicate bug
+with a different prefix.
+
+**TRAPPIST is not a survey-scale source at all.** Its planets are filed under
+`La Silla Observatory` / `Multiple Observatories` and are all **TRAPPIST-1** --
+one star, seven planets. As a training row it is a single star.
+
+Only K2 has a usable negative class. Taking `k2pandc` in full:
+
+| K2 disposition | new | already have |
+|---|---|---|
+| CANDIDATE (**unlabelled**) | 895 | 12 |
+| **FALSE POSITIVE** | **238** | 1 |
+| **CONFIRMED** | **13** | 390 |
+| REFUTED | 6 | 2 |
+
+**257 genuinely-new K2 stars carry a usable label, and 244 of them are
+negatives.** The 895 CANDIDATEs are unlabelled and cannot be trained on.
+Across all seven sources: **268 usable stars.**
+
+### Measurement 2: 268 stars predicts +0.0011 AUC -- below the noise floor
+
+At the learning curve fitted during the injection-recovery work
+(+0.0129 per doubling from 4,386 train rows), 268 additional stars predicts
+**~+0.0011 AUC**. The noise floor is +/-0.003 and the bar is `ci_lo > 0`.
+
+This is the same arithmetic that closed the positive-class exhaustion check
+without a pipeline run. Even the hypothetical in which all 895 unlabelled K2
+CANDIDATEs were somehow labelled only reaches ~+0.0043 -- and that label does
+not exist.
+
+### Measurement 3: K2 is 30-minute cadence, a regime already measured as inert
+
+Verified live across 8 K2 hosts: **8 of 8 offer 1800 s**, 3 of 8 additionally
+offer 60 s. K2's standard product is **15x coarser than TESS 2-min**.
+
+The FFI work already measured this axis on TESS's own data: 2-min vs COARSE
+separates at **domain AUC 0.9717**, and mixing was a coverage lever with no
+accuracy gain on the 2-min population (-0.0018). K2 sits in that regime and is
+worse in one respect -- cadence would be **perfectly confounded with survey**,
+so the model cannot learn "coarse" and "K2" separately. The FFI result is
+directly transferable evidence, not a guess.
+
+### Measurement 4: the ground surveys cannot see this population's transits
+
+Correcting an earlier claim in `NON_TESS_SURVEYS_PREP.md`: WASP and KELT light
+curves **are** programmatically accessible -- the NASA archive exposes
+`superwasptimeseries` (17,971,001 rows) and `kelttimeseries` (7,670,549 rows)
+via TAP. Access was never the binding constraint. **Precision is.**
+
+Measured from a 20,000-row sample of each table, and compared generously
+(per-point scatter divided by `sqrt(N_in_transit)`, not used raw):
+
+| survey | per-point scatter | median npts | sigma_eff | 3-sigma depth limit | % of this training set detectable |
+|---|---|---|---|---|---|
+| SuperWASP | 153,372 ppm | 10,596 | 8,602 ppm | 25,807 ppm | **3.1%** |
+| KELT | 17,052 ppm | 699 | 3,724 ppm | 11,171 ppm | **11.4%** |
+
+This training set's transit depths: p25 511, **median 1,821**, p75 5,487,
+p95 19,114 ppm. Both surveys reach only the deepest few percent -- hot
+Jupiters. Any rows they contributed would be a severely selected
+subpopulation *by construction*, which is precisely the mechanism that made
+FFI a coverage lever (COARSE rows were selected toward long durations).
+
+Ground surveys also have no vetted false-positive catalogue. Their VizieR
+holdings are per-paper tables and variable-star/EB studies, not planet FPs.
+They could contribute **8 positive stars total** (4 WASP + 3 NGTS + 1 HAT).
+
+### Verdict
+
+| source | verdict |
+|---|---|
+| **K2** | the only defensible candidate, and still weak: 257 usable stars (95% negative) at 30-min cadence, predicting +0.0011 |
+| **CoRoT** | **closed.** MAST serves **0** observations; `search_lightcurve('CoRoT-2')` returns 12 products that are all *TESS*, which looks like success. 3 new stars. |
+| **WASP** | **closed.** Accessible but 3.1% reach; 4 new stars; no FP catalogue. |
+| **KELT** | **closed.** Accessible but 11.4% reach; **0** new stars. |
+| **NGTS** | **closed.** No MAST/archive time-series table; 3 new stars. |
+| **HAT** | **closed.** 1 new star. |
+| **TRAPPIST** | **closed.** One star system. |
+
+**Recommendation: close the whole line.** The count gate (~200) is passed at
+268, but that is the only test it passes -- the predicted effect is a third of
+the noise floor, the yield is 95% negatives, and the one viable source sits in
+a cadence regime this project has already measured as inert. Part 2 was not
+started; a pilot download would cost real time to measure something three
+independent measurements already predict cannot clear `ci_lo > 0`.
+
+**What was NOT ruled out:** K2's domain-separability AUC is unmeasured, because
+it requires actually fetching K2 photometry. If the line is reopened, that is
+the first thing to measure, on a 50-100 star pilot, before anything is merged.
+
 ## HOUSEKEEPING: consistency audit of the model-improvement round (2026-08-03)
 
 An audit pass over the last several experiments, verifying state rather than

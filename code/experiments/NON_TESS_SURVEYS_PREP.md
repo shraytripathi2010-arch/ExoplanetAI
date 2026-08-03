@@ -1,5 +1,22 @@
 # Non-TESS surveys — groundwork, measured before any data was fetched
 
+> **SUPERSEDED 2026-08-03 — and one claim below is wrong.** The full Part 1
+> feasibility check ran after this document and closed the line; see
+> "NON-KEPLER SURVEYS" in [`RESULTS_SUMMARY.md`](RESULTS_SUMMARY.md) and
+> `survey_feasibility.py` for the authoritative numbers.
+>
+> **The error:** §3 below says the ground surveys have no queryable light-curve
+> archive. That is false. The NASA Exoplanet Archive exposes
+> `superwasptimeseries` (17,971,001 rows) and `kelttimeseries` (7,670,549 rows)
+> over TAP. I checked VizieR and MAST and concluded "not accessible" without
+> checking the archive's own TAP schema. Access was never the binding
+> constraint — **photometric precision is**: measured 3-sigma depth limits of
+> 25,807 ppm (SuperWASP) and 11,171 ppm (KELT) against this training set's
+> median transit depth of 1,821 ppm, reaching 3.1% and 11.4% of the population
+> respectively.
+>
+> Everything else here held up, including the K2 overlap and cadence findings.
+
 Prepared 2026-08-03. **Nothing was downloaded.** Every number below comes from
 a catalogue or metadata query; light-curve searches stopped at the search-result
 table and never called `.download()`. No model, training set, scheduler,
