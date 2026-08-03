@@ -380,6 +380,128 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## SUPPLEMENTARY MEASUREMENT: TOI-restricted evaluation (context vs published work)
+
+**This does NOT replace the headline figure.** The project's result remains the
+end-to-end number: **0.9031 ROC-AUC** on the full clean test set (0.9021
+refit-clean). What follows is a context point for comparison against literature
+that solves a narrower task, and it is *less* flattering, not more.
+
+Nothing was retrained, tuned or modified. Only the evaluation population changed.
+
+### Why restrict at all
+
+AstroNet, ExoMiner and RAVEN VET candidates a mission pipeline already flagged
+as plausible. This project runs TLS on raw light curves, does its own detection,
+then classifies. Those are different problems and their headline numbers are not
+comparable. Restricting to TOI-flagged stars approximates the narrower task.
+
+### How "was TOI-flagged" is defined -- and why not by disposition
+
+Membership in the NASA `toi` table is assigned when SPOC raises a
+threshold-crossing event and the object is alerted, BEFORE any human
+disposition. So "appears in the TOI table under any disposition, including the
+still-undispositioned PC/APC" is a pre-label property. Using the disposition
+(KP/CP vs FP/FA) would be circular -- disposition IS the training label.
+
+### THE ASYMMETRY THAT GOVERNS THIS MEASUREMENT
+
+| | in TOI table | not in TOI table |
+|---|---|---|
+| negatives (FP) | **231 (100.0%)** | 0 |
+| positives (planets) | 269 (31.0%) | 598 |
+
+The negative class was SOURCED from the TOI false-positive list, so every
+negative is a TOI by construction. **The restriction removes 598 positives and
+zero negatives** -- a one-sided filter on the positive class. Prevalence moves
+79.0% -> 53.8%, so precision@k and PR-AUC shift for class-balance reasons alone.
+ROC-AUC is prevalence-invariant and is the only clean comparison. (13 test stars
+had unresolvable TIC IDs and were counted as non-TOI.)
+
+### Metric comparison
+
+| metric | FULL test (end-to-end) | TOI-RESTRICTED |
+|---|---|---|
+| n | 1,098 | 500 |
+| positive prevalence | 0.790 | 0.538 |
+| **ROC-AUC** | **0.9031** [0.8784, 0.9249] | **0.8151** [0.7739, 0.8517] |
+| PR-AUC | 0.9670 | 0.7762 |
+| no-skill baseline | 0.790 | 0.538 |
+| lift over no-skill | 1.22x | **1.44x** |
+| P@10 (random) | 1.000 (0.790) | 0.800 (0.538) |
+| P@20 (random) | 1.000 (0.790) | 0.750 (0.538) |
+| P@50 (random) | 0.980 (0.790) | 0.780 (0.538) |
+| P@100 (random) | 0.990 (0.790) | 0.810 (0.538) |
+| P@200 (random) | 0.995 (0.790) | 0.800 (0.538) |
+
+**ROC-AUC delta: -0.0880.** The restricted task is HARDER, not easier.
+
+### Attribution -- it is the positives that were removed, not the filtering
+
+| positives | n | mean score | median |
+|---|---|---|---|
+| TOI-flagged | 269 | 0.8045 | 0.8770 |
+| NOT TOI-flagged | 598 | **0.9395** | **0.9766** |
+
+The removed positives were the model's EASIEST. Feature comparison explains why:
+
+| feature | TOI positives | non-TOI positives | diff (SD) |
+|---|---|---|---|
+| SDE | 11.863 | 5.386 | **+1.41** |
+| snr | 15.514 | 5.979 | +0.82 |
+| st_rad | 1.079 | 1.641 | -0.24 |
+
+TOI-flagged positives have far STRONGER signals (SDE 11.9 vs 5.4) yet are HARDER
+to classify. That resolves once you recall the feature audit: `SDE` has
+single-feature AUC **0.326**, i.e. BELOW 0.5 -- high SDE predicts the NEGATIVE
+class, because the strongest signals are typically deep eclipsing binaries.
+
+So in the full population the model gets a large amount of easy separation from
+low-SDE, non-TOI-flagged planets that look nothing like TOI false positives.
+Restrict to TOI-flagged and both classes now sit in the same high-SDE regime,
+where the model's single most useful discriminant stops discriminating.
+
+Attribution verdict: **both effects are present, but the dominant one is the
+removal of easy positives, not any change in intrinsic task difficulty.** The
+class-balance shift explains the precision@k and PR-AUC movement; the loss of
+the low-SDE positive population explains the ROC-AUC drop. Note the PR-AUC
+*lift* over no-skill actually improves (1.22x -> 1.44x), since the baseline fell
+further than the metric did -- the model is doing relatively more work on the
+harder population.
+
+### Comparability caveat
+
+0.8151 still should not be set directly beside an AstroNet or ExoMiner number.
+Those systems vet TOIs using pixel-level data and mission-grade ephemerides;
+this model vets them using its own TLS-derived features. And this restricted
+population is peculiar -- every negative in it is a TOI false positive by
+construction, which is not the class balance those systems face. It is a context
+point, not a benchmark result.
+
+### Documentation language (use verbatim)
+
+**End-to-end result (the headline):**
+> The model achieves **0.9031 ROC-AUC** on a held-out test set of 1,098 stars,
+> measured end-to-end: the pipeline runs a Transit Least Squares search on raw
+> TESS light curves, derives its own features, and classifies the result. No
+> mission-provided candidate list, ephemeris, or pre-filtering is used at any
+> stage, so this number reflects detection and classification together.
+
+**TOI-restricted result (supplementary):**
+> Restricted to the 500 test stars that TESS's SPOC pipeline had independently
+> flagged as Objects of Interest, the same unmodified model scores **0.8151
+> ROC-AUC**. This is the narrower vetting task addressed by AstroNet, ExoMiner
+> and RAVEN, and is reported only for context against that literature. It is
+> lower than the end-to-end figure because the restriction removes 598
+> easy-to-classify confirmed planets that were never TOI-flagged while removing
+> none of the false positives, leaving a population in which both classes share
+> the strong-signal regime. It is not a benchmark-comparable number: those
+> systems use pixel-level data and mission ephemerides, and every negative in
+> this restricted set is a TOI false positive by construction.
+
+Script: `toi_restricted_metrics.py`; results `toi_restricted_metrics.json`.
+Full-population metrics reused from the retrieval-metrics measurement above.
+
 ## Semi-supervised pseudo-labelling -- NEGATIVE, and the safeguard caught it first
 
 Score unlabelled candidates with the current model, promote the confident
