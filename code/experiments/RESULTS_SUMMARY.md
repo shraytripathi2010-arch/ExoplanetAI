@@ -380,6 +380,142 @@ p-hacking the same bar every other experiment here has had to clear.
 
 Script: `native_nan_vs_imputer.py`; results `native_nan_results.json`.
 
+## Semi-supervised pseudo-labelling -- NEGATIVE, and the safeguard caught it first
+
+Score unlabelled candidates with the current model, promote the confident
+predictions to labels, retrain. Predicted to fail by error amplification, and
+it did -- but the useful part is that the diagnostic fired BEFORE any retraining,
+and that a single fit still produced five arms that cleared the bar.
+
+### Why this is not the synthetic-data failure mode
+
+Synthetic rows were OFF-distribution; a domain classifier caught them at AUC
+0.9654. Pseudo-labels are ON-distribution by construction, so no distribution
+check can flag them. The corruption is in the LABELS, not the features. That
+required a different diagnostic.
+
+### The pool, verified
+
+307 unlabelled candidates carry all 24 features (not the 2,465 raw
+`processed_unknown` light curves -- most never produced a complete TLS feature
+vector). Verified by TIC: **0 overlap with training.csv, 0 overlap with any TOI
+disposition**. Probabilities were recomputed with the deployed model rather than
+read from the stored column (correlation 0.9898).
+
+| config | pseudo-pos | pseudo-neg | total | train growth |
+|---|---|---|---|---|
+| top/bottom 5% | 16 | 16 | 32 | +0.73% |
+| top/bottom 1% | 4 | 4 | 8 | +0.18% |
+| absolute p>=0.95 / p<=0.05 | **42** | **1** | 43 | +0.98% |
+| absolute p>=0.99 / p<=0.01 | 0 | 0 | 0 | -- |
+
+**The pool is nearly one-sided.** At an absolute cut the model yields 42
+confident positives and exactly ONE confident negative; nothing at all reaches
+0.99. The model is essentially never confidently negative about an unknown --
+itself a finding about how it behaves off the labelled distribution.
+
+### THE SAFEGUARD FAILED (Part 1, before any retraining)
+
+Top/bottom-5% pseudo-labels against real training rows, on the three highest
+permutation-importance features:
+
+| feature | real positives | pseudo-positives | flag |
+|---|---|---|---|
+| **st_rad** | mean **1.597** (sd 4.12) | mean **10.597** (sd 13.31) | **6.6x larger radius** |
+| st_teff | mean 5390 (sd **1398**) | mean 4524 (sd **529**) | sd ratio 0.379 -- uniform |
+| chi2red_min | mean 0.003 (sd **0.037**) | mean 0.000 (sd **0.001**) | sd ratio 0.016 -- uniform |
+
+The `st_rad` result is the damning one. The model's confident "planets" among
+unknowns sit on GIANT stars -- 10.6 R_sun against 1.6 R_sun for real confirmed
+planets. This project already documented that exact blind spot:
+`08_characterize_candidates.confidence_tier` carries a large-star reliability
+penalty (`st_rad >= 1.5 and sde >= 10`), added after a 3.6x error-rate pattern
+was measured there. Pseudo-labelling would take the model's confident
+predictions from precisely the population it is known to be worst on and
+promote them to ground truth.
+
+### Single-fit results -- FIVE ARMS CLEARED
+
+Evaluated only on real human labels, against a bare-pipeline baseline (0.8986
+full / 0.8924 2-min), since the arms are bare pipelines too:
+
+| arm | n pseudo | full test | delta | 2-min | delta | clears |
+|---|---|---|---|---|---|---|
+| pct5 | 32 | 0.9035 | +0.0048 [-0.0007,+0.0105] | 0.8957 | +0.0034 | no |
+| pct5 w=0.25 | 32 | 0.9043 | +0.0057 [+0.0012,+0.0102] | 0.8972 | +0.0049 | full only |
+| pct1 | 8 | 0.9038 | +0.0052 [+0.0007,+0.0097] | 0.8970 | +0.0046 | full only |
+| pct1 w=0.25 | 8 | 0.9043 | +0.0057 [+0.0010,+0.0106] | 0.8967 | +0.0044 | full only |
+| abs0.95 | 43 | 0.9041 | +0.0054 [+0.0004,+0.0103] | 0.8963 | +0.0039 | full only |
+| **abs0.95 w=0.25** | 43 | **0.9078** | **+0.0092 [+0.0042,+0.0143]** | **0.9004** | **+0.0081 [+0.0023,+0.0140]** | **BOTH** |
+
+### Part 3: the subpopulation stress test
+
+Low-SNR test rows (snr <= 4.15, the train Q1 -- where the model is weakest):
+**0.8821 -> 0.8706, delta -0.0114.** Negative, in the region where confidently
+wrong labels are most likely. Exactly the predicted signature.
+
+### A BROKEN REPLICATION TEST, RECORDED
+
+The first replication attempt varied `random_state` over 10 seeds and returned
+0/10 clearing. **That number was meaningless.** Every seed produced an
+IDENTICAL delta (sd exactly 0.0000), because sklearn's HistGradientBoosting sets
+`early_stopping='auto'` -- off at n <= 10,000 -- and its binning only subsamples
+above 10,000 rows. At 4,387 training rows the fit is fully DETERMINISTIC and
+`random_state` changes nothing. The test varied nothing and could only ever have
+returned 0/10. (The earlier CatBoost seed check WAS valid; CatBoost is genuinely
+stochastic, sd 0.0024. The error was assuming that carried over to HGB.) That
+run also generated labels from the bare pipeline, giving 208 pseudo-labels
+instead of the arm's 43 -- a different arm entirely.
+
+So the +0.0092 is NOT a lucky seed; it is exactly reproducible. Fit variance is
+not the threat here. The threat is the training-data draw.
+
+### The correct replication: 20 bootstrap resamples of the training rows
+
+Each resample regenerates its own pseudo-labels from a model fit on that
+resample, then is compared against a baseline fit on the same resample. The
+frozen real-label test set is never resampled.
+
+| | mean | sd | min | max | positive |
+|---|---|---|---|---|---|
+| delta full | **-0.0012** | 0.0021 | -0.0051 | +0.0015 | **7/20 (35%)** |
+| delta 2-min | -0.0012 | 0.0025 | -0.0069 | +0.0033 | 9/20 |
+
+One-sample t-test against zero: **t = -2.63, p = 0.0165** -- the mean effect is
+significantly NEGATIVE. Pseudo-label counts per resample averaged 84.2, split
+78.2 positive / 5.9 negative, confirming the one-sidedness at every draw.
+
+**The single-fit +0.0092 was an artefact of this particular training set.**
+Across training draws the procedure is mildly harmful.
+
+### Verdict
+
+Negative, and the mechanism behaved exactly as predicted. Three independent
+lines agree: the confident pseudo-positives concentrate on the known giant-star
+blind spot; performance drops on the low-SNR subpopulation where the model is
+weakest; and the apparent gain reverses to a significantly negative mean under
+training-set resampling.
+
+The one genuine surprise was how convincing the single fit looked -- five arms
+clearing, one on both populations at +0.0092 with a CI comfortably clear of
+zero. Without the Part 1 feature inspection and the resampling test, this would
+have read as the project's first real improvement. That is the transferable
+lesson: **for pseudo-labelling, the headline metric is the least trustworthy
+number in the experiment**, because the model is being graded partly on labels
+it wrote itself.
+
+Also worth keeping: `random_state` is inert for this model at this data size, so
+any future "seed sensitivity" check on the production HGB is vacuous. Vary the
+training data instead.
+
+Pseudo-labels saved with a permanent `label_source='pseudo'` column in
+`pseudo_labeled_rows.csv`, never mixed with synthetic data. Nothing promoted.
+
+Scripts: `pseudo_labeling.py`, `pseudo_labeling_seedcheck.py` (the broken one,
+kept as the record), `pseudo_labeling_replication.py`; results
+`pseudo_labeling_results.json`, `pseudo_labeling_seedcheck.json`,
+`pseudo_labeling_replication.json`, `pseudo_labeled_rows.csv`.
+
 ## MEASUREMENT (not an experiment): retrieval metrics on the deployed model
 
 Nothing was trained, tuned, promoted or rejected here. This measures the
