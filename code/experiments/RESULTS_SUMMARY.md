@@ -1679,6 +1679,111 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## Calibration / ensembling sweep -- NEGATIVE, and a textbook case of why stage 2 exists
+
+Prompted by the observation that `CalibratedClassifierCV(cv=5)` was worth
++0.0046 to HGB -- larger than any of the 28 feature experiments -- arriving as
+a side effect of a wrapper nobody treated as a modelling choice. Question: is
+production's cv=5 leaving anything on the table?
+
+### The mechanism, which is real and worth keeping regardless
+
+**ROC-AUC is invariant under monotone transforms, so a sigmoid cannot move it.**
+It is arithmetically impossible for "calibration" to be the source of +0.0046.
+`CalibratedClassifierCV(cv=k)` does two things: fits k models on (k-1)/k of the
+data each, then averages their calibrated outputs. Only the averaging can
+change AUC. **Production has been running a 5-model bagging ensemble since it
+shipped, labelled as a calibration wrapper.** A `bag-only` arm (same folds,
+raw probabilities averaged, no sigmoid) was added to separate the two.
+
+### Stage 1 -- single-fit landscape (HGB, full clean test)
+
+| arm | AUC | 2-min | Brier |
+|---|---|---|---|
+| bare | 0.8986 | 0.8924 | 0.1051 |
+| sigmoid cv=3 | 0.8968 | 0.8876 | 0.0935 |
+| bag-only cv=3 | 0.9061 | 0.8986 | 0.0935 |
+| **sigmoid cv=5 [PRODUCTION]** | **0.9032** | **0.8955** | **0.0893** |
+| bag-only cv=5 | 0.9053 | 0.8978 | 0.0952 |
+| sigmoid cv=10 | 0.9059 | 0.8987 | 0.0882 |
+| bag-only cv=10 | 0.9049 | 0.8976 | 0.0970 |
+| sigmoid cv=20 | 0.9061 | 0.8990 | 0.0889 |
+| bag-only cv=20 | 0.9056 | 0.8978 | 0.0985 |
+| isotonic cv=5 | 0.9025 | 0.8944 | 0.0891 |
+| isotonic cv=10 | 0.9051 | 0.8982 | 0.0881 |
+
+Seven arms beat production, the best by +0.0029. **None of it survived.**
+
+### Stage 2 -- 8 bootstrap resamples, every arm refit alongside the baseline
+
+| arm | stage 1 delta | **stage 2 mean delta** | sd | positive | clears |
+|---|---|---|---|---|---|
+| bag-only cv=3 | +0.0029 | **-0.0011** | 0.0014 | 3/8 | 0/8 |
+| bag-only cv=5 | +0.0021 | +0.0006 | 0.0015 | 5/8 | 0/8 |
+| sigmoid cv=10 | +0.0027 | **+0.0004** | 0.0014 | 5/8 | 0/8 |
+| bag-only cv=10 | +0.0016 | +0.0007 | 0.0017 | 6/8 | 1/8 |
+| sigmoid cv=20 | +0.0029 | **+0.0001** | 0.0013 | 5/8 | 0/8 |
+
+**No arm clears `ci_lo > 0`. None is positive on all 8 resamples on both
+populations. Every gain collapsed to within +/-0.0007 of zero, and the
+best-looking stage-1 arm (bag-only cv=3, +0.0029) reversed sign to -0.0011.**
+
+This is the baseline-instability finding demonstrated **prospectively**. The
+re-audit measured sd(delta) ~0.0024 for paired arms and warned that single-fit
+differences of that size are not evidence. These differences were +0.0027 to
++0.0029 -- right in that band -- and stage 2 confirmed they were the training
+draw, not the method. Had stage 1 been reported as a result, this project would
+have shipped a "+0.0029 improvement" that does not exist.
+
+The production baseline's own spread across resamples, **0.8960 with sd
+0.0033**, is the same story from the other side.
+
+### What is nonetheless established
+
+- **Production's cv=5 is not obviously suboptimal.** Nothing tested beats it
+  reliably. The setting can be left alone with evidence rather than by default.
+- **Brier confirms the sigmoid earns its place.** Across resamples, bag-only
+  arms sit at ~0.102 versus production's 0.0943, and degrade monotonically with
+  fold count (0.1021 -> 0.1023 -> 0.1033). Bagging improves ranking but never
+  fixes probability scale, and the more models averaged uncalibrated, the worse
+  the scale drifts. `sigmoid cv=10/20` match production's Brier (0.0943/0.0940)
+  without beating its AUC.
+- **A cv=3 sigmoid is actively harmful, in BOTH families** -- HGB 0.8968 and
+  CatBoost 0.9017, each well below its own bare score. With three folds each
+  per-fold sigmoid is fit on a third of the data, and averaging a few
+  badly-warped curves destroys ranking. Do not lower the fold count.
+
+### A correction to the previous experiment's stated mechanism
+
+That write-up concluded "calibration lifts HGB +0.0046 and costs CatBoost
+-0.0024; the wrapper gives CatBoost nothing." **That was specific to cv=5.**
+At cv=20 CatBoost's sigmoid arm reaches 0.9120, *above* its bare 0.9113 --
+CatBoost does not dislike calibration, it dislikes FIVE-fold calibration.
+
+The verdict is unaffected: CatBoost vs HGB at the better setting is
+0.9120 vs 0.9061 = **+0.0059**, essentially the +0.0057 measured at cv=5, which
+did not clear. Both families gain about equally from more folds, so the gap
+does not move. Only the explanation was wrong, not the conclusion.
+
+### CatBoost arms: single-fit only, NOT validated
+
+Stage 2 covered HGB arms only. CatBoost's best single-fit arms (bag-only cv=10
+at 0.9124, +0.0092 over production) are **exactly the kind of number stage 2
+just dissolved for HGB** and should be treated with the same suspicion until
+resampled. What IS separately established is that CatBoost beats HGB as a bare
+learner (11/12 and 12/12 positive across resamples, mean +0.0073); what is not
+established is which wrapper suits it best.
+
+Two arms that beat production were left out of stage 2 because the survivor
+list was frozen before they finished: `bag-only cv=20` (0.9056) and
+`isotonic cv=10` (0.9051, best Brier 0.0881). Neither is a top AUC performer
+and `isotonic cv=10` is dominated by `sigmoid cv=10`, so neither is likely to
+change the outcome -- but that is reasoning, not measurement, and they remain
+untested.
+
+Scripts: `calibration_sweep.py`, `calibration_sweep_validate.py`; results
+`calibration_sweep_results.json`, `calibration_sweep_validate_results.json`.
+
 ## UNCERTAINTY QUANTIFICATION (not an accuracy change): split conformal prediction
 
 **Nothing about the model changed.** ROC-AUC is still 0.9031, the artifact md5 is

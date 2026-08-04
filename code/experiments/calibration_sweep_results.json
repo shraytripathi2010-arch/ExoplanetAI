@@ -1,0 +1,228 @@
+{
+  "note": "AUC is invariant to monotone transforms; a single sigmoid cannot move it. Any AUC change from CalibratedClassifierCV is the k-fold AVERAGING, not the calibration.",
+  "stage1": {
+    "HGB": {
+      "bare (no wrapper)": {
+        "auc_full": 0.8986453761540266,
+        "auc_2min": 0.8924096510303408,
+        "brier": 0.10508043798826809,
+        "fit_s": 18.7
+      },
+      "sigmoid cv=3": {
+        "auc_full": 0.8968079210293745,
+        "auc_2min": 0.8875772324048186,
+        "brier": 0.09352454496907688,
+        "fit_s": 51.9
+      },
+      "bag-only cv=3": {
+        "auc_full": 0.9060850721750376,
+        "auc_2min": 0.8986434710572642,
+        "brier": 0.09354654107898598,
+        "fit_s": 51.0
+      },
+      "sigmoid cv=5 [PRODUCTION]": {
+        "auc_full": 0.9032190416273462,
+        "auc_2min": 0.8954540747644195,
+        "brier": 0.089321140489244,
+        "fit_s": 123.4
+      },
+      "bag-only cv=5": {
+        "auc_full": 0.9053161371500472,
+        "auc_2min": 0.8977736357046702,
+        "brier": 0.09523086910901177,
+        "fit_s": 253.4
+      },
+      "sigmoid cv=10": {
+        "auc_full": 0.9058903418765011,
+        "auc_2min": 0.898705602153878,
+        "brier": 0.0882369944137132,
+        "fit_s": 474.9
+      },
+      "bag-only cv=10": {
+        "auc_full": 0.9048517802843061,
+        "auc_2min": 0.8976424700562632,
+        "brier": 0.09704551178597999,
+        "fit_s": 398.2
+      },
+      "sigmoid cv=20": {
+        "auc_full": 0.9061399961053941,
+        "auc_2min": 0.8989610299955129,
+        "brier": 0.08894664870985682,
+        "fit_s": 527.1
+      },
+      "bag-only cv=20": {
+        "auc_full": 0.9056307014784524,
+        "auc_2min": 0.8978150564357461,
+        "brier": 0.09849099895027097,
+        "fit_s": 747.1
+      },
+      "isotonic cv=5": {
+        "auc_full": 0.9025399821247571,
+        "auc_2min": 0.8944012978495737,
+        "brier": 0.08910003258845496,
+        "fit_s": 176.1
+      },
+      "isotonic cv=10": {
+        "auc_full": 0.9051189103092218,
+        "auc_2min": 0.8982258120189154,
+        "brier": 0.08813180657320091,
+        "fit_s": 371.0
+      }
+    },
+    "CatBoost": {
+      "bare (no wrapper)": {
+        "auc_full": 0.9113427902355238,
+        "auc_2min": 0.9061061061061061,
+        "brier": 0.0927223236595334,
+        "fit_s": 29.5
+      },
+      "sigmoid cv=3": {
+        "auc_full": 0.9017011439156768,
+        "auc_2min": 0.8931207069138104,
+        "brier": 0.09306679800217425,
+        "fit_s": 90.7
+      },
+      "bag-only cv=3": {
+        "auc_full": 0.9117921678475311,
+        "auc_2min": 0.9061820441130786,
+        "brier": 0.09050051618849972,
+        "fit_s": 83.9
+      },
+      "sigmoid cv=5 [PRODUCTION]": {
+        "auc_full": 0.9088712133694833,
+        "auc_2min": 0.9029305167236201,
+        "brier": 0.09002057261360737,
+        "fit_s": 150.2
+      },
+      "bag-only cv=5": {
+        "auc_full": 0.9110931360066308,
+        "auc_2min": 0.9063132097614857,
+        "brier": 0.09110362688724111,
+        "fit_s": 151.0
+      },
+      "sigmoid cv=10": {
+        "auc_full": 0.9107935509319594,
+        "auc_2min": 0.9056366711539126,
+        "brier": 0.08975554730386048,
+        "fit_s": 326.5
+      },
+      "bag-only cv=10": {
+        "auc_full": 0.9124212965043415,
+        "auc_2min": 0.9069552310931621,
+        "brier": 0.09144970459552723,
+        "fit_s": 320.9
+      },
+      "sigmoid cv=20": {
+        "auc_full": 0.9120368289918463,
+        "auc_2min": 0.9072313693003348,
+        "brier": 0.08964854025026986,
+        "fit_s": 621.3
+      },
+      "bag-only cv=20": {
+        "auc_full": 0.9123414071510958,
+        "auc_2min": 0.9071140105622865,
+        "brier": 0.09174276255493392,
+        "fit_s": 506.4
+      },
+      "isotonic cv=5": {
+        "auc_full": 0.9083119878967629,
+        "auc_2min": 0.9020606813710261,
+        "brier": 0.08837055918605143,
+        "fit_s": 130.1
+      },
+      "isotonic cv=10": {
+        "auc_full": 0.9102892493895954,
+        "auc_2min": 0.9049463256359808,
+        "brier": 0.0881281774257535,
+        "fit_s": 268.6
+      }
+    }
+  },
+  "stage1_candidates": [
+    {
+      "model": "CatBoost",
+      "arm": "bag-only cv=10",
+      "auc_full": 0.9124212965043415
+    },
+    {
+      "model": "CatBoost",
+      "arm": "bag-only cv=20",
+      "auc_full": 0.9123414071510958
+    },
+    {
+      "model": "CatBoost",
+      "arm": "sigmoid cv=20",
+      "auc_full": 0.9120368289918463
+    },
+    {
+      "model": "CatBoost",
+      "arm": "bag-only cv=3",
+      "auc_full": 0.9117921678475311
+    },
+    {
+      "model": "CatBoost",
+      "arm": "bare (no wrapper)",
+      "auc_full": 0.9113427902355238
+    },
+    {
+      "model": "CatBoost",
+      "arm": "bag-only cv=5",
+      "auc_full": 0.9110931360066308
+    },
+    {
+      "model": "CatBoost",
+      "arm": "sigmoid cv=10",
+      "auc_full": 0.9107935509319594
+    },
+    {
+      "model": "CatBoost",
+      "arm": "isotonic cv=10",
+      "auc_full": 0.9102892493895954
+    },
+    {
+      "model": "CatBoost",
+      "arm": "sigmoid cv=5 [PRODUCTION]",
+      "auc_full": 0.9088712133694833
+    },
+    {
+      "model": "CatBoost",
+      "arm": "isotonic cv=5",
+      "auc_full": 0.9083119878967629
+    },
+    {
+      "model": "HGB",
+      "arm": "sigmoid cv=20",
+      "auc_full": 0.9061399961053941
+    },
+    {
+      "model": "HGB",
+      "arm": "bag-only cv=3",
+      "auc_full": 0.9060850721750376
+    },
+    {
+      "model": "HGB",
+      "arm": "sigmoid cv=10",
+      "auc_full": 0.9058903418765011
+    },
+    {
+      "model": "HGB",
+      "arm": "bag-only cv=20",
+      "auc_full": 0.9056307014784524
+    },
+    {
+      "model": "HGB",
+      "arm": "bag-only cv=5",
+      "auc_full": 0.9053161371500472
+    },
+    {
+      "model": "HGB",
+      "arm": "isotonic cv=10",
+      "auc_full": 0.9051189103092218
+    },
+    {
+      "model": "HGB",
+      "arm": "bag-only cv=10",
+      "auc_full": 0.9048517802843061
+    }
+  ]
+}
