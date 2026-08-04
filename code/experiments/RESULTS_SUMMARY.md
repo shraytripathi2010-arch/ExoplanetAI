@@ -1779,11 +1779,18 @@ not directly comparable. Which is the better estimate of the truth is **not
 settled here**, and the conclusion above does not depend on it: the calibrated
 single-fit test fails the bar either way.
 
+Tuned 3-fold CV AUC on the train split, all on the same folds: **CatBoost
+0.9244, XGBoost 0.9242, LightGBM 0.9234, HGB 0.9221**. Note that the CV
+ordering (CatBoost best by +0.0023 over HGB) does survive to held-out data --
+the disagreement is only about whether it survives *calibration*, which it does
+not.
+
 Scripts: `gbm_ensemble.py`, `gbm_ensemble_control.py`; results
-`gbm_ensemble_results.json`, `gbm_ensemble_control_results.json`,
-`gbm_ensemble.log`, `gbm_control.log`. (`tuned_cv_auc` in the first JSON was
-written as zeros by a bad `zip`; the log has the correct values -- CatBoost
-0.9244, XGBoost 0.9242, LightGBM 0.9234, HGB 0.9221 -- and the script is fixed.)
+`gbm_ensemble_results.json`, `gbm_ensemble_control_results.json`. Run logs are
+gitignored under `code/experiments/*.log`, so the CV AUCs above were backfilled
+into the JSON rather than left only in the log -- `tuned_cv_auc` was originally
+written as zeros by a bad `zip`, the printed values were always correct, and
+the script is fixed for future runs.
 
 ## Weak secondary eclipse (noise-normalised) -- NEGATIVE, and informative about why
 

@@ -23,9 +23,9 @@
     }
   },
   "tuned_cv_auc": {
-    "CatBoost": 0.0,
-    "LightGBM": 0.0,
-    "XGBoost": 0.0
+    "CatBoost": 0.9244,
+    "LightGBM": 0.9234,
+    "XGBoost": 0.9242
   },
   "rows": [
     {
@@ -313,5 +313,6 @@
     "LightGBM": 0.004022363210611083,
     "XGBoost": 0.00369211364812689
   },
-  "clears_robustly": false
+  "clears_robustly": false,
+  "_note_tuned_cv_auc": "Backfilled from gbm_ensemble.log. The original run wrote zeros here via a bad zip against a list of zeros; the printed log values were always correct. gbm_ensemble.py is fixed so future runs record these directly."
 }
