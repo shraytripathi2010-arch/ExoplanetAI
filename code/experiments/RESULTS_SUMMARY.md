@@ -1774,11 +1774,120 @@ Ground surveys also have no vetted false-positive catalogue. Their VizieR
 holdings are per-paper tables and variable-star/EB studies, not planet FPs.
 They could contribute **8 positive stars total** (4 WASP + 3 NGTS + 1 HAT).
 
+### PART 2/3 RAN ON K2 (approved after the Part 1 report) -- INERT
+
+The Part 1 recommendation was to close. It was overridden and the K2 pilot ran
+end to end. Scripts live in `code/k2_pilot/`; nothing was merged into
+`training.csv` and the production model is untouched
+(md5 `341f1a3907e77f6ec294f182833e613c`).
+
+**Pilot yield: 80 selected, 71 usable (88.8%)** -- much healthier than the
+Kepler pilot's 36.4% SNR wall.
+
+| stage | result |
+|---|---|
+| TIC-gated selection | 80 stars, **0** colliding with `training.csv` |
+| download (`author='K2'`, 1800 s) | **80/80**, median 3,645 pts/star |
+| preprocess | **80/80** |
+| TLS features | **71/80 = 88.8%**, median 174 s/star |
+
+The 9 losses are all one failure mode: 8 could not compute
+`odd_even_mismatch` / `depth_mean_odd` / `depth_mean_even`, i.e. too few
+distinct transits to split odd from even, and 1 raised a zero-size-array TLS
+error. That is the expected consequence of an ~82-day baseline at 30-minute
+sampling, not a code fault.
+
+**Exactly one preprocessing parameter was changed, and it was a units bug
+waiting to happen.** `MAX_FLATTEN_WINDOW` is specified in POINTS, so its
+physical duration scales with cadence:
+
+| | window | physical duration |
+|---|---|---|
+| TESS 2-min | 401 pts | 13.4 h |
+| K2 30-min, **unchanged** | 401 pts | **196.5 h = 8.2 days** |
+| K2 30-min, **corrected** | **27 pts** | **13.2 h** |
+
+Left alone, K2 stars would have been detrended over an 8-day window while TESS
+got 13 hours under the same nominal setting -- the domain classifier would then
+have been detecting a preprocessing artefact rather than the data. Measured
+cadence in-run: 29.4 min. Everything else was verified as still appropriate and
+left alone (`MIN_POINTS_FOR_FLATTEN` 50 vs ~3,500 delivered; binning cap 30,000
+never triggers; TLS grid left at defaults since 82 days is 3x TESS, not the
+4-YEAR baseline that forced the Kepler binning cap).
+
+### THE DECISIVE NUMBER: domain AUC 0.9973
+
+| comparison | domain AUC | what happened |
+|---|---|---|
+| synthetic vs real | 0.9654 | mixing **HURT** (-0.018) |
+| TESS 2-min vs COARSE (FFI) | 0.9717 | **inert** outside its own rows |
+| **TESS 2-min vs K2** | **0.9973** | **this experiment** |
+
+**The highest separability this project has ever measured** -- K2 rows are
+essentially perfectly identifiable. Largest shifts (SD units, K2 - TESS):
+`FAP` **-1.24**, `SDE_raw` +0.91, `rp_rs` +0.87, `SDE` +0.86,
+`distinct_transit_count` +0.77. The stop was pre-registered at 0.95 *before*
+the number was known, and it fired.
+
+### Merge integrity and leakage suite
+
+| check | result |
+|---|---|
+| pilot stars whose TIC already in `training.csv` | **0** |
+| duplicated host rows after merge | **0** |
+| hosts straddling the split | **0** |
+| K2 assignment | 56 train / 15 test, by the manifest's md5 hash rule |
+| correlation \|label-AUC-0.5\| vs \|source-AUC-0.5\| | **+0.110** |
+
+The +0.110 correlation is mild -- the features that identify K2 are largely
+*not* the ones carrying the label, so the shortcut and the signal are not
+badly entangled. (Cadence audit reported -0.247 for the analogous quantity.)
+NaN rates are if anything *lower* for K2 than TESS on every feature.
+
+### Arms -- nothing clears, on either population
+
+Bare `Pipeline` with `clf__sample_weight`, so the weights reach the estimator
+rather than only the calibrator. **Arm A is computed in-run rather than
+compared against the stored 0.9021**, because 0.9021 is a CALIBRATED refit
+(`CalibratedClassifierCV` is a 5-fold ensemble and is not AUC-neutral) while
+the arms must be bare; measured side by side today, calibrated refit = 0.9032
+and bare refit = 0.8986. Comparing a bare arm to 0.9021 would have
+manufactured a fake -0.0035 handicap.
+
+| arm | all-TESS test (n=1,098) | delta [95% CI] | tess_2min test (n=968) | delta [95% CI] |
+|---|---|---|---|---|
+| A. baseline (TESS only) | 0.8986 | -- | 0.8924 | -- |
+| B. pooled (TESS + K2) | 0.9016 | +0.0030 [-0.0024, +0.0086] | 0.8943 | +0.0019 [-0.0044, +0.0083] |
+| C. K2 down-weighted 0.25 | 0.9030 | +0.0044 [-0.0013, +0.0105] | 0.8951 | +0.0028 [-0.0034, +0.0094] |
+
+**No arm clears `ci_lo > 0` on either population.** K2 rows in the test set are
+excluded from every evaluation, so these are TESS-only numbers by construction.
+
+### Verdict: INERT, not harmful -- and one prior expectation did not hold
+
+56 K2 training rows on 4,387 is +1.3%, which the learning curve predicts at
+~+0.0002. The observed point estimates (+0.0019 to +0.0044) are larger than
+that but sit inside the +/-0.003 noise floor with CIs spanning zero. Nothing
+here is distinguishable from noise in either direction.
+
+**Worth stating plainly: domain separability did not predict harm.** K2 scored
+*higher* than synthetic (0.9973 vs 0.9654), yet synthetic actively hurt
+(-0.018) while K2's point estimates are mildly positive. Separability tells you
+the model CAN identify the source; it does not by itself tell you the mixture
+will damage performance. The honest reading of these three results together is
+that a high domain AUC predicts "no reliable gain", not "harm" -- synthetic's
+damage came from something beyond separability alone. That is a correction to
+how this project has been using the 0.9654/0.9717 references.
+
+**Not scaled to the remaining 258 stars.** The stop was pre-registered and the
+number cleared it by a wide margin; scaling 3x on a pilot whose best arm is
++0.0028 [-0.0034, +0.0094] would not change the conclusion.
+
 ### Verdict
 
 | source | verdict |
 |---|---|
-| **K2** | the only defensible candidate, and still weak: 257 usable stars (95% negative) at 30-min cadence, predicting +0.0011 |
+| **K2** | **INERT (measured, not predicted).** 88.8% pilot yield, but domain AUC 0.9973 and no arm clears `ci_lo > 0` on either the full or 2-min test population. |
 | **CoRoT** | **closed.** MAST serves **0** observations; `search_lightcurve('CoRoT-2')` returns 12 products that are all *TESS*, which looks like success. 3 new stars. |
 | **WASP** | **closed.** Accessible but 3.1% reach; 4 new stars; no FP catalogue. |
 | **KELT** | **closed.** Accessible but 11.4% reach; **0** new stars. |

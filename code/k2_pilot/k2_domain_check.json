@@ -1,0 +1,171 @@
+{
+  "n_domain_0": 4852,
+  "n_domain_1": 71,
+  "names": [
+    "TESS 2-min",
+    "K2"
+  ],
+  "reference": {
+    "synthetic_vs_real": {
+      "auc": 0.9654,
+      "outcome": "mixing hurt; augmentation abandoned"
+    },
+    "2min_vs_coarse_cadence": {
+      "auc": 0.9717,
+      "outcome": "coverage lever only, not an accuracy lever"
+    }
+  },
+  "domain_auc": 0.9972510246972354,
+  "standardized_mean_diff": {
+    "SDE": 0.8569235109323824,
+    "SDE_raw": 0.913858754470418,
+    "FAP": -1.2426767676139885,
+    "period": 0.36555377963388214,
+    "period_uncertainty": 0.22637684588156248,
+    "duration": 0.043451340513063416,
+    "depth": -0.7556347611940066,
+    "depth_mean": -0.6896122278632311,
+    "depth_mean_std": 0.026618983746221094,
+    "depth_mean_even": -0.5772921928117396,
+    "depth_mean_odd": -0.753828954783432,
+    "odd_even_mismatch": 0.041173122295744914,
+    "rp_rs": 0.8681460679323039,
+    "snr": 0.6765574842012456,
+    "transit_count": 0.5398771131292333,
+    "distinct_transit_count": 0.7722002216896349,
+    "empty_transit_count": 0.4781605890661933,
+    "st_rad": -0.09336213557270698,
+    "st_teff": -0.21718589988098203,
+    "chi2red_min": -0.04686512642450674,
+    "depth_consistency_std": 0.34335445653237096,
+    "secondary_eclipse_depth": 0.5738803278581336,
+    "transit_shape_ratio": 0.14640465241010073,
+    "depth_duration_ratio": 0.15437695642196003
+  },
+  "per_feature": [
+    {
+      "feature": "SDE",
+      "label_auc": 0.27128049053581266,
+      "domain_auc": 0.8683481764453166
+    },
+    {
+      "feature": "SDE_raw",
+      "label_auc": 0.22664445006889958,
+      "domain_auc": 0.8490530984754363
+    },
+    {
+      "feature": "FAP",
+      "label_auc": 0.7790904110330981,
+      "domain_auc": 0.20489445328193398
+    },
+    {
+      "feature": "transit_count",
+      "label_auc": 0.5069996882241957,
+      "domain_auc": 0.7648389281280258
+    },
+    {
+      "feature": "snr",
+      "label_auc": 0.2541189762182559,
+      "domain_auc": 0.7630404951853678
+    },
+    {
+      "feature": "empty_transit_count",
+      "label_auc": 0.5005181531729885,
+      "domain_auc": 0.7303093126451667
+    },
+    {
+      "feature": "depth_mean_even",
+      "label_auc": 0.46221811847559924,
+      "domain_auc": 0.3008585638459839
+    },
+    {
+      "feature": "depth_mean",
+      "label_auc": 0.46246422881558413,
+      "domain_auc": 0.30328915712749716
+    },
+    {
+      "feature": "depth",
+      "label_auc": 0.47477770382660844,
+      "domain_auc": 0.30613483041696177
+    },
+    {
+      "feature": "depth_mean_odd",
+      "label_auc": 0.4611627816141339,
+      "domain_auc": 0.30625964429088715
+    },
+    {
+      "feature": "rp_rs",
+      "label_auc": 0.5375652345336166,
+      "domain_auc": 0.6871766236389233
+    },
+    {
+      "feature": "depth_consistency_std",
+      "label_auc": 0.6118146826552341,
+      "domain_auc": 0.6775476034734182
+    },
+    {
+      "feature": "period_uncertainty",
+      "label_auc": 0.45058151899972565,
+      "domain_auc": 0.3376286918591843
+    },
+    {
+      "feature": "transit_shape_ratio",
+      "label_auc": 0.42589480284527775,
+      "domain_auc": 0.6529188948306595
+    },
+    {
+      "feature": "depth_mean_std",
+      "label_auc": 0.6263537069714571,
+      "domain_auc": 0.645006267041303
+    },
+    {
+      "feature": "distinct_transit_count",
+      "label_auc": 0.5131460107160879,
+      "domain_auc": 0.6397728420289769
+    },
+    {
+      "feature": "secondary_eclipse_depth",
+      "label_auc": 0.5169115606682502,
+      "domain_auc": 0.590925561806096
+    },
+    {
+      "feature": "st_teff",
+      "label_auc": 0.3350559804341317,
+      "domain_auc": 0.42588481775286013
+    },
+    {
+      "feature": "odd_even_mismatch",
+      "label_auc": 0.47258678937558246,
+      "domain_auc": 0.5371831604063707
+    },
+    {
+      "feature": "chi2red_min",
+      "label_auc": 0.6079052308694475,
+      "domain_auc": 0.4647679412620811
+    },
+    {
+      "feature": "period",
+      "label_auc": 0.46267904341612,
+      "domain_auc": 0.48503335491650873
+    },
+    {
+      "feature": "depth_duration_ratio",
+      "label_auc": 0.6878403686454252,
+      "domain_auc": 0.4919063092176
+    },
+    {
+      "feature": "duration",
+      "label_auc": 0.3123385542388117,
+      "domain_auc": 0.49574672836682687
+    },
+    {
+      "feature": "st_rad",
+      "label_auc": 0.3065761731812579,
+      "domain_auc": 0.4976534758575246
+    }
+  ],
+  "verdict": "STOP. domain AUC 0.9973 is at or above the pre-registered 0.95 band, i.e. in the same regime as synthetic (0.9654, harmful) and FFI (0.9717, inert). Do not scale.",
+  "stop_band": 0.95,
+  "n_k2": 71,
+  "n_tess_2min": 4852
+}

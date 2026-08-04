@@ -1,0 +1,39 @@
+training.csv resolves to 5357 distinct TIC ids
+k2pandc labelled stars with a TIC: 662
+  genuinely new (TIC not in training.csv): 258
+disposition
+FALSE POSITIVE    239
+CONFIRMED          13
+REFUTED             6
+
+Pilot sample: 80 stars (13 pos / 67 neg) -> /Users/anujtripathi/Downloads/ExoplanetAI/code/k2_pilot/k2_pilot_sample.csv
+
+Downloading (author='K2', 1800s long cadence)...
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [10/80] EPIC_220459477         3505 pts  Success  (195s)
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [20/80] EPIC_211744153         7091 pts  Success  (310s)
+Warning: 35% (258/740) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [30/80] EPIC_211453223         3645 pts  Success  (441s)
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [40/80] EPIC_211914718         9462 pts  Success  (494s)
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+Warning: 33% (808/2449) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [50/80] EPIC_212214592         3645 pts  Success  (526s)
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [60/80] EPIC_212679798         6633 pts  Success  (573s)
+Warning: 33% (808/2449) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [70/80] EPIC_212572452         6633 pts  Success  (612s)
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+Warning: 36% (1374/3850) of the cadences will be ignored due to the quality mask (quality_bitmask=1130799).
+  [80/80] EPIC_212221986         3645 pts  Success  (647s)
+
+Download status breakdown:
+status
+Success    80
+
+80/80 usable  (13 pos / 67 neg)
+median points per star: 3645

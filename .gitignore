@@ -59,3 +59,10 @@ __pycache__/
 
 # OS junk files.
 .DS_Store
+
+# K2 pilot light curves -- same rationale as above: 35 MB, regeneratable by
+# code/k2_pilot/select_and_download_k2.py. The derived features, the sample
+# manifest, the logs and the JSON results ARE tracked, so the measurement is
+# reproducible without the bulk data.
+code/k2_pilot/raw/
+code/k2_pilot/processed/
