@@ -1679,6 +1679,103 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## Resolving the CatBoost discrepancy -- it was ONE TRAINING ROW, and that is the real finding
+
+Two results appeared to contradict each other:
+
+    bakeoff_followup.py  seed stress    0/10 cleared, mean delta +0.0013
+    gbm_ensemble_control.py  resamples   11/12 positive, mean delta +0.0073
+
+The earlier writeup guessed the difference was the randomisation axis (seeds vs
+training draws). **That guess was wrong.** The two scripts differed in three
+ways at once, so a factorial was run --
+{seed-check params, tuned params} x {seeds, resamples} -- against one freshly
+measured baseline. Script `catboost_discrepancy.py`.
+
+### The single-row result
+
+`TIC_200385493` is the one star in `training.csv` that post-dates the frozen
+manifest; the label-watch scheduler appended it after the bake-off ran.
+Removing it reproduces BOTH recorded numbers **exactly**:
+
+| | with the row (today) | without it | seed check recorded |
+|---|---|---|---|
+| bare HGB | 0.8986 | **0.9036** | **0.9036** |
+| calibrated HGB | 0.9032 | **0.9021** | **0.9021** |
+
+And the arithmetic closes: the old run measured +0.0013 against HGB@0.9036;
+the identical params on the identical axis today give +0.0063 against
+HGB@0.8986. The difference is 0.0050 -- exactly the baseline shift.
+
+### Full factorial
+
+| CatBoost params | axis | mean delta (full) | sd | positive | clearing |
+|---|---|---|---|---|---|
+| seed-check (d6, l2 3) | seeds | +0.0063 | 0.0018 | 10/10 | **0/10** |
+| seed-check (d6, l2 3) | resamples | +0.0059 | 0.0041 | 9/10 | 1/10 |
+| tuned (d8, l2 9) | seeds | +0.0122 | 0.0018 | 10/10 | **10/10** |
+| tuned (d8, l2 9) | resamples | +0.0076 | 0.0037 | 9/10 | 4/10 |
+
+| cause | effect on the mean delta |
+|---|---|
+| CatBoost hyperparameters (d6/l2-3 -> d8/l2-9) | **+0.0059** -- flips 0/10 to 10/10 |
+| HGB baseline (one training row) | **-0.0050** |
+| **axis (seeds vs resamples)** | **-0.0004 -- essentially nothing** |
+
+**The axis never mattered for the mean.** It matters only for the VARIANCE
+(sd 0.0018 on seeds vs 0.0037-0.0041 on resamples), and for a specific reason:
+the seeds axis holds the HGB baseline fixed at one arbitrary value, while the
+resample axis refits it every draw and therefore *propagates the baseline's own
+instability* into the delta. That makes the resample axis the more honest test
+-- not because training draws are more fundamental, but because it stops
+treating one arbitrary baseline fit as ground truth.
+
+### THE INCIDENTAL FINDING, which matters more than the original question
+
+**The bare HGB refit baseline is unstable to a single training row.** Dropping
+one random training row and refitting, 15 draws:
+
+    range  +0.0001 to +0.0068     sd 0.0018     UPWARD in 15 of 15
+
+Systematic, one-directional, and larger than the +/-0.003 noise floor. The
+4,387-row fit at 0.8986 is an outlier low; 4,386-row fits cluster near 0.903.
+The same 8 draws through the production calibration wrapper:
+
+    CALIBRATED  sd 0.0009, range 0.0029, two-sided (some negative)
+    BARE        sd 0.0018, range 0.0067, one-directional
+
+`CalibratedClassifierCV(cv=5)` averages five models and roughly halves the
+instability, which is why the calibrated comparison is the trustworthy one --
+it is simultaneously the production-correct configuration and the numerically
+stable one.
+
+**This does NOT affect the promotion gate.** `retrain_pipeline.py:405` scores
+the SAVED production artifact (`prod_model.predict_proba`) rather than refitting
+it, so the incumbent's predictions are fixed and immune to this. What it does
+affect is **every experiment in this track that refits its own baseline**,
+including the ones in this file.
+
+### What this does and does not change
+
+It does **not** change the CatBoost verdict. The calibrated single-fit
+comparison -- the production configuration, and the stable one -- gives
++0.0057 [-0.0017, +0.0132] full and +0.0074 [-0.0010, +0.0160] 2-min, and does
+not clear. It **does** retire the "bare clears" reading as inflated: that
+comparison used an outlier-low incumbent.
+
+It also settles that CatBoost genuinely outperforms HGB *as a bare learner*
+(+0.0122, 10/10 clearing on fixed-baseline seeds). The reason that does not
+reach production is specific and measured: calibration lifts HGB by +0.0046 and
+costs CatBoost -0.0024, closing most of the gap.
+
+**Recommended going forward:** report refit-baseline experiments against the
+CALIBRATED configuration, or against a baseline averaged over several
+leave-one-out refits. A single bare refit carries +/-0.005 of arbitrary
+variation, which is larger than anything this track has been trying to detect.
+
+Scripts: `catboost_discrepancy.py`; results
+`catboost_discrepancy_results.json`.
+
 ## GBM averaging ensemble -- NEGATIVE as an ensemble; the CatBoost swap it exposed does not clear either
 
 Averaging predicted probabilities across HGB + CatBoost + LightGBM + XGBoost,
@@ -1734,13 +1831,25 @@ full-data fit, which is what the gate would actually see:
 
 | configuration | population | HGB | CatBoost | delta [95% CI] | clears |
 |---|---|---|---|---|---|
-| bare | full | 0.8986 | 0.9113 | **+0.0126 [+0.0040, +0.0215]** | **YES** |
-| bare | 2-min | 0.8924 | 0.9061 | **+0.0137 [+0.0039, +0.0238]** | **YES** |
+| bare | full | 0.8986 | 0.9113 | +0.0126 [+0.0040, +0.0215] | YES* |
+| bare | 2-min | 0.8924 | 0.9061 | +0.0137 [+0.0039, +0.0238] | YES* |
 | **calibrated** | full | 0.9032 | 0.9089 | +0.0057 [-0.0017, +0.0132] | **no** |
 | **calibrated** | 2-min | 0.8955 | 0.9029 | +0.0074 [-0.0010, +0.0160] | **no** |
 
 **Bare clears on both populations; calibrated clears on neither, and
 calibrated is what production runs.**
+
+**\* The bare "clears" is inflated and should not be read as a near miss.**
+The follow-up investigation (see "Resolving the CatBoost discrepancy" below)
+found the bare HGB refit is unstable to a *single* training row: dropping any
+one row moves it by +0.0001 to +0.0068 (sd 0.0018), **upward in 15 of 15
+draws**. The 4,387-row fit at 0.8986 is an outlier low; 4,386-row fits cluster
+near 0.903. So the bare arm compared CatBoost against an unusually weak
+incumbent, and against the cluster the bare advantage is roughly +0.008, not
++0.0126. The calibrated wrapper is twice as stable (sd 0.0009, and two-sided
+rather than systematically upward), which is why the calibrated row is the one
+that decides this -- it is both the production-correct comparison and the
+numerically trustworthy one.
 
 **Why, mechanically.** `CalibratedClassifierCV(cv=5)` is itself a 5-fold model
 ensemble, and it is not AUC-neutral:

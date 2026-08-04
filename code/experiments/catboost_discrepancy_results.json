@@ -1,0 +1,97 @@
+{
+  "n": 10,
+  "seedcheck_params": {
+    "iterations": 500,
+    "depth": 6,
+    "learning_rate": 0.05,
+    "l2_leaf_reg": 3.0
+  },
+  "tuned_params": {
+    "iterations": 500,
+    "depth": 8,
+    "learning_rate": 0.05,
+    "l2_leaf_reg": 9.0
+  },
+  "hgb_today": 0.8986453761540266,
+  "hgb_seedcheck_reported": 0.9036,
+  "hgb_deterministic": true,
+  "hgb_gap_vs_seedcheck": -0.004954623845973338,
+  "single_fit_by_params": {
+    "seed-check (depth 6, l2 3)": {
+      "auc_full": 0.9056157222247188,
+      "auc_2min": 0.9004728866797833,
+      "delta_full": 0.006970525374232667,
+      "ci_full": [
+        -0.003188937358136823,
+        0.017010508415848235
+      ],
+      "clears_full": false,
+      "delta_2min": 0.008023726169178711,
+      "ci_2min": [
+        -0.003897979943837912,
+        0.019627724808415015
+      ],
+      "clears_2min": false
+    },
+    "tuned      (depth 8, l2 9)": {
+      "auc_full": 0.9113427902355238,
+      "auc_2min": 0.9061061061061061,
+      "delta_full": 0.012592594599749384,
+      "ci_full": [
+        0.003919326224837494,
+        0.02141537915184094
+      ],
+      "clears_full": true,
+      "delta_2min": 0.013735506102775652,
+      "ci_2min": [
+        0.0037038353919753883,
+        0.02401548590260723
+      ],
+      "clears_2min": true
+    }
+  },
+  "factorial": {
+    "seed-check|seeds": {
+      "delta_full_mean": 0.006301178040145676,
+      "delta_full_sd": 0.0017998280683286204,
+      "n_positive_full": 10,
+      "n_clearing_full": 0,
+      "delta_2min_mean": 0.007432149120659981,
+      "n_positive_2min": 10,
+      "n_clearing_2min": 0,
+      "n": 10
+    },
+    "seed-check|resamples": {
+      "delta_full_mean": 0.0058838437197368445,
+      "delta_full_sd": 0.0040523581197380015,
+      "n_positive_full": 9,
+      "n_clearing_full": 1,
+      "delta_2min_mean": 0.008060758704547111,
+      "n_positive_2min": 10,
+      "n_clearing_2min": 1,
+      "n": 10
+    },
+    "tuned|seeds": {
+      "delta_full_mean": 0.012209622721162572,
+      "delta_full_sd": 0.0017897023150473975,
+      "n_positive_full": 10,
+      "n_clearing_full": 10,
+      "delta_2min_mean": 0.013551306385753243,
+      "n_positive_2min": 10,
+      "n_clearing_2min": 10,
+      "n": 10
+    },
+    "tuned|resamples": {
+      "delta_full_mean": 0.0076383853418916705,
+      "delta_full_sd": 0.003734634547590048,
+      "n_positive_full": 9,
+      "n_clearing_full": 4,
+      "delta_2min_mean": 0.009883244242830899,
+      "n_positive_2min": 10,
+      "n_clearing_2min": 5,
+      "n": 10
+    }
+  },
+  "hyperparameter_effect": 0.005908444681016896,
+  "axis_effect": -0.0004173343204088315
+}
