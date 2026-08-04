@@ -1821,10 +1821,29 @@ Seven arms beat production, the best by +0.0029. **None of it survived.**
 | sigmoid cv=10 | +0.0027 | **+0.0004** | 0.0014 | 5/8 | 0/8 |
 | bag-only cv=10 | +0.0016 | +0.0007 | 0.0017 | 6/8 | 1/8 |
 | sigmoid cv=20 | +0.0029 | **+0.0001** | 0.0013 | 5/8 | 0/8 |
+| bag-only cv=20 † | +0.0024 | **+0.0001** | 0.0013 | 3/8 | 1/8 |
+| isotonic cv=10 † | +0.0019 | **+0.0002** | 0.0014 | 4/8 | 0/8 |
+
+† Run separately afterwards -- the survivor list was frozen while stage 1 was
+still going, so these two were missed. Same harness, same baseline, same seeds
+(1000..1007), and the run reproduced the baseline to **0.8961 vs 0.8960**
+(sd 0.0033 both), so the rows are directly comparable rather than merely
+similar. Two adaptations were needed: an `isotonic` branch the original harness
+lacked (the mechanical reason they could not just be appended), and evaluation
+pinned to `frozen_test_mask` because the post-freeze allocation changed to 50/50
+between the runs and `split_by_host` now returns 1,099 rows, not 1,098.
 
 **No arm clears `ci_lo > 0`. None is positive on all 8 resamples on both
 populations. Every gain collapsed to within +/-0.0007 of zero, and the
 best-looking stage-1 arm (bag-only cv=3, +0.0029) reversed sign to -0.0011.**
+
+**The Brier column dissolved too, which matters more than the AUC here.**
+`isotonic cv=10`'s reason to exist was its single-fit Brier of **0.0881, the
+best in the entire sweep** -- a genuine reason to prefer it even at flat AUC.
+Resampled it averages **0.0943, identical to production's 0.0943**. Stage 1
+overstates calibration quality by exactly the mechanism it overstates ranking.
+`bag-only cv=20` lands at 0.1040, worse than production, consistent with the
+other uncalibrated bagging arms.
 
 This is the baseline-instability finding demonstrated **prospectively**. The
 re-audit measured sd(delta) ~0.0024 for paired arms and warned that single-fit
@@ -1921,15 +1940,21 @@ resampled. What IS separately established is that CatBoost beats HGB as a bare
 learner (11/12 and 12/12 positive across resamples, mean +0.0073); what is not
 established is which wrapper suits it best.
 
-Two arms that beat production were left out of stage 2 because the survivor
-list was frozen before they finished: `bag-only cv=20` (0.9056) and
-`isotonic cv=10` (0.9051, best Brier 0.0881). Neither is a top AUC performer
-and `isotonic cv=10` is dominated by `sigmoid cv=10`, so neither is likely to
-change the outcome -- but that is reasoning, not measurement, and they remain
-untested.
+**Coverage gap now closed.** Two HGB arms that beat production were left out of
+the first stage 2 because the survivor list was frozen before stage 1 finished:
+`bag-only cv=20` (0.9056) and `isotonic cv=10` (0.9051, best Brier 0.0881).
+They have since been resampled on the identical harness and both dissolved --
+see the † rows in the stage-2 table above. The prediction that they would not
+change the outcome was correct, but it is now measured rather than argued.
+**All seven HGB arms that beat production on a single fit have been resampled;
+none survives.**
 
-Scripts: `calibration_sweep.py`, `calibration_sweep_validate.py`; results
-`calibration_sweep_results.json`, `calibration_sweep_validate_results.json`.
+Scripts: `calibration_sweep.py`, `calibration_sweep_validate.py`,
+`calibration_sweep_validate_catboost.py`,
+`calibration_sweep_validate_remaining.py`; results
+`calibration_sweep_results.json`, `calibration_sweep_validate_results.json`,
+`calibration_sweep_catboost_results.json`,
+`calibration_sweep_remaining_results.json`.
 
 ## UNCERTAINTY QUANTIFICATION (not an accuracy change): split conformal prediction
 
