@@ -1,0 +1,254 @@
+{
+  "n_test": 1098,
+  "prevalence": 0.7896174863387978,
+  "n_splits": 300,
+  "auc_unchanged": 0.9031241730203668,
+  "coverage": {
+    "FULL test": {
+      "0.1": {
+        "LAC": {
+          "target": 0.9,
+          "coverage_sd": 0.014655350280849334,
+          "coverage": 0.9042727272727272,
+          "coverage_pos": 0.9781720430107527,
+          "coverage_neg": 0.627787356321839,
+          "mean_set_size": 1.0490000000000002,
+          "pct_singleton": 95.08909090909091,
+          "pct_ambiguous": 4.905454545454546,
+          "pct_empty": 0.005454545454545454
+        },
+        "APS": {
+          "target": 0.9,
+          "coverage_sd": 0.009006829180670094,
+          "coverage": 0.9420181818181819,
+          "coverage_pos": 0.9884946236559138,
+          "coverage_neg": 0.7681321839080459,
+          "mean_set_size": 1.2053939393939395,
+          "pct_singleton": 79.46060606060605,
+          "pct_ambiguous": 20.53939393939394,
+          "pct_empty": 0.0
+        },
+        "Mondrian": {
+          "target": 0.9,
+          "coverage_sd": 0.0167176286747486,
+          "coverage": 0.9059878787878788,
+          "coverage_pos": 0.9041321044546851,
+          "coverage_neg": 0.9129310344827587,
+          "mean_set_size": 1.2492242424242423,
+          "pct_singleton": 75.07757575757576,
+          "pct_ambiguous": 24.922424242424242,
+          "pct_empty": 0.0
+        }
+      },
+      "0.05": {
+        "LAC": {
+          "target": 0.95,
+          "coverage_sd": 0.012321120837947307,
+          "coverage": 0.9524666666666667,
+          "coverage_pos": 0.9939016897081414,
+          "coverage_neg": 0.7974425287356322,
+          "mean_set_size": 1.2254060606060606,
+          "pct_singleton": 77.45939393939393,
+          "pct_ambiguous": 22.54060606060606,
+          "pct_empty": 0.0
+        },
+        "APS": {
+          "target": 0.95,
+          "coverage_sd": 0.00784027273963935,
+          "coverage": 0.9634484848484848,
+          "coverage_pos": 0.994546850998464,
+          "coverage_neg": 0.8470977011494252,
+          "mean_set_size": 1.3439333333333332,
+          "pct_singleton": 65.60666666666667,
+          "pct_ambiguous": 34.39333333333333,
+          "pct_empty": 0.0
+        },
+        "Mondrian": {
+          "target": 0.95,
+          "coverage_sd": 0.01154438635272566,
+          "coverage": 0.9568424242424243,
+          "coverage_pos": 0.9546927803379416,
+          "coverage_neg": 0.9648850574712643,
+          "mean_set_size": 1.4735636363636364,
+          "pct_singleton": 52.643636363636375,
+          "pct_ambiguous": 47.35636363636364,
+          "pct_empty": 0.0
+        }
+      },
+      "0.01": {
+        "LAC": {
+          "target": 0.99,
+          "coverage_sd": 0.00511321468256747,
+          "coverage": 0.9922666666666667,
+          "coverage_pos": 1.0,
+          "coverage_neg": 0.9633333333333334,
+          "mean_set_size": 1.621018181818182,
+          "pct_singleton": 37.89818181818181,
+          "pct_ambiguous": 62.10181818181819,
+          "pct_empty": 0.0
+        },
+        "APS": {
+          "target": 0.99,
+          "coverage_sd": 0.004599420197232847,
+          "coverage": 0.9928969696969697,
+          "coverage_pos": 0.9991551459293396,
+          "coverage_neg": 0.9694827586206898,
+          "mean_set_size": 1.7871393939393938,
+          "pct_singleton": 21.286060606060605,
+          "pct_ambiguous": 78.71393939393938,
+          "pct_empty": 0.0
+        },
+        "Mondrian": {
+          "target": 0.99,
+          "coverage_sd": 0.004871629414856792,
+          "coverage": 0.9925636363636363,
+          "coverage_pos": 0.9927956989247313,
+          "coverage_neg": 0.9916954022988503,
+          "mean_set_size": 1.7981151515151517,
+          "pct_singleton": 20.188484848484848,
+          "pct_ambiguous": 79.81151515151515,
+          "pct_empty": 0.0
+        }
+      }
+    },
+    "2-min-only": {
+      "0.1": {
+        "LAC": {
+          "target": 0.9,
+          "coverage_sd": 0.015641735771562006,
+          "coverage": 0.8976926446701818,
+          "coverage_pos": 0.9774617927699281,
+          "coverage_neg": 0.5622226420144377,
+          "mean_set_size": 1.045077690190078,
+          "pct_singleton": 95.48670706837828,
+          "pct_ambiguous": 4.510530975314759,
+          "pct_empty": 0.0027619563069680333
+        },
+        "APS": {
+          "target": 0.9,
+          "coverage_sd": 0.010258185898089816,
+          "coverage": 0.9393000012828797,
+          "coverage_pos": 0.9884572035187913,
+          "coverage_neg": 0.7325429736285272,
+          "mean_set_size": 1.197685039933863,
+          "pct_singleton": 80.2314960066137,
+          "pct_ambiguous": 19.7685039933863,
+          "pct_empty": 0.0
+        },
+        "Mondrian": {
+          "target": 0.9,
+          "coverage_sd": 0.016252836928769377,
+          "coverage": 0.9050532798199165,
+          "coverage_pos": 0.9064355494783615,
+          "coverage_neg": 0.899244967960229,
+          "mean_set_size": 1.237465523575678,
+          "pct_singleton": 76.2534476424322,
+          "pct_ambiguous": 23.746552357567793,
+          "pct_empty": 0.0
+        }
+      },
+      "0.05": {
+        "LAC": {
+          "target": 0.95,
+          "coverage_sd": 0.012498177872684282,
+          "coverage": 0.9508779427891716,
+          "coverage_pos": 0.9934212958392777,
+          "coverage_neg": 0.7712532438528185,
+          "mean_set_size": 1.21600439695293,
+          "pct_singleton": 78.399560304707,
+          "pct_ambiguous": 21.600439695292994,
+          "pct_empty": 0.0
+        },
+        "APS": {
+          "target": 0.95,
+          "coverage_sd": 0.008922426715863829,
+          "coverage": 0.9626860591919744,
+          "coverage_pos": 0.9950255427607699,
+          "coverage_neg": 0.82608518604294,
+          "mean_set_size": 1.3300258793620803,
+          "pct_singleton": 66.99741206379198,
+          "pct_ambiguous": 33.002587936208016,
+          "pct_empty": 0.0
+        },
+        "Mondrian": {
+          "target": 0.95,
+          "coverage_sd": 0.011883895644931256,
+          "coverage": 0.9563163943041153,
+          "coverage_pos": 0.9564940053663842,
+          "coverage_neg": 0.9556090674075101,
+          "mean_set_size": 1.4656949386537803,
+          "pct_singleton": 53.430506134621965,
+          "pct_ambiguous": 46.569493865378035,
+          "pct_empty": 0.0
+        }
+      },
+      "0.01": {
+        "LAC": {
+          "target": 0.99,
+          "coverage_sd": 0.005218533392936496,
+          "coverage": 0.9921050026921284,
+          "coverage_pos": 1.0,
+          "coverage_neg": 0.9587918036465745,
+          "mean_set_size": 1.6006998612588037,
+          "pct_singleton": 39.930013874119645,
+          "pct_ambiguous": 60.06998612588036,
+          "pct_empty": 0.0
+        },
+        "APS": {
+          "target": 0.99,
+          "coverage_sd": 0.0054065523933224755,
+          "coverage": 0.9922566690980833,
+          "coverage_pos": 0.9991588871535726,
+          "coverage_neg": 0.9631245304294163,
+          "mean_set_size": 1.7634826417281633,
+          "pct_singleton": 23.651735827183696,
+          "pct_ambiguous": 76.3482641728163,
+          "pct_empty": 0.0
+        },
+        "Mondrian": {
+          "target": 0.99,
+          "coverage_sd": 0.004836564203181807,
+          "coverage": 0.9917610700760632,
+          "coverage_pos": 0.9922992142609134,
+          "coverage_neg": 0.9895252700350871,
+          "mean_set_size": 1.803705828827207,
+          "pct_singleton": 19.629417117279296,
+          "pct_ambiguous": 80.3705828827207,
+          "pct_empty": 0.0
+        }
+      }
+    }
+  },
+  "artifact": {
+    "generated_from": "frozen test split (1,098 stars), production model",
+    "model_md5": "341f1a3907e77f6ec294f182833e613c",
+    "regenerate_when": "the production model changes, or the frozen test set gains stars -- see RESULTS_SUMMARY",
+    "n_calibration": 1098,
+    "n_calibration_pos": 867,
+    "n_calibration_neg": 231,
+    "method": "Mondrian (class-conditional) LAC",
+    "prevalence": 0.7896174863387978,
+    "thresholds": {
+      "0.1": {
+        "q_neg": 0.9244745330181002,
+        "q_pos": 0.3206828472601517,
+        "lac_q": 0.567648707289617
+      },
+      "0.05": {
+        "q_neg": 0.9653466931991712,
+        "q_pos": 0.4507734154456722,
+        "lac_q": 0.7838659398170797
+      },
+      "0.01": {
+        "q_neg": 0.9940108278747439,
+        "q_pos": 0.7492307782547427,
+        "lac_q": 0.9656799290341314
+      }
+    }
+  },
+  "exchangeability": {
+    "domain_auc": 0.9763324107586403,
+    "n_unknown": 308,
+    "transfers": false
+  }
+}

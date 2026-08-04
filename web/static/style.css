@@ -438,3 +438,43 @@ button.btn-secondary:hover { background: var(--bg-inset); }
   .stat-row { grid-template-columns: repeat(2, 1fr); }
   .stat-value { font-size: 1.15rem; }
 }
+
+/* ---------------------------------------------------------------------------
+   Conformal prediction panel.
+   Deliberately reuses the existing confidence-tier tokens rather than
+   introducing a fourth colour language: a confident planet reads with the same
+   green as a HIGH tier, an ambiguous set with the same amber as MEDIUM. The
+   ambiguous state is the one that must not look like a soft yes, so it gets
+   the amber treatment and the widest visual weight.
+--------------------------------------------------------------------------- */
+table.conformal-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+table.conformal-table th {
+  text-align: left; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-muted); padding: 0.5rem 0.6rem; border-bottom: 2px solid var(--border-strong);
+}
+table.conformal-table td {
+  padding: 0.7rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top;
+}
+table.conformal-table tr:last-child td { border-bottom: none; }
+table.conformal-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.conformal-badge {
+  display: inline-block; padding: 0.22rem 0.6rem; border-radius: 999px;
+  font-size: 0.85rem; font-weight: 600; white-space: nowrap; border: 1px solid transparent;
+}
+.conformal-badge-planet     { background: var(--high-bg);   color: var(--high);   border-color: var(--high); }
+.conformal-badge-not_planet { background: var(--low-bg);    color: var(--low);    border-color: var(--low); }
+.conformal-badge-ambiguous  { background: var(--medium-bg); color: var(--medium); border-color: var(--medium); }
+.conformal-badge-empty      { background: var(--medium-bg); color: var(--medium); border-color: var(--medium); }
+
+.conformal-caveat {
+  border-left: 3px solid var(--medium); background: var(--medium-bg);
+  padding: 0.7rem 0.9rem; border-radius: var(--radius); margin: 0.75rem 0;
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  table.conformal-table thead { display: none; }
+  table.conformal-table tr { display: block; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+  table.conformal-table td { display: block; border: none; padding: 0.2rem 0; }
+}

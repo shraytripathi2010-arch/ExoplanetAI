@@ -23,6 +23,7 @@ import sync
 import job_runner
 import scheduler_log
 import exofop_vetting
+import conformal
 
 app = Flask(__name__)
 
@@ -152,12 +153,17 @@ def candidate_detail(tic_id):
     # ExoFOP cannot make candidate pages hang.
     tfop = exofop_vetting.lookup(tic_id)
 
+    # Conformal prediction sets. Pure arithmetic over a cached calibration
+    # artifact -- no model call, no network, so this cannot slow a page render.
+    conformal_view = conformal.summary(candidate.get("predicted_probability"))
+
     return render_template("candidate_detail.html", c=candidate, char=char, history=history,
                             events=events, exofop_view_url=exofop_view_url,
                             exofop_account_url=exofop_account_url, has_plot=has_plot,
                             multi_sector=multi_sector, centroid=centroid, reverify=reverify,
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
                             transit_anim=transit_anim, evidence_items=evidence_items,
+                            conformal_view=conformal_view,
                             tfop=tfop)
 
 

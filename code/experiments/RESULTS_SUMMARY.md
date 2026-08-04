@@ -1679,6 +1679,120 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## UNCERTAINTY QUANTIFICATION (not an accuracy change): split conformal prediction
+
+**Nothing about the model changed.** ROC-AUC is still 0.9031, the artifact md5 is
+still `341f1a3907e77f6ec294f182833e613c`, the frozen split is untouched. This
+wraps the deployed model's existing outputs with a per-prediction set and a
+coverage guarantee. It belongs in this file as infrastructure, not as
+experiment #29.
+
+### Calibration vs conformal -- related, different, both wanted
+
+`CalibratedClassifierCV` (already in production) makes probabilities correct
+**on average**: of all candidates scored 0.7, roughly 70% are planets. It says
+nothing about any individual candidate and carries no guarantee -- it is a
+fitted sigmoid that can simply be wrong. Conformal prediction adds a
+**finite-sample, distribution-free** guarantee about a per-prediction **output
+set**: over exchangeable data the true label lies in the set at least
+(1-alpha) of the time, for any model, at any sample size, **without assuming
+the probabilities were any good**. They are complementary, and conformal is the
+only one of the two that can output "I don't know".
+
+### Calibration source: Option B, and why Option A is invalid here
+
+Option A (carve calibration out of the training split) is **not valid as
+stated**: `best_model.joblib` was fit on all 4,387 training stars, so
+nonconformity scores computed there are optimistically small, the quantile
+comes out too tight, and coverage silently fails. It could be rescued by
+refitting on a reduced training set -- but then the wrapper calibrates a
+*different* model than the deployed one and the guarantee does not transfer.
+
+**Option B used:** the frozen 1,098-star test set, which the model has never
+seen. This does **not** alter the frozen split -- no star moves between train
+and test; it is a post-hoc analysis partition for a new measurement, and the
+headline 0.9031 is still computed on all 1,098. Coverage was validated on
+random stratified halves, repeated **300 times per alpha**, rather than trusting
+one partition.
+
+### Empirical coverage -- and the failure plain LAC hides
+
+| method | alpha | target | coverage | cov POS | cov NEG | set size | %ambiguous |
+|---|---|---|---|---|---|---|---|
+| LAC | 0.10 | 0.90 | 0.9043 | 0.9782 | **0.6278** | 1.049 | 4.9 |
+| APS | 0.10 | 0.90 | 0.9420 | 0.9885 | 0.7681 | 1.205 | 20.5 |
+| **Mondrian** | 0.10 | 0.90 | 0.9060 | **0.9041** | **0.9129** | 1.249 | 24.9 |
+| LAC | 0.05 | 0.95 | 0.9525 | 0.9939 | **0.7974** | 1.225 | 22.5 |
+| **Mondrian** | 0.05 | 0.95 | 0.9568 | 0.9547 | **0.9649** | 1.474 | 47.4 |
+| LAC | 0.01 | 0.99 | 0.9923 | 1.0000 | 0.9633 | 1.621 | 62.1 |
+| **Mondrian** | 0.01 | 0.99 | 0.9926 | 0.9928 | 0.9917 | 1.798 | 79.8 |
+
+**Marginal coverage is essentially exact for every method -- and that is the
+trap.** Plain LAC hits its 90% target while covering the negative class only
+**62.8%** of the time, because the calibration set is 79% planets and the
+marginal guarantee is dominated by them. A user looking at one candidate cares
+about the class-conditional number, not the average. **Mondrian
+(class-conditional) conformal fixes it: 90.4% / 91.3%.** It is what ships.
+
+Results are materially identical on the 2-min-only subset (Mondrian 0.9051 /
+0.9563 / 0.9918), so unlike most findings in this file this one does **not**
+differ between the two populations.
+
+### Efficiency: the honest cost
+
+The price of per-class validity is set size. At 95%, Mondrian marks **47.4%** of
+stars ambiguous versus LAC's 22.5%. That is not a defect -- those stars
+genuinely cannot be separated at that confidence -- but it means the tool says
+"I don't know" for roughly half of them. **For this app that is the right
+trade.** The output feeds human follow-up decisions where a false "probably a
+planet" costs telescope time, and the existing evidence layers (TFOP, centroid,
+RV) exist precisely to resolve ambiguity. At 90% only 24.9% are ambiguous, which
+is why the UI shows all three levels rather than picking one.
+
+### THE LIMIT THAT MATTERS: the guarantee does not transfer to candidates
+
+Conformal coverage requires **exchangeability** between calibration data and the
+scored point. Calibration is labelled TESS stars (79% planets, TOI-sourced); the
+app scores unknown candidates. Measured with this project's own
+`domain_separability` module:
+
+**domain AUC 0.9763** (calibration stars vs the 308 unknown candidates) --
+higher than the synthetic-data 0.9654 and the FFI 0.9717 that closed two
+earlier lines. Largest shifts: `FAP` -1.34 SD, `st_rad` +0.55,
+`distinct_transit_count` +0.40.
+
+**They are not exchangeable, so the finite-sample guarantee is valid for stars
+like the test set and is NOT valid as stated for the candidates the app applies
+it to.** On those it is a well-calibrated indication. The UI says exactly that,
+including the AUC, rather than promising coverage it cannot deliver. Reporting
+"95% guaranteed" on a candidate page would have been the most consequential
+error available in this task.
+
+### Empty sets
+
+Structurally impossible at the shipped thresholds: `q_neg + q_pos > 1` at every
+alpha, so no probability can fall outside both. The branch is implemented and
+labelled anyway (thresholds change if the model does), but the honest
+distribution-shift signal for this app is the domain AUC above, not an empty
+set. Recorded so nobody later mistakes an unreachable branch for a working
+alarm.
+
+### Refresh / maintenance
+
+`models/conformal_calibration.json` records the `model_md5` it was generated
+from. **It must be regenerated whenever the production model changes**, because
+the thresholds are properties of that specific model's score distribution;
+stale thresholds would silently mis-cover. Re-run `conformal_prediction.py`.
+The natural hook is immediately after a successful promotion in
+`retrain_pipeline.maybe_trigger_retrain` -- **not implemented here, since the
+promotion gate is out of scope for this task.** Growth of the frozen test set
+also shifts thresholds slightly; regenerating on promotion covers the case that
+matters, since nothing is promoted without a retrain.
+
+Scripts: `conformal_prediction.py`; module `web/conformal.py`; artifact
+`models/conformal_calibration.json`; results
+`conformal_prediction_results.json`.
+
 ## RE-AUDIT: do the recorded negatives survive the unstable baseline? YES -- but the noise floor was misquoted
 
 The one-training-row finding raised an obvious worry: 28 negatives were measured

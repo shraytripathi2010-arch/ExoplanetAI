@@ -125,6 +125,84 @@
   </div>
 </section>
 
+{% if conformal_view %}
+<section class="card" id="conformal-section">
+  <h2>How sure is the model? (conformal prediction)</h2>
+  <p class="muted">
+    The probability above is a single number. This turns it into the set of statuses that are
+    <em>still plausible</em> at a given confidence level &mdash; which lets the model say
+    &ldquo;I don't know&rdquo; instead of quietly returning a middling number.
+    This is the model assessing <strong>itself</strong>; it is not evidence about the star.
+    For external human assessment see the TFOP panel below.
+  </p>
+
+  <table class="conformal-table">
+    <thead>
+      <tr><th>Confidence level</th><th>Still plausible</th><th>What that means</th></tr>
+    </thead>
+    <tbody>
+      {% for s in conformal_view.sets %}
+      <tr class="conformal-{{ s.set_key }}">
+        <td class="num"><strong>{{ s.confidence_pct }}%</strong></td>
+        <td><span class="conformal-badge conformal-badge-{{ s.set_key }}">{{ s.set_label }}</span></td>
+        <td class="muted">{{ s.plain_language }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="muted" style="margin-top:1rem;">
+    Read the rows together: a status that survives at 99% is one the model cannot rule out even
+    when being very cautious. A star that reads &ldquo;Planet&rdquo; at 90% but
+    &ldquo;Planet or not a planet&rdquo; at 99% is a moderately confident call, not a certain one.
+    Sets only ever grow as the confidence level rises &mdash; being more careful means ruling
+    out less.
+  </p>
+  <p class="muted">
+    <strong>These answer a different question from the probability above.</strong> The
+    probability says which status is more <em>likely</em>. These sets say which statuses cannot
+    be <em>ruled out</em>. The two can point different ways, and that is not a contradiction:
+    a candidate scoring 0.62 can still have &ldquo;not a planet&rdquo; in its set, because
+    confirmed false positives do sometimes score that high, and ruling one out at 90%
+    confidence takes more evidence than merely leaning against it.
+  </p>
+
+  <details style="margin-top:1rem;">
+    <summary>What the guarantee is, and where it stops applying</summary>
+    <div class="muted" style="margin-top:0.75rem;">
+      <p>
+        Calibrated on <strong>{{ conformal_view.n_calibration }}</strong> labelled TESS stars
+        ({{ conformal_view.n_calibration_pos }} confirmed planets,
+        {{ conformal_view.n_calibration_neg }} false positives) that the model was never trained
+        on, using <strong>{{ conformal_view.method }}</strong>. On stars drawn from that same
+        population, the true status falls inside the set at least as often as the stated
+        confidence level &mdash; measured, not assumed, and verified separately for planets and
+        for false positives.
+      </p>
+      {% if not conformal_view.guarantee_transfers %}
+      <p class="conformal-caveat">
+        <strong>Important limit.</strong> That guarantee holds for stars like the calibration
+        set. This candidate is not one of those: a classifier separates the calibration stars
+        from this pipeline's candidates at AUC
+        <strong>{{ '%.4f'|format(conformal_view.domain_auc) }}</strong>, so the two populations
+        are measurably different. For candidates, treat the set above as a well-calibrated
+        indication rather than a mathematical guarantee. The honest summary is
+        &ldquo;this is how the model behaves on stars we have labels for&rdquo;, not
+        &ldquo;this is guaranteed correct {{ conformal_view.sets[1].confidence_pct }}% of the
+        time for this star&rdquo;.
+      </p>
+      {% endif %}
+      <p>
+        This is different from the calibration already inside the model. That makes probabilities
+        correct <em>on average</em> across many candidates. Conformal prediction makes a statement
+        about the <em>output set for a single prediction</em>, without assuming the probabilities
+        were any good to begin with.
+      </p>
+    </div>
+  </details>
+</section>
+{% endif %}
+
 <section class="card" id="tfop-vetting-section">
   <h2>TFOP follow-up record</h2>
   <p class="muted">A cross-check against the ExoFOP-TESS catalogue of TESS Objects of Interest.
