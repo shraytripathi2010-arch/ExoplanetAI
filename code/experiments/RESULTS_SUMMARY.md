@@ -1679,6 +1679,112 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## GBM averaging ensemble -- NEGATIVE as an ensemble; the CatBoost swap it exposed does not clear either
+
+Averaging predicted probabilities across HGB + CatBoost + LightGBM + XGBoost,
+all four available (libomp rpath fix intact, no ctypes preload -- see
+`ENVIRONMENT_NOTES.md`). Robustness measured on **12 training-data bootstrap
+resamples**, the axis established during the pseudo-labelling work, not seeds.
+
+### The headline number looked like the first real win in 28 experiments
+
+| population | mean delta vs production HGB | sd | positive | clearing `ci_lo>0` |
+|---|---|---|---|---|
+| full clean test | **+0.0077** | 0.0028 | **12/12** | 8/12 |
+| 2-min-only | **+0.0096** | 0.0032 | **12/12** | 9/12 |
+
+### It decomposes into something that is not an ensemble result at all
+
+| | mean AUC, 12 resamples |
+|---|---|
+| ensemble (4 averaged) | 0.9034 |
+| **CatBoost ALONE** | **0.9032** |
+| HGB (production) | 0.8958 |
+
+**Averaging contributes +0.0002.** The entire gap is "CatBoost scores higher
+than HGB", which is consistent with the stacking result (families too
+correlated to add independent signal -- hgb/rf test correlation 0.941 there).
+So the ensemble is negative, and anything positive here is a MODEL SWAP, a
+different proposal with different costs.
+
+### A confound in the experiment's own design, measured rather than assumed
+
+CatBoost/LightGBM/XGBoost each got a `RandomizedSearchCV` pass; HGB used the
+deployed config untuned. Tuned challengers vs an untuned incumbent explains
++0.0075 without any family effect. Control: give HGB the identical budget over
+the bake-off's own HGB grid, same 12 resamples, same RNG seed.
+
+| | mean AUC, 12 resamples |
+|---|---|
+| HGB production (untuned) | 0.8958 |
+| **HGB tuned** (10 candidates, 3-fold) | **0.8959** -- tuning alone **+0.0001** |
+| CatBoost | 0.9032 -- family, over TUNED HGB **+0.0073** |
+
+**Tuning accounts for 1% of the gap, model family for 99%.** Two findings: the
+production HGB configuration was already essentially optimal (a fresh search
+found nothing better, retroactively validating the original tuning), and
+CatBoost's advantage is real rather than an artefact of the setup. The control
+was expected to deflate the result and did not.
+
+### The decisive test: the production configuration is CALIBRATED
+
+The promotion gate compares production against a challenger cloned from
+production's config -- both wrapped in `CalibratedClassifierCV`. Single
+full-data fit, which is what the gate would actually see:
+
+| configuration | population | HGB | CatBoost | delta [95% CI] | clears |
+|---|---|---|---|---|---|
+| bare | full | 0.8986 | 0.9113 | **+0.0126 [+0.0040, +0.0215]** | **YES** |
+| bare | 2-min | 0.8924 | 0.9061 | **+0.0137 [+0.0039, +0.0238]** | **YES** |
+| **calibrated** | full | 0.9032 | 0.9089 | +0.0057 [-0.0017, +0.0132] | **no** |
+| **calibrated** | 2-min | 0.8955 | 0.9029 | +0.0074 [-0.0010, +0.0160] | **no** |
+
+**Bare clears on both populations; calibrated clears on neither, and
+calibrated is what production runs.**
+
+**Why, mechanically.** `CalibratedClassifierCV(cv=5)` is itself a 5-fold model
+ensemble, and it is not AUC-neutral:
+
+    HGB       bare 0.8986 -> calibrated 0.9032   **+0.0046**
+    CatBoost  bare 0.9113 -> calibrated 0.9089   **-0.0024**
+
+The wrapper hands HGB most of what CatBoost provides natively, and gives
+CatBoost nothing -- a strong learner gains little from 5-fold averaging. The
+production stack has, in effect, already bought this gain by another route.
+Brier moves the wrong way too: 0.0893 -> 0.0900.
+
+### Verdict: does not clear. Both experiments negative.
+
+Under the resample distribution the effect is *consistently* positive
+(11-12/12) but certifiable in a minority of individual draws (4-5/12), and
+under the production calibrated configuration a single full fit does not clear
+on either population. This is the closest anything has come in 28 experiments
+and it is still a "no" -- "probably real but not certifiable at n=1,098" is a
+different statement from "indistinguishable from noise", and neither meets the
+bar.
+
+**Operationally, had it cleared** -- recorded because it is counter-intuitive:
+CatBoost would have been **cheaper**, not dearer. Calibrated artifact
+**10.58 MB vs HGB's 21.86 MB**, and inference on 1,098 rows **0.173 s vs
+1.298 s, ~7.5x FASTER**. The real cost is a new production dependency
+(`catboost`, plus its runtime) and re-validating the whole downstream stack.
+
+### An unresolved discrepancy, recorded rather than smoothed over
+
+The earlier seed check returned **0/10** for CatBoost; this training-draw check
+returns **11/12 and 12/12** positive. They vary different things (fit
+stochasticity vs training draw) and the earlier one compared against an HGB
+baseline scoring ~0.9036 where the same refit gives 0.8986 today, so they are
+not directly comparable. Which is the better estimate of the truth is **not
+settled here**, and the conclusion above does not depend on it: the calibrated
+single-fit test fails the bar either way.
+
+Scripts: `gbm_ensemble.py`, `gbm_ensemble_control.py`; results
+`gbm_ensemble_results.json`, `gbm_ensemble_control_results.json`,
+`gbm_ensemble.log`, `gbm_control.log`. (`tuned_cv_auc` in the first JSON was
+written as zeros by a bad `zip`; the log has the correct values -- CatBoost
+0.9244, XGBoost 0.9242, LightGBM 0.9234, HGB 0.9221 -- and the script is fixed.)
+
 ## Weak secondary eclipse (noise-normalised) -- NEGATIVE, and informative about why
 
 The published weak-secondary test (Kepler DV, ExoMiner) normalises the
