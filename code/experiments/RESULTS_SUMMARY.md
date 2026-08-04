@@ -1679,6 +1679,98 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## RE-AUDIT: do the recorded negatives survive the unstable baseline? YES -- but the noise floor was misquoted
+
+The one-training-row finding raised an obvious worry: 28 negatives were measured
+against refit baselines carrying +/-0.005 of arbitrary variation. Were their
+confidence intervals too narrow, and did any of them hide a real effect?
+
+**The question is not whether the BASELINE moves -- it is whether the DELTA
+does.** Every one of those experiments is paired: baseline and challenger are
+fit on the SAME rows. If a dropped row perturbs both arms alike, it cancels in
+the difference. That is empirical, so it was measured rather than argued
+(`baseline_stability_audit.py`): 13 leave-one-out perturbations, BOTH arms
+refit on the identical perturbed rows each time, test set frozen.
+
+### Pairing does not protect. It AMPLIFIES.
+
+| | feature addition (24->26) | model swap (HGB->CatBoost) |
+|---|---|---|
+| sd(baseline) | 0.0016 | 0.0016 |
+| sd(challenger) | 0.0016 | 0.0016 |
+| **sd(DELTA)** | **0.0024** | **0.0024** |
+| cancellation | **-54%** | **-50%** |
+| delta mean | -0.0024 | +0.0077 |
+| sign flips | **10/13** | **0/13** |
+
+The delta is *more* variable than either arm alone -- the two respond to a
+dropped row in partially anti-correlated ways. The intuition that same-learner,
+same-data pairing would cancel this is **wrong**, and it was worth checking
+rather than assuming.
+
+Note the two shapes differ in what matters. `sd(delta)` is identical (0.0024),
+but the feature addition's mean sits at -0.0024 and flips sign in 10 of 13
+draws, while CatBoost's +0.0077 is positive in **13 of 13** -- 3.2 sd from
+zero. Same instability, different signal.
+
+**A number reported earlier in this file was a favourable draw.** The
+weak-secondary bare arm's **+0.0026** is exactly the unperturbed draw; the
+perturbed distribution is centred at **-0.0024** and spans +0.0027 to -0.0054.
+It did not clear either way, but it should not be read as a positive point
+estimate.
+
+### How much did this actually cost? 14%.
+
+The recorded paired-bootstrap CIs capture test-set resampling only, omitting the
+training-draw component entirely. Across all 88 CIs recorded in this project's
+result files, the median half-width is 0.0085, implying a test-set sd of 0.0043.
+Adding the measured training-draw sd in quadrature:
+
+    test-set sd (from recorded CIs)   0.0043
+    training-draw sd (omitted)        0.0024
+    combined                          0.0049
+
+    minimum detectable effect (ci_lo > 0, 95%)
+      as reported   0.0085
+      corrected     0.0097     <- 14% larger
+
+The omitted component is the SMALLER of the two, so the correction is modest.
+The track was ~14% less sensitive than advertised, not half as sensitive.
+
+### Verdict: no recorded negative is overturned
+
+The direction of the error protects them. **Adding an omitted variance
+component widens intervals; an interval that already spanned zero still spans
+zero.** No "does not clear" can become "clears" by admitting more uncertainty.
+What this undermines is anything that *did* clear -- and only CatBoost-bare ever
+did, already retired as inflated in the section below.
+
+The real cost is **statistical power, not validity**. A genuine +0.005 feature
+would probably have been recorded as negative. That is a Type II exposure across
+the track, and it slightly weakens how much "27 negatives" should be taken as
+proof the feature space is exhausted -- though at a corrected MDE of 0.0097, an
+effect large enough to matter operationally would still have been caught.
+
+### The "+/-0.003 noise floor" quoted throughout this project is optimistic
+
+That figure describes run-to-run wobble, not the threshold at which
+`ci_lo > 0` becomes achievable. **The real 95% detection threshold on this test
+set is ~0.0097** -- more than 3x the quoted floor. Every experiment here was
+being asked to produce roughly a +0.010 effect to pass, and the ~+0.003 figure
+made near-misses look closer to the bar than they were. That is the more
+consequential correction of the two.
+
+**Practical guidance going forward:** the binding constraint is the 1,098-star
+test set, not the training procedure. Reducing the training-draw component
+(averaging leave-one-out refits, or reporting against the calibrated
+configuration, which halves it) buys little while test-set uncertainty
+dominates at 0.0043. Materially better resolution requires a larger test set --
+i.e. more labelled data -- which is the same conclusion the learning curve
+reached by a different route.
+
+Scripts: `baseline_stability_audit.py`; results
+`baseline_stability_audit.json`.
+
 ## Resolving the CatBoost discrepancy -- it was ONE TRAINING ROW, and that is the real finding
 
 Two results appeared to contradict each other:
