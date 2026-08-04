@@ -1,0 +1,89 @@
+{
+  "leakage": {
+    "sec_significance": {
+      "nan_pct_pos": 2.76944380336949,
+      "nan_pct_neg": 0.0,
+      "single_feature_auc": 0.3811132704327874,
+      "top_correlations": [
+        [
+          "snr",
+          0.24460898308711895
+        ],
+        [
+          "SDE_raw",
+          0.1582622123175331
+        ],
+        [
+          "SDE",
+          0.13412080246018873
+        ]
+      ]
+    },
+    "sec_depth_windowed": {
+      "nan_pct_pos": 2.76944380336949,
+      "nan_pct_neg": 0.0,
+      "single_feature_auc": 0.43495599763958126,
+      "top_correlations": [
+        [
+          "secondary_eclipse_depth",
+          -0.47823970919817904
+        ],
+        [
+          "depth_mean",
+          0.38148010414823386
+        ],
+        [
+          "depth_mean_even",
+          0.33500086540115176
+        ]
+      ]
+    }
+  },
+  "arms": {
+    "bare": {
+      "baseline_full": 0.8986453761540266,
+      "baseline_2min": 0.8924096510303408,
+      "new_full": 0.9013366487414929,
+      "new_2min": 0.8924096510303406,
+      "delta_full": 0.0025679753071539365,
+      "ci_full": [
+        -0.0037460015641427175,
+        0.008834327688422603
+      ],
+      "clears_full": false,
+      "delta_2min": -9.967617145786035e-06,
+      "ci_2min": [
+        -0.007357275587088421,
+        0.006975541425446489
+      ],
+      "clears_2min": false
+    },
+    "calibrated": {
+      "baseline_full": 0.9032190416273462,
+      "baseline_2min": 0.8954540747644195,
+      "new_full": 0.9004329004329004,
+      "new_2min": 0.8917124020572296,
+      "delta_full": -0.0028630223233332875,
+      "ci_full": [
+        -0.008262194676829291,
+        0.0023523032941213592
+      ],
+      "clears_full": false,
+      "delta_2min": -0.0037820507063543066,
+      "ci_2min": [
+        -0.010202230410832704,
+        0.0020824204249539806
+      ],
+      "clears_2min": false,
+      "brier_baseline": 0.089321140489244,
+      "brier_new": 0.08932575702099414,
+      "ece_baseline": 0.023125199423391127,
+      "ece_new": 0.021245747208813705
+    }
+  },
+  "nested_cv": {
+    "24 features": 0.9223826556472585,
+    "26 features": 0.9234374187469027
+  },
+  "clears_anywhere": false
+}

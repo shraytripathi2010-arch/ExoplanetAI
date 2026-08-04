@@ -1679,6 +1679,83 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## Weak secondary eclipse (noise-normalised) -- NEGATIVE, and informative about why
+
+The published weak-secondary test (Kepler DV, ExoMiner) normalises the
+phase-0.5 dip by the LOCAL NOISE. This project had the raw depth
+(`secondary_eclipse_depth`, AUC 0.550, shipped with the note "weak, likely
+needs a better estimator") and had tested the depth RATIO
+(`secondary_eclipse_depth / depth_mean`, part of the engineered-ratio arm that
+returned +0.0001). Neither is the published statistic. This is:
+
+```
+sigma_eff    = 1.4826 * MAD(out-of-eclipse flux) / sqrt(N_in_window)
+significance = secondary_depth / sigma_eff
+```
+
+Two method changes from the existing feature, both deliberate: normalise by
+noise rather than by primary depth (a 200 ppm dip is meaningless on a noisy
+star and decisive on a quiet one -- a depth ratio cannot tell those apart), and
+size the window at half the primary duration PER STAR instead of a fixed
+0.45-0.55 slab, which is 10% of the orbit and roughly 20x too wide for a 0.5%
+duty cycle. **No TLS re-run**: the fold was reconstructed from the stored
+`period`/`T0` against the detrended light curves already on disk. Coverage
+5,365/5,485 = **97.8%** (112 no ephemeris, 8 insufficient window).
+
+### The raw class rates are real and physically correct
+
+| | n | median significance | % > 3 sigma | % > 5 sigma |
+|---|---|---|---|---|
+| planets | 4,213 | 0.15 | 5.3% | 2.6% |
+| false positives | 1,152 | 0.75 | **18.2%** | **9.6%** |
+
+False positives show **3.4x the rate** of significant secondaries. The feature
+is not broken and it is not noise.
+
+### It is also genuinely NEW information, by correlation
+
+| feature | NaN% pos | NaN% neg | single-feature AUC | max abs corr vs existing 24 |
+|---|---|---|---|---|
+| `sec_significance` | 2.8 | 0.0 | **0.381** | 0.245 (`snr`) |
+| `sec_depth_windowed` | 2.8 | 0.0 | 0.435 | 0.478 (`secondary_eclipse_depth`) |
+
+Both are far below the 0.80 redundancy cutoff -- this is not a disguised copy
+of an existing column. AUC **0.381 is below 0.5**, meaning high significance
+predicts the NEGATIVE class, exactly as eclipsing-binary physics requires.
+
+### And it still does not move the model
+
+| arm | full test | delta [95% CI] | 2-min test | delta [95% CI] |
+|---|---|---|---|---|
+| bare baseline (24 feat) | 0.8986 | -- | 0.8924 | -- |
+| bare + weak secondary (26) | 0.9013 | +0.0026 [-0.0037, +0.0088] | 0.8924 | -0.0000 [-0.0074, +0.0070] |
+| calibrated baseline (24 feat) | 0.9032 | -- | 0.8955 | -- |
+| calibrated + weak secondary (26) | 0.9004 | -0.0029 [-0.0083, +0.0024] | 0.8917 | -0.0038 [-0.0102, +0.0021] |
+
+Nested CV 0.9224 -> 0.9234. Calibration essentially unchanged (Brier
+0.0893 -> 0.0893, ECE 0.0231 -> 0.0212). **No arm clears `ci_lo > 0` on either
+population.**
+
+**The bare and calibrated arms disagree in SIGN** (+0.0026 vs -0.0029, a
+0.0055 swing). That is larger than the effect being measured, and it is the
+cleanest demonstration yet of why the baseline-matching rule matters: had only
+the bare arm been reported this would have looked like a modest positive, and
+had only the calibrated arm been reported it would have looked like a
+regression. Neither is real.
+
+**Why a real signal produces no gain.** This is now the third feature to
+follow the same pattern -- `odd_even_significance` (AUC 0.353) and
+`duty_cycle` did the same. The information is genuinely present and genuinely
+discriminative in isolation, but a gradient-boosted tree ensemble on 24
+correlated TLS statistics has already extracted it by other routes. Low
+pairwise correlation with any SINGLE existing feature does not mean the
+information is unavailable as a COMBINATION of them. Novel-by-correlation is
+not the same as novel-to-the-model, and this project has now measured that
+distinction three times.
+
+Scripts: `weak_secondary.py`, `weak_secondary_validate.py`; results
+`weak_secondary_features.csv`, `weak_secondary_results.json`.
+
 ## NON-KEPLER SURVEYS -- CLOSED AT THE PART 1 GATE. No download performed.
 
 K2, CoRoT, WASP, HATNet/HATSouth, KELT, NGTS and TRAPPIST assessed as training
