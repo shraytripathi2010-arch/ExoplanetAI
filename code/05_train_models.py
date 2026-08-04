@@ -114,6 +114,29 @@ from sklearn.preprocessing import StandardScaler
 # =====================================
 RANDOM_SEED = 42  # used everywhere below (split, CV folds, model init) for reproducibility
 TEST_SIZE = 0.2
+
+# Where newly-labelled stars go once the frozen manifest is full.
+#
+# WHY THIS IS True (changed 2026-08-04, was an 80/20 hash split)
+# The classifier is ceiling-bound and the binding constraint is now the TEST
+# set, not the training set. Measured:
+#   * training side: +262 stars on 4,387 predicts ~+0.0011 AUC from the fitted
+#     learning curve -- unmeasurable, well under the noise floor.
+#   * test side: the smallest effect a 1,098-star test set can certify at
+#     ci_lo>0 is ~0.0097. The best real candidate found (CatBoost, +0.0080,
+#     positive on 8/8 resamples) sits BELOW that and therefore cannot be
+#     promoted no matter how real it is.
+# Sending new labels to test buys resolution that is currently worth more than
+# the unmeasurable training gain.
+#
+# THE COST, STATED PLAINLY: while this is True the continuous-retraining
+# pipeline has no new data to learn from, so challengers will keep reproducing
+# the incumbent. That is acceptable only because training growth at this scale
+# is already below the detection threshold. Flip it back to False once the test
+# set reaches ~1,900 (the size that certifies a +0.0080 effect) and the
+# retrain pipeline becomes useful again.
+POST_FREEZE_TO_TEST = True
+TEST_GROWTH_TARGET = 1900  # documentation, not enforced -- see the note above
 N_CV_FOLDS = 5
 CONFUSION_MATRIX_THRESHOLD = 0.5  # see note near the confusion-matrix code for why this
                                    # is just one reference operating point, not necessarily
@@ -414,11 +437,17 @@ def split_by_host(df):
     the manifest keep their original side forever, so every future retrain is
     measured on the same held-out stars and the numbers stay comparable.
 
-    Stars NOT in the manifest (i.e. added after it was frozen) are assigned
-    by a deterministic hash of the host name. That is stable across runs,
-    processes and machines -- unlike Python's builtin hash(), which is salted
-    per-process for strings -- and needs no mutable state, so a new star lands
-    on the same side no matter when or how often it is seen.
+    Stars NOT in the manifest (i.e. added after it was frozen) used to be
+    assigned by a deterministic hash of the host name, 80/20 like the original
+    split. **That allocation changed (2026-08-04): new stars now go to TEST**
+    -- see POST_FREEZE_TO_TEST below for the measurements behind it. Manifest
+    stars are untouched by that change and keep their original side forever, so
+    every number ever measured on the frozen split stays comparable.
+
+    Use `frozen_test_mask(df)` to evaluate on the original 1,099 manifest test
+    hosts only. Any figure meant to be compared against the project's history
+    -- the 0.9031 headline above all -- must use that mask, not the growing
+    test set, or it is comparing different populations.
     """
     import hashlib
 
@@ -432,16 +461,36 @@ def split_by_host(df):
             return "test"
         if host in train_hosts:
             return "train"
+        if POST_FREEZE_TO_TEST:
+            return "test"
         digest = hashlib.md5(str(host).encode("utf-8")).hexdigest()
         return "test" if (int(digest[:8], 16) % 10000) < int(TEST_SIZE * 10000) else "train"
 
     sides = df["host"].map(side)
     n_new = int((~df["host"].isin(test_hosts | train_hosts)).sum())
     is_test = (sides == "test").to_numpy()
+    policy = ("routed to TEST (post-freeze policy)" if POST_FREEZE_TO_TEST
+              else "assigned by stable hash")
     print(f"Split by star ID (frozen manifest): {int((~is_test).sum())} train / "
           f"{int(is_test.sum())} test"
-          + (f"  [{n_new} star(s) not in the manifest, assigned by stable hash]" if n_new else ""))
+          + (f"  [{n_new} post-manifest star(s) {policy}]" if n_new else ""))
     return ~is_test, is_test
+
+
+def frozen_test_mask(df):
+    """The ORIGINAL 1,099 manifest test hosts only, ignoring anything added
+    since. Every historical figure in this project -- 0.9031 included -- was
+    measured on these stars.
+
+    Exists because the post-freeze allocation now grows the test set: comparing
+    a new measurement on the grown set against an old one on the frozen set
+    would be comparing different populations, which is exactly the class of
+    error the frozen split was created to prevent. Report both, and label
+    which is which.
+    """
+    with open(SPLIT_MANIFEST_PATH) as f:
+        manifest = json.load(f)
+    return df["host"].isin(set(manifest["test_hosts"])).to_numpy()
 
 
 def main():

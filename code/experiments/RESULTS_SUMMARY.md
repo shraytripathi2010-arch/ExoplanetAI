@@ -1679,6 +1679,80 @@ Script: `learning_curve_extrapolation.py`; results
   `propagate_uncertainty()` inside `derive_physical_params`, add the ranges
   as new additive fields).
 
+## POLICY CHANGE: newly-labelled stars now go to TEST, not train (2026-08-04)
+
+`05_train_models.POST_FREEZE_TO_TEST = True`. Post-manifest stars, previously
+hash-split 80/20 like the original, are now routed entirely to the test set.
+**The frozen manifest is untouched** -- all 4,392 train and 1,099 test hosts
+keep their sides forever. This changes only where FUTURE stars land.
+
+### Why: the binding constraint moved from training to test
+
+| side | measured |
+|---|---|
+| training | +262 stars on 4,387 predicts **~+0.0011** AUC from the fitted learning curve -- below the noise floor, unmeasurable |
+| test | the smallest effect a 1,098-star test set can certify at `ci_lo>0` is **~0.0097** |
+
+The best real candidate the project has found -- CatBoost, **+0.0080**, positive
+on 8/8 resamples on both populations -- sits **below** that threshold and
+therefore cannot be promoted no matter how real it is. Test resolution is worth
+more right now than an unmeasurable training gain.
+
+### Comparability is preserved explicitly
+
+`m05.frozen_test_mask(df)` returns the original 1,099 manifest test hosts only.
+**Every historical figure, 0.9031 above all, must be reported on that mask.**
+Verified after the change:
+
+    production on FROZEN test subset : 0.9031241730   <- identical to before
+    production on GROWN test set     : 0.9032307938   <- different population
+
+Reporting the grown-set number as if it were the headline would be exactly the
+class of error the frozen split was built to prevent. Report both, label which
+is which.
+
+### Integrity, verified
+
+| check | result |
+|---|---|
+| manifest test hosts still all in test | yes |
+| manifest train hosts still all in train | yes |
+| hosts on both sides | **0** |
+| frozen test subset | 1,098 (unchanged) |
+| grown test / train | 1,099 / 4,386 |
+| `retrain_pipeline` imports and gate logic intact | yes |
+
+**Side effect worth recording:** the one post-manifest star, `TIC_200385493`,
+moved train -> test, returning training to 4,386 rows. That is the star whose
+presence caused the +/-0.005 baseline instability documented above, and its
+removal restores the refit baselines to the cluster values: **bare 0.8986 ->
+0.9036**, calibrated **0.9032 -> 0.9021**. Future refit-baseline experiments
+should quote 0.9036 / 0.9021, not the 4,387-row figures.
+
+### THE COST, stated plainly
+
+**While this is in force the continuous-retraining pipeline has no new data to
+learn from.** Challengers will keep reproducing the incumbent, and retrain
+attempts become near-no-ops. That is acceptable only because training growth at
+this scale is already below the detection threshold -- but it is a real
+suspension of Phase 3 Item 2's purpose, not a free change.
+
+### This does NOT fix today's resolution problem
+
+Honest arithmetic. Certifying a +0.0080 effect needs roughly **1,880 test
+stars, +782 over today**:
+
+    n_test = 1,360 (all 262 available labels)  -> MDE 0.0089   still ABOVE +0.0080
+    n_test = 1,880                             -> MDE 0.0080   certifies
+
+The entire currently-available label pool (262: 190 FP + 72 KP/CP) gets to
+1,360 and is **still short**. The remainder arrives at ~150-180/year, so this is
+a multi-year policy, not a fix. `TEST_GROWTH_TARGET = 1900` documents the point
+at which the flag should be set back to `False` and the retrain pipeline
+becomes useful again.
+
+Flipping this back is a one-line change; nothing is destroyed by trying it.
+
 ## Calibration / ensembling sweep -- NEGATIVE, and a textbook case of why stage 2 exists
 
 Prompted by the observation that `CalibratedClassifierCV(cv=5)` was worth
