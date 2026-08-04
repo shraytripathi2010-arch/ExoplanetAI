@@ -1765,7 +1765,56 @@ The verdict is unaffected: CatBoost vs HGB at the better setting is
 did not clear. Both families gain about equally from more folds, so the gap
 does not move. Only the explanation was wrong, not the conclusion.
 
-### CatBoost arms: single-fit only, NOT validated
+### CatBoost arms, RESAMPLED -- the one result in this project that did not collapse
+
+Run afterwards with the SAME 8 resample seeds as the HGB stage 2, so the two
+are directly comparable. Baseline is production refit on each resample.
+
+| arm | mean d_full | sd | t | positive | clears | mean d_2min | positive | clears | Brier |
+|---|---|---|---|---|---|---|---|---|---|
+| CatBoost bare | +0.0057 | 0.0032 | 5.0 | **8/8** | 2/8 | +0.0073 | **8/8** | 2/8 | 0.0976 |
+| CatBoost sigmoid cv=5 (like-for-like) | +0.0074 | 0.0036 | 5.9 | **8/8** | 3/8 | +0.0092 | **8/8** | 5/8 | 0.0975 |
+| **CatBoost bag-only cv=10** | **+0.0080** | 0.0032 | 7.0 | **8/8** | 4/8 | **+0.0099** | **8/8** | 5/8 | 0.0952 |
+| CatBoost sigmoid cv=20 | +0.0078 | 0.0029 | 7.6 | **8/8** | 3/8 | +0.0096 | **8/8** | 5/8 | 0.0972 |
+
+**Every arm is positive on every resample, on both populations.** Contrast the
+HGB wrapper arms measured on the identical seeds: means of +0.0001..+0.0007,
+3-6/8 positive, one arm reversing sign. The HGB gains were the training draw;
+these are not. Per-resample deltas for the best arm span +0.0039 to +0.0144 --
+never near zero.
+
+**It still does not clear the bar.** `ci_lo > 0` holds on only 2-5 of 8
+resamples. This is not a contradiction, it is precisely the regime the re-audit
+predicted: the measured detection threshold on a 1,098-star test set is
+**0.0097**, and the best arm's true effect is about **+0.0080**. An effect real
+enough to appear in 8 draws out of 8 but smaller than the smallest thing this
+test set can certify.
+
+**Verdict: NOT PROMOTED.** The bar is `ci_lo > 0` and it is not met. That is
+the correct outcome under the rule, and the rule should not be bent because the
+result is finally interesting.
+
+Three things worth separating:
+
+- **Most of the gain is the model family, not the wrapper.** Like-for-like
+  (same sigmoid, same cv=5, only the model swapped) is +0.0074 of the +0.0080
+  best. Wrapper choice moves ~0.0006.
+- **The 2-min-only population shows the effect MORE strongly** (+0.0099 vs
+  +0.0080) and clears more often (5/8 vs 4/8) -- the reverse of the FFI
+  artefact pattern, and reassuring, since 2-min is the population the model is
+  actually deployed on.
+- **CatBoost costs calibration quality.** Every arm's Brier is worse than
+  production's 0.0943 (best 0.0952, worst 0.0976). Adopting it trades slightly
+  worse probabilities for better ranking, which matters because the UI, the
+  confidence tiers and the CTOI export all display probabilities.
+
+**What would change the verdict: a bigger test set, not a better model.** At
++0.0080 with test-set sd 0.0043, certifying this needs roughly 1.5-2x the
+current 1,098 held-out stars. That is the same conclusion the learning curve
+and the noise-floor audit reached independently -- three separate routes now
+point at the label supply as the binding constraint.
+
+### CatBoost arms: single-fit stage-1 numbers, superseded above
 
 Stage 2 covered HGB arms only. CatBoost's best single-fit arms (bag-only cv=10
 at 0.9124, +0.0092 over production) are **exactly the kind of number stage 2
