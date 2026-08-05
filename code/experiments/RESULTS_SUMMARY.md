@@ -3494,13 +3494,48 @@ penalty remains the right instrument, because the defect is a
 calibration/threshold effect on a subpopulation with a different class prior --
 not a ranking failure the feature set can repair.
 
-**One actionable follow-up, NOT applied here:** the penalty's user-facing text
-in `08_characterize_candidates.py` still asserts *"21% error vs 6% elsewhere on
-held-out data"*. On the deployed model those cells are **14.3% and 6.7%**, and
-the cell it targets is no longer the worst -- "large radius only" (20.6%) is.
-The claim shown on candidate pages is stale. Refreshing it, and possibly
-re-aiming the condition from `st_rad>=1.5 AND SDE>=10` to large-radius alone,
-is a small text/logic change awaiting a go-ahead.
+**CLOSED (2026-08-05): the stale candidate-facing text is corrected.** The
+penalty asserted *"21% error vs 6% elsewhere on held-out data"*; on the deployed
+model those cells are 14.3% and 6.7%.
+
+But the refresh found the sentence was **wrong, not merely stale**. It claimed
+the classifier is "measurably least reliable in this combination". By AUC the
+opposite holds: the targeted cell has the **highest** discrimination of the four
+(0.9158) and the "safe" cell the **lowest** (0.8637). The error-rate ordering is
+inverted relative to AUC purely by class balance -- 92.4% planets in the safe
+cell against 44.9% here. The text now states the real mechanism (a near-50/50
+population, so the same probability carries weaker odds) and reports the AUC
+next to the error rate so the distinction is visible.
+
+**The triggering condition was deliberately NOT broadened**, despite
+`st_rad>=1.5` alone now having the higher raw error rate (20.6%):
+
+1. The `-1` exists to temper the `+2` the SDE bonus (`sde>=10 AND
+   n_transits>=5`) just awarded -- it is structurally tied to `sde>=10`. Applied
+   to giants that never received that bonus it becomes a different, unjustified
+   penalty.
+2. That cell's higher error rate is the same base-rate artifact (57.8% planets
+   vs 92.4%), and its AUC (0.8974) is BETTER than the safe cell's. Re-aiming on
+   error rate alone would repeat the exact reasoning error being corrected.
+3. Giants are 49.6% of the ranked candidate pool. Broadening moves the flag from
+   18/254 candidates to 126/254, and a flag that fires on half of everything
+   stops being a flag.
+
+**Staleness is now structurally prevented.** The figures are read at runtime
+from `giant_star_diagnose.json` via `_giant_regime_stats()`, so re-running the
+diagnostic refreshes what candidate pages say; a hand-verified fallback plus
+`GIANT_STATS_LAST_VERIFIED` covers a missing file. Verified live: it returns
+14.2857/6.6773 from the JSON versus the 14.3/6.7 fallback, proving the file is
+read rather than silently defaulting.
+
+A latent bug was caught building it: this module does not import `json` at top
+level, so the helper would have raised `NameError`, been swallowed by its own
+`except`, and pinned the text to the fallback forever -- the identical silent
+failure the change exists to prevent. Fixed with a local import.
+
+Scope: tier text and its data source only. `predicted_probability`, the
+conformal layer, the model, the gate and the scheduler are untouched, and
+`score -= 1` and the trigger are unchanged, so **no candidate changes tier**.
 
 Scripts: `giant_star_diagnose.py`, `giant_star_fix.py`; results
 `giant_star_diagnose.json`, `giant_star_fix_results.json`.
