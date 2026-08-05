@@ -4259,6 +4259,117 @@ data `trapezoid_shape_features.csv`, `trapezoid_shape_pool.csv`,
 `trapezoid_shape_widesector.csv`, `trapezoid_checks.json`,
 `trapezoid_validate_results.json`.
 
+## Multi-sector stacking to rescue trap_vshape -- CLOSED AT THE PART 1 GATE
+
+The trapezoid write-up above ended by naming multi-sector stacking "the obvious
+route" to make the +0.0007 provable. **That recommendation was wrong, and this
+is the arithmetic that shows why.** No download was performed.
+
+### A real finding surfaced on the way: the pipeline uses ONE sector per star
+
+`01_download_known.py:201` and `01_download_negative.py:189` both call
+`search[0].download()` -- the FIRST matching product only. Confirmed downstream
+rather than inferred: processed light curves span 24-27 days with **zero gaps
+> 5 days**, i.e. a single TESS sector each. And the data is there to be had --
+a live MAST query over 60 stars from the recoverable population (59 resolved)
+found **93% have >= 2 sectors, median 3, mean 4.6**.
+
+So this project is training on roughly a **third** of the TESS photometry
+available to it. Sector availability was never the bottleneck. That is a
+pipeline-wide observation with implications far beyond this one feature, and it
+is flagged at the end of this section as its own question.
+
+### What stacking means here, stated precisely
+
+Concatenate per-cadence flux from every available sector, phase-fold the
+combined series on the stored period/T0, fit ONE trapezoid to that deeper fold.
+Not per-sector fits averaged afterwards -- the point is more in-transit points
+under a single fit, so the ingress rises above the noise. Required sectors to
+clear the gate follow from `sqrt(N)` noise averaging: `N >= (3/depth_snr)^2`.
+
+### Expected recovery is LARGE -- coverage would genuinely improve
+
+| excluded bucket | n | expected recovered |
+|---|---|---|
+| `depth_snr < 3` | 1,812 | **822** |
+| `vshape_err > 0.30` | 409 | **275** |
+| non-converged (structural) | 746 | not modelled |
+| **total** | 3,777 | **1,096** |
+
+**Coverage 31.2% -> 51.1%, a 1.64x gain on the covered fraction.** This is a
+real, substantial improvement and the reason the investigation was worth
+running rather than dismissing.
+
+### A counter-argument I nearly missed, checked rather than assumed
+
+The naive model is that stacking only *adds stars*. It does more: it moves
+existing stars into better-measured bands, and separation genuinely deepens
+there.
+
+| `vshape_err` | n | planet frac | AUC | \|dev\| |
+|---|---|---|---|---|
+| 0.00-0.05 | 233 | 0.751 | **0.2931** | **0.2069** |
+| 0.05-0.10 | 313 | 0.588 | 0.3696 | 0.1304 |
+| 0.10-0.20 | 755 | 0.603 | 0.3791 | 0.1209 |
+| 0.20-0.30 | 408 | 0.686 | 0.4051 | 0.0949 |
+
+**And it is not a class-mix artifact** -- planet fraction runs
+0.751/0.588/0.603/0.686, non-monotone, while AUC is strictly monotone. The
+value gap is real: in the best band planets sit at 0.302 and false positives at
+0.586 (gap 0.284), against 0.443 vs 0.534 (gap 0.091) in the worst. Precision
+sharpens the separation by **1.47x**. This argues FOR feasibility and is
+included because leaving it out would have made the no-go look stronger than it
+is.
+
+### THE DECISIVE ARITHMETIC
+
+Assuming the model-level delta scales linearly with the fraction of test stars
+carrying a measured value (first-order, and probably **generous** -- newly
+recovered stars are the marginal, noisiest ones):
+
+| scenario | coverage x | precision x | delta | vs 0.0097 |
+|---|---|---|---|---|
+| measured now | 1.00 | 1.00 | +0.00070 | 0.07x |
+| expected stacking | 1.64 | 1.00 | +0.00115 | 0.12x |
+| expected + precision gain | 1.64 | 1.47 | +0.00169 | 0.17x |
+| CEILING: 100% coverage | 3.21 | 1.00 | +0.00225 | 0.23x |
+| **CEILING: 100% + best precision** | 3.21 | 1.47 | **+0.00331** | **0.34x** |
+
+**Required multiplier to reach 0.0097: 13.9x. Maximum physically available:
+4.7x.**
+
+Even the impossible ceiling -- every star in the training set carrying a
+trapezoid fit at best-band precision -- lands at **+0.0033, roughly one third
+of the detection threshold**. The gap is not closable by more photometry.
+
+### VERDICT: NO-GO. Parts 2 and 3 not run.
+
+**The premise of the task does not hold.** Coverage is not what makes +0.0007
+unprovable; the effect is simply small relative to what n=1,098 can resolve.
+Correcting my own earlier framing: I wrote that "the binding constraint is
+usable coverage, not the metric". That was wrong. Coverage caps the effect at
+~4.7x its current size, and 13.9x is needed.
+
+Not run, and the cost is the reason it matters: re-downloading, re-preprocessing
+and re-fitting several thousand stars is hours of network and compute, and the
+measured payoff would be an effect still 3x below the bar with 0/12 resamples
+clearing. Production stays at **0.9208 / 26 features**; nothing was deployed
+and nothing was downloaded.
+
+### The question worth asking instead
+
+The single-sector finding is the real result here and it is **not** about
+`trap_vshape`. Every SNR-limited quantity in the pipeline -- TLS's SDE, depth
+significance, `odd_even_mismatch`, the secondary-eclipse depth, the whole v2
+feature set -- is computed from one sector when a median of three exist. The
+useful experiment is not "does stacking rescue one feature at +0.0007", it is
+"does stacking raise the model as a whole". That is a different, larger, and
+better-motivated investigation, and it should be scoped on its own rather than
+smuggled in under this one. **Not started; awaiting direction.**
+
+Scripts: `multisector_feasibility.py`; data `multisector_availability.json`
+(live MAST sample), `multisector_feasibility.json`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,

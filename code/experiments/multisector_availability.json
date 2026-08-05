@@ -1,0 +1,302 @@
+[
+ {
+  "host": "TIC_426077080",
+  "n_sectors": 1,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1663",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "XO-1",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-431",
+  "n_sectors": 7,
+  "via": "SPOC"
+ },
+ {
+  "host": "TOI-1450_A",
+  "n_sectors": 0,
+  "via": "fail"
+ },
+ {
+  "host": "Kepler-1096",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "OGLE2-TR-L9",
+  "n_sectors": 7,
+  "via": "SPOC"
+ },
+ {
+  "host": "K2-367",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1533",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-114",
+  "n_sectors": 8,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1721",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "K2-324",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-698",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "HD_224693",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "TOI-5573",
+  "n_sectors": 1,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-246",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-51",
+  "n_sectors": 9,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1523",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "TIC_326919774",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-247",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "TIC_388624270",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-641",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "TIC_224313733",
+  "n_sectors": 5,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-149",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-586",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "TOI-1648",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-618",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "HD_144899",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1263",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1197",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "K2-15",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "TOI-5713",
+  "n_sectors": 5,
+  "via": "SPOC"
+ },
+ {
+  "host": "K2-168",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "HD_80653",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1898",
+  "n_sectors": 6,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-997",
+  "n_sectors": 10,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-110",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-633",
+  "n_sectors": 8,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1757",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "K2-146",
+  "n_sectors": 1,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1248",
+  "n_sectors": 7,
+  "via": "SPOC"
+ },
+ {
+  "host": "HD_216435",
+  "n_sectors": 7,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-417",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "TOI-4507",
+  "n_sectors": 42,
+  "via": "SPOC"
+ },
+ {
+  "host": "TIC_339636032",
+  "n_sectors": 10,
+  "via": "SPOC"
+ },
+ {
+  "host": "WASP-140",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "TIC_75427473",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1439",
+  "n_sectors": 6,
+  "via": "SPOC"
+ },
+ {
+  "host": "HD_222155",
+  "n_sectors": 1,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-713",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-611",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "HD_4113",
+  "n_sectors": 5,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-362",
+  "n_sectors": 4,
+  "via": "SPOC"
+ },
+ {
+  "host": "CoRoT-32",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "HD_187085",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-987",
+  "n_sectors": 3,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1152",
+  "n_sectors": 7,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1814",
+  "n_sectors": 2,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-1864",
+  "n_sectors": 8,
+  "via": "SPOC"
+ },
+ {
+  "host": "Kepler-37",
+  "n_sectors": 9,
+  "via": "SPOC"
+ }
+]

@@ -1,0 +1,53 @@
+{
+  "n_train": 5486,
+  "covered_now": 1709,
+  "expected_recovery": 1096.1355932203578,
+  "coverage_now": 0.3115202333211812,
+  "coverage_expected": 0.5113262109406412,
+  "nonconverged": 746,
+  "sector_cdf": {
+    "1": 1.0,
+    "2": 0.9322033898305084,
+    "3": 0.6271186440677966,
+    "4": 0.4745762711864407,
+    "5": 0.3050847457627119,
+    "6": 0.2542372881355932
+  },
+  "n_sector_queries": 59,
+  "sharpen_mult": 1.4725733218799852,
+  "scenarios": {
+    "measured now": {
+      "coverage_mult": 1.0,
+      "sharpen_mult": 1.0,
+      "delta": 0.0007,
+      "fraction_of_threshold": 0.07216494845360824
+    },
+    "expected stacking": {
+      "coverage_mult": 1.6413900486953528,
+      "sharpen_mult": 1.0,
+      "delta": 0.0011489730340867468,
+      "fraction_of_threshold": 0.11845082825636565
+    },
+    "expected + precision gain": {
+      "coverage_mult": 1.6413900486953528,
+      "sharpen_mult": 1.4725733218799852,
+      "delta": 0.0016919470375556464,
+      "fraction_of_threshold": 0.17442752964491198
+    },
+    "CEILING: 100% coverage": {
+      "coverage_mult": 3.2100643651258047,
+      "sharpen_mult": 1.0,
+      "delta": 0.0022470450555880633,
+      "fraction_of_threshold": 0.23165412944206837
+    },
+    "CEILING: 100% + precision": {
+      "coverage_mult": 3.2100643651258047,
+      "sharpen_mult": 1.4725733218799852,
+      "delta": 0.0033089386019213105,
+      "fraction_of_threshold": 0.3411276909197227
+    }
+  },
+  "required_mult": 13.857142857142858,
+  "max_available_mult": 4.727055145601872,
+  "verdict": "NO-GO"
+}
