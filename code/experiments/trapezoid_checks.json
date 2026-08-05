@@ -1,0 +1,167 @@
+{
+  "coverage_training": {
+    "converged": 0.9363835216915786,
+    "usable": 0.3115202333211812,
+    "n": 5486,
+    "reasons": {
+      "converged but depth SNR < 3": 1812,
+      "ok": 807,
+      "converged but shape unconstrained": 412,
+      "T14 hit bound": 397,
+      "no usable ephemeris": 112,
+      "too few in-transit bins": 79,
+      "too few usable bins (0)": 28,
+      "did not converge": 24,
+      "too few usable bins (22)": 12,
+      "too few usable bins (21)": 9,
+      "too few usable bins (24)": 8,
+      "too few usable bins (15)": 8,
+      "too few usable bins (23)": 7,
+      "too few usable bins (17)": 7,
+      "too few usable bins (10)": 5,
+      "too few usable bins (16)": 4,
+      "too few usable bins (3)": 4,
+      "too few usable bins (5)": 4,
+      "too few usable bins (14)": 4,
+      "too few usable bins (11)": 4,
+      "too few usable bins (2)": 3,
+      "too few usable bins (7)": 3,
+      "too few usable bins (1)": 3,
+      "too few usable bins (20)": 3,
+      "too few in-window points (20)": 2,
+      "too few usable bins (4)": 2,
+      "too few usable bins (9)": 2,
+      "too few usable bins (18)": 2,
+      "too few usable bins (19)": 2,
+      "too few usable bins (12)": 2,
+      "too few usable bins (13)": 2,
+      "too few in-window points (27)": 1,
+      "too few in-window points (17)": 1,
+      "too few in-window points (12)": 1,
+      "too few usable bins (6)": 1
+    }
+  },
+  "coverage_pool (unknown)": {
+    "n_rows": 2454,
+    "n_scorable": 488,
+    "converged": 0.9918032786885246,
+    "usable": 0.4713114754098361
+  },
+  "coverage_pool (widesector)": {
+    "n_rows": 271,
+    "n_scorable": 69,
+    "converged": 0.9710144927536232,
+    "usable": 0.2318840579710145
+  },
+  "missingness": {
+    "usable_planet": 0.2524227041993539,
+    "usable_fp": 0.5338541666666666,
+    "availability_auc": 0.3592842687663436
+  },
+  "correlations": {
+    "trap_vshape": {
+      "SDE": 0.2276671884291935,
+      "SDE_raw": 0.2842086896431796,
+      "FAP": 0.22050290681529394,
+      "period": 0.15264502097902924,
+      "period_uncertainty": 0.06410368885661442,
+      "duration": 0.013540052083762457,
+      "depth": 0.06109592193194155,
+      "depth_mean": 0.05527769865874952,
+      "depth_mean_std": 0.0462014841038645,
+      "depth_mean_even": 0.05736859365246572,
+      "depth_mean_odd": 0.046578831827912635,
+      "odd_even_mismatch": 0.03234909047576017,
+      "rp_rs": 0.05907034577675114,
+      "snr": 0.25698199549140427,
+      "transit_count": 0.15289847191762,
+      "distinct_transit_count": 0.1544594491013205,
+      "empty_transit_count": 0.069671486312019,
+      "st_rad": 0.08684060031032478,
+      "st_teff": 0.09529616975257936,
+      "chi2red_min": 0.027161201281611126,
+      "depth_consistency_std": 0.017434640313898478,
+      "secondary_eclipse_depth": 0.060188588521168054,
+      "transit_shape_ratio": 0.007650456304050391,
+      "depth_duration_ratio": 0.13151332938664387,
+      "crowd_flux_ratio_max": 0.0013329895989542177,
+      "crowd_nearest_arcsec": 0.04946351744411199
+    },
+    "trap_t14_ratio": {
+      "SDE": 0.11276892981832475,
+      "SDE_raw": 0.13846210129863362,
+      "FAP": 0.11160183898609177,
+      "period": 0.11347899929350223,
+      "period_uncertainty": 0.03739454617305579,
+      "duration": 0.10628727431836439,
+      "depth": 0.05997089922240511,
+      "depth_mean": 0.06562924355197838,
+      "depth_mean_std": 0.03905042958556694,
+      "depth_mean_even": 0.07247485407035818,
+      "depth_mean_odd": 0.05974410152188894,
+      "odd_even_mismatch": 0.020410901568093914,
+      "rp_rs": 0.06717686230771058,
+      "snr": 0.1855969583812846,
+      "transit_count": 0.08669177470287091,
+      "distinct_transit_count": 0.04186508130165668,
+      "empty_transit_count": 0.2679871948856563,
+      "st_rad": 0.030871716823011548,
+      "st_teff": 0.037967481694880324,
+      "chi2red_min": 0.02176594671947558,
+      "depth_consistency_std": 0.004072992779173338,
+      "secondary_eclipse_depth": 0.06220569039604925,
+      "transit_shape_ratio": 0.008945451792431905,
+      "depth_duration_ratio": 0.013943588501618096,
+      "crowd_flux_ratio_max": 0.019586121285257125,
+      "crowd_nearest_arcsec": 0.0059870583539082915
+    }
+  },
+  "spatial": {
+    "trap_vshape": 0.09246217309839674,
+    "trap_t14_ratio": 0.02349391506985418
+  },
+  "gate": [
+    {
+      "feature": "trap_vshape",
+      "n_planet": 1094,
+      "n_fp": 615,
+      "median_planet": 0.4346220737223332,
+      "median_fp": 0.5782546281268466,
+      "mean_planet": 0.45469819713260845,
+      "mean_fp": 0.5596867654401074,
+      "p25_planet": 0.2837066843283916,
+      "p75_planet": 0.6094064242253966,
+      "p25_fp": 0.39668031867591935,
+      "p75_fp": 0.7265473611313948,
+      "auc": 0.3594759293113955
+    },
+    {
+      "feature": "trap_t14_ratio",
+      "n_planet": 1094,
+      "n_fp": 615,
+      "median_planet": 1.3936046753741718,
+      "median_fp": 1.4996911223819658,
+      "mean_planet": 1.4681660685249576,
+      "mean_fp": 1.5343263676970347,
+      "p25_planet": 1.1580804973110712,
+      "p75_planet": 1.7240738958646828,
+      "p25_fp": 1.2614006881569955,
+      "p75_fp": 1.7642101620843822,
+      "auc": 0.43993549441892954
+    }
+  ],
+  "tails": {
+    "planets": [
+      0.4085923217550274,
+      0.14716636197440586,
+      0.03290676416819013,
+      0.0018281535648994515
+    ],
+    "false positives": [
+      0.6048780487804878,
+      0.2975609756097561,
+      0.07967479674796749,
+      0.0065040650406504065
+    ]
+  }
+}

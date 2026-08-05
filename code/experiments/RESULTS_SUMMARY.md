@@ -4039,6 +4039,226 @@ decision.
 Groundwork for the non-TESS survey question is in
 [`NON_TESS_SURVEYS_PREP.md`](NON_TESS_SURVEYS_PREP.md).
 
+## Duration-scaled TRAPEZOID shape -- the real V-shape metric the broken column never measured
+
+The prior round diagnosed `transit_shape_ratio` as structurally broken and
+concluded a properly duration-scaled fit was "a refinement with real headroom,
+not a duplicate". This is that fit, built and measured.
+
+### Part 1: what was built, and what was deliberately NOT used
+
+A five-parameter symmetric trapezoid fitted to the phase-folded curve, with
+every window scaled to the star's own TLS duration rather than fixed in phase:
+
+```
+f(phi) = baseline                          x >= T14/2
+       = baseline - depth                  x <= T23/2      x = |phi - phi0|
+       = linear ramp between the two       otherwise       T23 = T14 * (1 - w)
+
+trap_vshape = w = (T14 - T23) / T14      the ingress+egress fraction of T14
+```
+
+Free parameters: baseline, depth, T14, w, phi0. Parameterising the flat bottom
+as `T23 = T14*(1-w)` rather than fitting `T23` directly bounds the metric to
+[0,1] and makes the invalid region `T23 > T14` unreachable by construction
+instead of relying on the optimiser to stay out of it.
+
+**Physical reading.** `w -> 0` is a flat-bottomed transit: the occulter is small
+relative to the star and sits fully inside the disc for most of the event.
+`w -> 1` is V-shaped with no flat bottom at all -- the signature of a GRAZING
+eclipse (the occulter never fully enters the disc) or an EQUAL-SIZE binary
+(ingress occupies a large fraction of the event). For a central transit,
+ingress/T14 ~ Rp/Rs, so a hot Jupiter gives w ~ 0.2-0.4 and a stellar companion
+w ~ 0.6-1.0. This is LEO-Vetter's discriminator.
+
+**Reused, not rebuilt:** the phase-fold-from-stored-ephemeris pattern of
+`timeseries_stats.py` / `oddeven_timing.py` (no TLS re-run, no downloads) and
+`scipy.optimize.least_squares` (scipy already a dependency;
+`learning_curve_extrapolation.py` uses `curve_fit`).
+
+**`batman` was a live option and was rejected on three specific grounds.** It
+is a real dependency here (`injection.py` uses it), so this was a genuine
+choice, not an availability constraint. (1) It is a limb-darkened PLANETARY
+model parameterised by Rp/Rs, a/Rs, inc and limb-darkening coefficients --
+fitting it to a grazing eclipsing binary forces a planet-shaped curve onto
+exactly the profiles the feature exists to flag, so it can report how badly a
+star fits a planet but not what shape the transit actually has. (2) a/Rs and
+inc are near-degenerate at single-sector TESS SNR. (3) ~100x the per-star cost
+over 5,486 stars for a worse-posed fit. The trapezoid is the model-agnostic
+parameterisation professional vetting pipelines use for this test.
+
+### Part 2: coverage, and the confound the coverage check exposed
+
+**Convergence is high; USABLE coverage is not, and the gap is the story.** A
+shallow, noisy transit cannot constrain a shape parameter however cleanly the
+optimiser terminates -- the ingress is below the noise. Each fit therefore
+carries a Jacobian-derived parameter uncertainty, and the measured
+distributions were inspected before any threshold was chosen: `trap_vshape_err`
+runs 0.055 / 0.341 / 290823 at q10 / q50 / q90, i.e. for a large tail the shape
+parameter is formally unconstrained. Usable requires `depth_snr >= 3` and
+`vshape_err <= 0.30`.
+
+| population | rows | scorable | fit converged | USABLE |
+|---|---|---|---|---|
+| training | 5,486 | 5,486 | **93.6%** | **31.2%** |
+| candidate pool | 2,454 | **488** | 99.2% | 47.1% |
+| widesector pool | 271 | **69** | 97.1% | 23.2% |
+
+**The pool denominator is not the row count, and using the row count would have
+been wrong.** Only 488 of 2,454 pool rows carry a full ephemeris at all; the
+rest are stars whose TLS post-processing failed before period/T0/duration were
+written, so no phase-folded feature -- deployed or new -- exists for them.
+Scoring against 2,454 would have measured TLS's failure rate, not this
+feature's coverage.
+
+Training failures: 7.2% "T14 hit bound" (a fit that ran to a duration bound has
+not measured a duration), 2.0% no usable ephemeris, 1.4% too few in-transit
+bins, 0.4% non-convergence; the rest of the drop from 93.6% to 31.2% is the
+two usability filters.
+
+**THE MISSINGNESS CONFOUND -- the most important number in this section:**
+
+| | planets | false positives | gap |
+|---|---|---|---|
+| usable rate | 25.2% | 53.4% | **-28.1pp** |
+
+**AUC of AVAILABILITY ALONE = 0.3593** -- identical to the feature's own AUC of
+0.3595 to three decimals. A trapezoid fit is only usable when the event is deep
+enough to constrain an ingress, and eclipsing binaries are deep while planets
+are shallow. Confirmed directly: availability is predicted by `snr` at AUC
+0.856, `SDE` at 0.824 and `duration` at 0.823 -- all three ALREADY among the 26
+production features.
+
+**How missingness actually enters this recipe -- checked, not assumed.** The
+deployed estimator is `SimpleImputer(strategy="median", add_indicator=False)`
+-> `HistGradientBoostingClassifier`. NaN never reaches the classifier;
+unusable stars are given the training median. Bare HGB would read NaN natively
+as a signal, but this pipeline erases it first. So the missingness channel is
+largely closed by construction -- which is why the validation adds an explicit
+availability indicator as its own arm rather than assuming either that the
+confound is fatal or that it is absent.
+
+### Correlations -- the new feature is NOT the old one
+
+| | vs `transit_shape_ratio` | max \|r\| over all 26 |
+|---|---|---|
+| `trap_vshape` | **0.008** | 0.284 (`SDE_raw`) |
+| `trap_t14_ratio` | **0.009** | 0.268 (`empty_transit_count`) |
+
+Near-zero correlation with the column it replaces, in both directions. Combined
+with the prior finding that the old column is uncorrelated with duration
+(|r| 0.018) and has +0.0001 importance, this confirms the old feature is noise
+rather than a degraded version of the same measurement.
+
+Spatial exposure is clean and was checked rather than assumed: |r| vs
+|galactic b| is **0.092** for `trap_vshape` and 0.023 for `trap_t14_ratio`.
+
+### THE CLASS-RATE GATE -- PASSES, and by the widest margin yet measured here
+
+| feature | planets (median) | false positives (median) | AUC |
+|---|---|---|---|
+| `trap_vshape` | 0.4346 | **0.5783** | **0.3595** |
+| `trap_t14_ratio` | 1.3936 | 1.4997 | 0.4399 |
+
+Tail rates, where the grazing/EB signature should live:
+
+| group | n | >0.5 | >0.7 | >0.85 | >0.95 |
+|---|---|---|---|---|---|
+| planets | 1,094 | 40.9% | 14.7% | 3.3% | 0.2% |
+| false positives | 615 | **60.5%** | **29.8%** | **8.0%** | 0.7% |
+
+**False positives are measurably more V-shaped, in the direction the physics
+predicts, at every tail cut.** An AUC deviation of 0.1405 from 0.5 is the
+largest single-feature separation any candidate feature has produced in this
+project -- against 0.4195 (variance ratio), 0.4131 (residual ACF), 0.5570
+(odd-even timing, wrong sign), 0.353 (`odd_even_significance`). The gate is
+passed and Part 3 is warranted.
+
+### Part 3: resampled validation -- POSITIVE BUT UNPROVABLE
+
+12 bootstraps, production recipe (`CalibratedClassifierCV(cv=5, sigmoid)` over
+the deployed `SimpleImputer(median) -> HGB` pipeline) refit on identical rows,
+frozen 4,386/1,100 split. Baseline **AUC 0.9128 (sd 0.0020)**, Brier 0.0879,
+ECE 0.0417. Every arm is measured against a reference identical except for the
+columns under test.
+
+| arm | nfeat | mean d | sd | min | max | pos | clears | >=MDE | d 2-min |
+|---|---|---|---|---|---|---|---|---|---|
+| A: +vshape | 27 | **+0.0007** | 0.0010 | −0.0008 | +0.0022 | 9/12 | 0/12 | 0/12 | +0.0010 |
+| B: +vshape, t14_ratio | 28 | −0.0001 | 0.0015 | −0.0029 | +0.0022 | 6/12 | 0/12 | 0/12 | +0.0001 |
+| C: availability ONLY | 27 | **−0.0004** | 0.0005 | −0.0017 | +0.0006 | 3/12 | 0/12 | 0/12 | −0.0005 |
+| D: +vshape GIVEN avail | 28 | **+0.0005** | 0.0007 | −0.0008 | +0.0016 | 8/12 | 0/12 | 0/12 | +0.0010 |
+| E: +vshape GIVEN \|b\| | 28 | **+0.0002** | 0.0011 | −0.0018 | +0.0017 | 8/12 | 0/12 | 0/12 | +0.0008 |
+
+**The three controls agree, and they attribute the signal correctly:**
+
+* **C is NEGATIVE (−0.0004).** The availability pattern, handed to the model as
+  an explicit indicator, is worth nothing. The confound that looked fatal in
+  Part 2 does not survive contact with a model that already has `snr`, `SDE`
+  and `duration` -- and median imputation had already closed the channel.
+* **D ≈ A (+0.0005 vs +0.0007).** Conditioning on availability barely changes
+  the delta, so what little the feature buys comes from the measured SHAPE
+  VALUE, not from which stars have one. This is the decisive attribution and
+  it is the one the raw Part 2 numbers could not have told us.
+* **E stays positive (+0.0002).** It shrinks under the spatial control, as
+  most things in this project do, but does not invert.
+
+**And it does not clear.** +0.0007 is roughly **one fourteenth** of the 0.0097
+detection threshold, and 0/12 resamples clear on either population. `pos 9/12`
+is a consistent lean, not a significant one; with sd 0.0010 that is what a true
+effect near +0.0007 looks like, and also what noise around zero looks like at
+this n. **Adding `trap_t14_ratio` makes it worse** (arm B, −0.0001), so the
+fitted-vs-TLS duration ratio is noise and is not carried forward.
+
+Arm E's better Brier (0.0844) and ECE (0.0361) belong to its `|b|`-augmented
+REFERENCE, not to the shape feature, and are not evidence for it.
+
+### RECOMMENDATION: do not promote -- classified POSITIVE BUT UNPROVABLE
+
+Production stays at **0.9208 / 26 features**. Nothing was deployed.
+
+This is a materially different outcome from the recent run of negatives, and
+worth recording as such. The feature is real: the physics prediction held, the
+class separation is the widest yet measured here (AUC 0.3595), the value is not
+a repackaged missingness indicator (arm C), and it survives the spatial control
+(arm E). It is simply **too small to prove at n=1,098** -- the effect and the
+detection floor are an order of magnitude apart. Believing +0.0007 on 9/12
+positive resamples would be exactly the error the ≥10-resample rule exists to
+prevent.
+
+The binding constraint is **usable coverage, not the metric**. The shape is
+only measurable for 31.2% of training stars, because a trapezoid fit needs an
+ingress above the noise. Any future attempt should attack coverage -- multi-
+sector stacking to raise per-star SNR is the obvious route, and would test the
+same feature on a population where it is actually measurable.
+
+### Should `transit_shape_ratio` be retired? A flag, not a decision.
+
+The evidence now says the deployed column is measuring nothing:
+
+* permutation importance **+0.0001**, coverage 69.7%, single-feature AUC 0.4333
+* geometry, not shape, decides its value for **55%** of stars
+* |r| **0.018** with duration -- not even a duty-cycle proxy
+* |r| **0.008** with the fitted metric, so **removing it would not remove shape
+  information**, because it never carried any
+
+Retiring it is a **26 -> 25 feature production change**, which needs its own
+retrain, its own resampled validation, and explicit go-ahead. Not done here.
+
+**One stale-artifact correction, checked rather than assumed.** 1,218 rows in
+`unknown_features.csv` carry `Required feature(s) not computable:
+[... 'transit_shape_ratio']`, which reads like the old column disqualifying
+candidates today. It does not: `OPTIONAL_FEATURES = {"transit_shape_ratio",
+"FAP"}` means neither can appear in `blocking` under the current code. Those
+status strings predate the Phase-3 optional-feature change and are historical.
+The retirement case rests on the importance and correlation numbers above, not
+on a candidate-loss claim.
+
+Scripts: `trapezoid_shape.py`, `trapezoid_checks.py`, `trapezoid_validate.py`;
+data `trapezoid_shape_features.csv`, `trapezoid_shape_pool.csv`,
+`trapezoid_shape_widesector.csv`, `trapezoid_checks.json`,
+`trapezoid_validate_results.json`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
