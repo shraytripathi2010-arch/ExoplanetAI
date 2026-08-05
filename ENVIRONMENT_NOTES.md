@@ -93,6 +93,23 @@ OMP_NUM_THREADS=1 python3 your_script.py
 That took the same job to **306.7% CPU**. Applies to LightGBM, XGBoost,
 CatBoost and sklearn's HistGradientBoosting alike.
 
+### 3a. …but 8 workers is past the memory limit, not the CPU limit
+
+`OMP_NUM_THREADS=1` fixes CPU contention; it does nothing about RAM. This
+machine has 8 physical cores, so 8 worker processes looks correct and is not.
+
+**Symptom.** A `ProcessPoolExecutor(max_workers=8)` running CatBoost fits went
+to **load average 203** while the workers sat at **15–25% CPU each** — high
+load with idle CPUs, which is paging, not computing. `sysctl vm.swapusage`
+confirmed **5.9 GB of 7 GB swap used**. The last four resamples of that run
+took longer than the first eight had, despite having the machine to
+themselves.
+
+**Rule of thumb.** 6 workers has run clean repeatedly here (the 28-arm sweep);
+8 tipped it into swap. Prefer 6 for anything holding a copy of the training
+matrix per worker, and check `sysctl vm.swapusage` before blaming the code
+when a parallel job crawls.
+
 ## 4. TabPFN cannot be installed here
 
 `TabPFNLicenseError` on import: it requires a **one-time interactive license
@@ -149,3 +166,39 @@ on 5050.**
 needs an older `autograd`. This is expected and harmless. The centroid vetting
 in this project deliberately uses a **difference-image centroid** (numpy +
 `scipy.ndimage.center_of_mass`), which needs none of it.
+
+## 9. `roc_auc_score` is 25 ms/call and dominates any bootstrap
+
+**Symptom.** A paired bootstrap over the 1,098-star test set was projected at
+**47 minutes** for a single sweep. Profiling put `sklearn.metrics.roc_auc_score`
+at **25 ms per call** on n=1098 — almost all of it input validation, not
+arithmetic. At 2,000 iterations x 2 arms x 56 comparisons that is the entire
+runtime. This is why earlier validation runs took 35–75 minutes and why they
+were sized at 8 resamples.
+
+**Fix.** AUC is a rank statistic, so compute it directly via the rank-sum
+identity, with *averaged* ranks so ties are handled exactly:
+
+```python
+def fast_auc(y, p):
+    n = p.shape[0]
+    order = np.argsort(p, kind="mergesort")
+    sp = p[order]
+    newgrp = np.empty(n, bool); newgrp[0] = True
+    np.not_equal(sp[1:], sp[:-1], out=newgrp[1:])
+    gid = np.cumsum(newgrp) - 1
+    avg = (np.bincount(gid, weights=np.arange(1, n + 1, dtype=np.float64))
+           / np.bincount(gid))
+    r = np.empty(n, np.float64); r[order] = avg[gid]
+    n1 = int(y.sum())
+    return (r[y == 1].sum() - n1 * (n1 + 1) / 2.0) / (n1 * (n - n1))
+```
+
+**~18x faster, and exact** — verified to 1e-12 against `roc_auc_score` over 400
+random cases including tie-heavy ones. Ties are not hypothetical here: isotonic
+calibration emits long plateaus of identical probabilities, so ordinal ranks
+without tie-averaging would give wrong answers for exactly those arms.
+
+Keep `roc_auc_score` for the handful of reported point estimates — having two
+independent implementations agree is a free cross-check. Use `fast_auc` inside
+bootstrap loops. Lives in `code/experiments/calibration_holdout_sweep.py`.

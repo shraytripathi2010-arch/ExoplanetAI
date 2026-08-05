@@ -66,3 +66,7 @@ __pycache__/
 # reproducible without the bulk data.
 code/k2_pilot/raw/
 code/k2_pilot/processed/
+
+# fit cache for calibration_holdout_sweep.py -- reproducible, ~1MB, not a result
+code/experiments/calibration_holdout_raw.json
+code/experiments/*.json.partial

@@ -1956,6 +1956,304 @@ Scripts: `calibration_sweep.py`, `calibration_sweep_validate.py`,
 `calibration_sweep_catboost_results.json`,
 `calibration_sweep_remaining_results.json`.
 
+## Dedicated-holdout (prefit) calibration -- NEGATIVE, and the mechanism hypothesis is REFUTED
+
+The sweep above covered `{sigmoid, bag-only} x cv={3,5,10,20}` plus isotonic at
+cv={5,10}. Three things were missing, and this round closes them:
+
+1. **dedicated-holdout ("prefit") calibration** -- base model fit on nearly all
+   the training data, a disjoint slice used ONLY to fit the calibrator. Never
+   tested, and it is the entire mechanism hypothesis.
+2. **ECE** -- only Brier had ever been computed, in a project whose headline
+   wrapper is a calibrator.
+3. **isotonic cv=20** -- a hole in the grid.
+
+### First, a premise that was already superseded
+
+The motivating claim was that calibration "helps HGB (+0.0046) and hurts
+CatBoost (-0.0024)", suggesting a family-level asymmetry. **That is specific to
+cv=5.** At cv=20 CatBoost's sigmoid arm (0.9120) sits *above* its own bare
+score (0.9113). CatBoost does not dislike calibration; it dislikes FIVE-fold
+calibration. An asymmetry that reverses with fold count is a fold-count effect,
+which already argued against the data-per-fit story before this ran.
+
+Also restated because it governs every verdict below: the **"+/-0.003 noise
+floor" is not the bar.** That is the spread of one AUC estimate. The smallest
+delta a 1,098-star test set can certify at `ci_lo > 0` was measured at
+**0.0097**.
+
+### The design that makes this a test rather than a survey
+
+Cross-fitting confounds two things: each base model sees `(k-1)/k` of the data,
+AND `k` models get averaged. Prefit has ONE model and NO averaging. Holdout
+fractions were therefore matched to fold counts so each pair differs *only* in
+averaging:
+
+| holdout | equivalent | rows per base fit |
+|---|---|---|
+| 20% | cv=5 | 3,508 |
+| 10% | cv=10 | 3,947 |
+| 5% | cv=20 | 4,166 |
+
+Training has one row per star (5,485 rows / 5,485 hosts, verified), so a
+stratified row split IS a star split -- no star straddles the base/calibration
+boundary, and no group machinery is needed. The frozen TEST set is untouched;
+the slice is carved out of the 4,386 training rows only.
+
+### RESULT: prefit loses at every matched size, in both families
+
+| family | matched pair (rows/fit) | prefit | cross-fit | gap |
+|---|---|---|---|---|
+| HGB | holdout 20% vs cv=5 (3,508) | 0.9015 | 0.9021 | **-0.0006** |
+| HGB | holdout 10% vs cv=10 (3,947) | 0.9031 | 0.9048 | **-0.0018** |
+| HGB | holdout 5% vs cv=20 (4,166) | 0.8998 | 0.9051 | **-0.0053** |
+| CatBoost | holdout 20% vs cv=5 (3,508) | 0.9072 | 0.9086 | **-0.0013** |
+| CatBoost | holdout 10% vs cv=10 (3,947) | 0.9103 | 0.9115 | **-0.0013** |
+| CatBoost | holdout 5% vs cv=20 (4,166) | 0.9112 | 0.9122 | **-0.0010** |
+
+**Six matched pairs, six negative gaps.** The dedicated holdout never preserves
+CatBoost's bare-model advantage better than cross-fitting does -- it is worse at
+every size, in both families. **"CatBoost needs more training data per fit than
+cross-fitting gives it" is refuted directly.**
+
+The HGB column carries the mechanism plainly: the gap *widens* with fold count
+(-0.0006 -> -0.0018 -> -0.0053). Prefit gains nothing from a larger base set,
+while cross-fitting gains from averaging more models. Data-per-fit is not the
+active ingredient. **Averaging is** -- which is what AUC's invariance under
+monotone transforms requires, and this is now measured rather than argued.
+
+### Full sweep, single fit (28 arms, frozen test, baseline = production refit here)
+
+HGB:
+
+| arm | rows/fit | models | AUC | 2-min | Brier | ECE | delta | ci_lo | clears |
+|---|---|---|---|---|---|---|---|---|---|
+| sigmoid cv=20 | 4166 | 20 | 0.9051 | 0.8979 | 0.0893 | 0.0308 | +0.0030 | -0.0005 | no |
+| isotonic cv=20 | 4166 | 20 | 0.9049 | 0.8979 | 0.0892 | 0.0234 | +0.0028 | -0.0008 | no |
+| sigmoid cv=10 | 3947 | 10 | 0.9048 | 0.8972 | 0.0885 | 0.0193 | +0.0027 | -0.0003 | no |
+| isotonic cv=10 | 3947 | 10 | 0.9044 | 0.8965 | 0.0884 | **0.0181** | +0.0023 | -0.0012 | no |
+| bare | 4386 | 1 | 0.9036 | 0.8955 | 0.1046 | **0.0926** | +0.0015 | -0.0036 | no |
+| sigmoid prefit 10% | 3947 | 1 | 0.9031 | 0.8986 | 0.0909 | 0.0260 | +0.0011 | -0.0054 | no |
+| **sigmoid cv=5 [PRODUCTION]** | 3508 | 5 | **0.9021** | 0.8943 | 0.0896 | 0.0393 | -- | -- | -- |
+| sigmoid prefit 20% | 3508 | 1 | 0.9015 | 0.8967 | 0.0919 | 0.0282 | -0.0005 | -0.0080 | no |
+| isotonic prefit 10% | 3947 | 1 | 0.9005 | 0.8960 | 0.0897 | 0.0192 | -0.0014 | -0.0101 | no |
+| isotonic cv=5 | 3508 | 5 | 0.9004 | 0.8918 | 0.0896 | 0.0245 | -0.0018 | -0.0042 | no |
+| sigmoid prefit 5% | 4166 | 1 | 0.8998 | 0.8946 | 0.0929 | 0.0373 | -0.0022 | -0.0088 | no |
+| isotonic prefit 20% | 3508 | 1 | 0.8988 | 0.8941 | 0.0944 | 0.0301 | -0.0032 | -0.0114 | no |
+| sigmoid cv=3 | 2924 | 3 | 0.8961 | 0.8863 | 0.0931 | 0.0326 | -0.0061 | -0.0115 | no |
+| isotonic prefit 5% | 4166 | 1 | 0.8876 | 0.8809 | 0.0980 | 0.0466 | -0.0146 | -0.0236 | no |
+
+CatBoost:
+
+| arm | rows/fit | models | AUC | 2-min | Brier | ECE | delta | ci_lo | clears |
+|---|---|---|---|---|---|---|---|---|---|
+| isotonic cv=20 | 4166 | 20 | 0.9125 | 0.9076 | 0.0877 | 0.0367 | +0.0104 | +0.0028 | yes |
+| sigmoid cv=20 | 4166 | 20 | 0.9122 | 0.9075 | 0.0895 | 0.0410 | +0.0101 | +0.0028 | yes |
+| sigmoid cv=10 | 3947 | 10 | 0.9115 | 0.9065 | 0.0896 | 0.0410 | +0.0094 | +0.0020 | yes |
+| isotonic cv=10 | 3947 | 10 | 0.9115 | 0.9062 | 0.0882 | 0.0294 | +0.0093 | +0.0024 | yes |
+| sigmoid prefit 5% | 4166 | 1 | 0.9112 | 0.9057 | 0.0900 | 0.0389 | +0.0091 | +0.0007 | yes |
+| bare | 4386 | 1 | 0.9107 | 0.9050 | 0.0938 | 0.0443 | +0.0085 | +0.0004 | yes |
+| sigmoid prefit 10% | 3947 | 1 | 0.9103 | 0.9055 | 0.0914 | 0.0351 | +0.0082 | -0.0007 | no |
+| sigmoid cv=5 | 3508 | 5 | 0.9086 | 0.9031 | 0.0902 | 0.0306 | +0.0065 | -0.0005 | no |
+| isotonic cv=5 | 3508 | 5 | 0.9086 | 0.9034 | 0.0882 | 0.0264 | +0.0064 | -0.0007 | no |
+| sigmoid prefit 20% | 3508 | 1 | 0.9072 | 0.9018 | 0.0923 | 0.0419 | +0.0052 | -0.0034 | no |
+| isotonic prefit 20% | 3508 | 1 | 0.9058 | 0.9006 | 0.0898 | 0.0244 | +0.0037 | -0.0060 | no |
+| sigmoid cv=3 | 2924 | 3 | 0.9024 | 0.8939 | 0.0923 | 0.0434 | +0.0001 | -0.0083 | no |
+| isotonic prefit 10% | 3947 | 1 | 0.8967 | 0.8914 | 0.0932 | 0.0317 | -0.0054 | -0.0162 | no |
+| isotonic prefit 5% | 4166 | 1 | 0.8964 | 0.8896 | 0.0905 | 0.0250 | -0.0058 | -0.0159 | no |
+
+### ECE: the column nobody was measuring, and it justifies the wrapper
+
+| arm | AUC | Brier | ECE |
+|---|---|---|---|
+| HGB bare | 0.9036 | 0.1046 | **0.0926** |
+| HGB sigmoid cv=5 (production) | 0.9021 | 0.0896 | **0.0393** |
+| HGB isotonic cv=10 | 0.9044 | 0.0884 | **0.0181** |
+
+**Production's wrapper cuts ECE by 2.4x versus bare while leaving AUC
+statistically unmoved.** Brier hinted at this (0.1046 -> 0.0896) but understated
+it badly, because Brier mixes calibration with sharpness and ECE isolates
+calibration. This is the strongest evidence on record that the wrapper earns its
+place -- and it was invisible across 30+ experiments that tracked AUC and Brier
+only. **Track ECE in any future calibration work.**
+
+Bare CatBoost's ECE is 0.0443 against bare HGB's 0.0926: CatBoost is far better
+calibrated out of the box, which is a real point in its favour independent of
+ranking.
+
+### Isotonic collapses on small calibration slices
+
+At holdout 5% the calibration slice is 220 rows, and HGB isotonic scores
+**0.8876 against sigmoid's 0.8998 (-0.0122)** on the same base model. Isotonic
+fits a step function whose plateaus tie large blocks of stars together, and ties
+destroy ranking information. The effect is monotone in slice size
+(5% -> 10% -> 20% = 220 / 439 / 878 rows). Do not pair isotonic with a small
+dedicated holdout.
+
+(This is also why the fast AUC below had to average ranks across ties rather
+than use ordinal ranks: for precisely these arms, the naive version is wrong.)
+
+### The six single-fit "winners" were substantially the baseline's own draw
+
+All six clearing arms were CatBoost, so all six were resampled.
+
+**A comparison to avoid:** production scores 0.9021 on the clean single fit and
+0.8961 (sd 0.0031) as a mean across resamples, but those are not the same
+quantity and the gap is not "bad luck". A bootstrap sample of the training rows
+contains only ~63% distinct stars, so *every* arm fit on one scores lower --
+the resampled baseline is depressed by construction. What resampling corrects
+is not a lucky baseline but training-draw luck in the **pair**, since baseline
+and arm are refit together on identical rows and only the delta is read.
+
+Resampled over 12 training-data bootstraps
+(seeds 1000..1011; the first 8 match the earlier stage-2 seeds), baseline refit
+on the same rows each time:
+
+| arm | single fit | **resampled mean** | sd | range | positive | clears | 2-min clears |
+|---|---|---|---|---|---|---|---|
+| CatBoost sigmoid cv=10 | +0.0094 | **+0.0083** | 0.0028 | +0.0040..+0.0133 | **12/12** | 6/12 | 7/12 |
+| CatBoost sigmoid cv=20 | +0.0101 | **+0.0082** | 0.0028 | +0.0038..+0.0141 | **12/12** | 6/12 | 8/12 |
+| CatBoost isotonic cv=20 | +0.0104 | **+0.0077** | 0.0030 | +0.0036..+0.0143 | **12/12** | 4/12 | 4/12 |
+| CatBoost bare | +0.0085 | **+0.0073** | 0.0034 | +0.0013..+0.0148 | **12/12** | 5/12 | 5/12 |
+| CatBoost isotonic cv=10 | +0.0093 | **+0.0071** | 0.0029 | +0.0029..+0.0135 | **12/12** | 4/12 | 4/12 |
+| CatBoost sigmoid prefit 5% | +0.0091 | **+0.0053** | 0.0037 | -0.0001..+0.0111 | 11/12 | 2/12 | 3/12 |
+
+**No arm clears on more than 6 of 12. None is robust.**
+
+Three readings worth separating:
+
+- **This reproduces the earlier CatBoost measurement.** `sigmoid cv=20` lands at
+  +0.0082 here; the earlier independent stage 2 put the best CatBoost arm at
+  +0.0080. Different arm set, partly different seeds, same answer. The CatBoost
+  advantage is real and stable at **~+0.008** -- and still below the **0.0097**
+  this test set can certify. Consistent measurement, not a new result.
+- **The prefit arm is the weakest of the six** (+0.0053, and the only one to go
+  negative on any resample), despite looking competitive at +0.0091 on the
+  single fit. Independent confirmation that averaging, not the holdout, is the
+  active ingredient.
+- **Isotonic trails sigmoid at matched folds** on resampling (+0.0077 vs +0.0082
+  at cv=20; +0.0071 vs +0.0083 at cv=10), consistent with the tie mechanism.
+
+### An unplanned corroboration of the baseline-instability finding
+
+HGB bare scores **0.9036** here but **0.8986** in the earlier sweep -- a
+**+0.0050** shift, from `TIC_200385493` moving train -> test in the 50/50
+allocation change. Production's own arm moved **-0.0011** (0.9032 -> 0.9021) on
+that same single row.
+
+**One row, two arms, opposite directions.** That is a direct demonstration of
+why paired comparison *amplifies* baseline instability here instead of
+cancelling it -- arrived at independently of the audit that first measured it.
+
+### NESTED CV: the ranking is NOT a test-set artifact
+
+Resampling the training rows tests sensitivity to the training draw. It cannot
+test whether the 1,098 held-out stars are simply a panel that happens to suit
+CatBoost. Nested CV is the complement: 5 outer folds rotate *which* stars are
+evaluated, with each arm's own calibration CV fit strictly inside the outer
+training fold. Run on the **training rows only** -- the frozen test set was not
+read, because its value is that it has not been optimised against.
+
+| arm | f0 | f1 | f2 | f3 | f4 | mean | sd |
+|---|---|---|---|---|---|---|---|
+| HGB sigmoid cv=5 (production) | 0.9368 | 0.9173 | 0.9308 | 0.9063 | 0.9199 | 0.9222 | 0.0107 |
+| **CatBoost sigmoid cv=20** | 0.9410 | 0.9222 | 0.9332 | 0.9137 | 0.9212 | **0.9263** | 0.0096 |
+| CatBoost bare | 0.9399 | 0.9202 | 0.9310 | 0.9119 | 0.9187 | 0.9243 | 0.0099 |
+| HGB bare | 0.9353 | 0.9118 | 0.9332 | 0.9093 | 0.9181 | 0.9215 | 0.0108 |
+
+Pooled out-of-fold -- every training star predicted exactly once by a model that
+never saw it (n = 4,386):
+
+| arm | AUC | Brier | ECE | delta | ci_lo | ci_hi | clears |
+|---|---|---|---|---|---|---|---|
+| HGB sigmoid cv=5 (production) | 0.9220 | 0.0838 | **0.0208** | -- | -- | -- | -- |
+| **CatBoost sigmoid cv=20** | 0.9262 | 0.0830 | 0.0335 | **+0.0042** | **+0.0012** | +0.0074 | **YES** |
+| CatBoost bare | 0.9240 | 0.0872 | 0.0408 | +0.0020 | -0.0014 | +0.0056 | no |
+| HGB bare | 0.9215 | 0.0945 | **0.0749** | -0.0005 | -0.0027 | +0.0017 | no |
+
+**CatBoost sigmoid cv=20 beats production on 5 of 5 outer folds and clears
+`ci_lo > 0` on the pooled predictions.** The ordering is a property of the
+models, not of the frozen test set.
+
+Three cautions on reading this:
+
+- **The absolute AUCs (~0.92) are not comparable to the ~0.90 headline.** This
+  evaluates training-distribution stars under 5-fold rotation; it is a *ranking*
+  check, never a performance estimate. It does not restate 0.9031.
+- **It clears because n is 4x larger, not because the effect is bigger.** The
+  effect here is +0.0042, roughly *half* the +0.0082 measured on the frozen
+  test. 4,386 pooled points simply certify a smaller delta than 1,098 can. This
+  is the same "label supply is the binding constraint" conclusion from a fourth
+  independent direction.
+- **It confirms the wrapper's calibration value again.** HGB bare's pooled ECE
+  is 0.0749 against production's 0.0208 -- a 3.6x difference, matching the
+  frozen-test finding. Note CatBoost's ECE (0.0335) is *worse* than
+  production's here, so the ranking gain would cost probability quality.
+
+### VERDICT: not promoted, and the reason is the pre-registered rule
+
+Collecting three independent lines of evidence on CatBoost sigmoid cv=20:
+
+| evaluation | delta | verdict |
+|---|---|---|
+| frozen test, single fit | +0.0101 | clears `ci_lo > 0` |
+| frozen test, 12 training bootstraps | +0.0082 | positive 12/12, clears only **6/12** |
+| nested CV, pooled out-of-fold | +0.0042 | clears `ci_lo > 0`, 5/5 folds |
+
+**The effect is almost certainly real.** It is positive in every one of 12
+training draws, positive on all 5 rotated star panels, and reproduces an earlier
+independent estimate (+0.0080). Nothing else in this project has that record.
+
+**It still does not meet the bar, and the bar is not bent.** The standard is
+`ci_lo > 0` on the frozen test, robust across resamples -- and it holds on 6 of
+12, against the >=90% requirement. Both the single-fit pass and the nested-CV
+pass come from evaluations that are either one lucky pairing or a different
+population. **NOT PROMOTED.**
+
+### What promoting it would involve (for the record -- not done, not recommended yet)
+
+Should the decision ever be revisited, the cost is not just a model swap:
+
+1. **A new production dependency.** `catboost` is currently experiment-only.
+   Adding it to `requirements.txt` puts a ~100 MB native wheel on the clean-clone
+   reproduction path, which is presently HGB + sklearn only.
+2. **Worse probabilities, in a UI that displays them.** CatBoost's ECE is 0.0335
+   pooled vs production's 0.0208, and its frozen-test Brier is worse across
+   every arm. The confidence tiers, the candidate pages and the CTOI export all
+   surface probabilities, and the conformal layer is calibrated against the
+   current model's score distribution -- it would need regenerating
+   (`models/conformal_calibration.json` records `model_md5`, so a swap
+   invalidates it by design).
+3. **Retraining cost.** cv=20 is 20 CatBoost fits, ~780 s single-threaded here
+   versus ~200 s for production's cv=5, inside a scheduler-triggered retrain.
+4. **It would not pass the live gate anyway.** The promotion gate applies the
+   same `ci_lo > 0` test the resampling just failed 6/12, so this would have to
+   be a deliberate manual offline swap that bypasses the gate -- which is
+   exactly the kind of exception the gate exists to prevent.
+
+The honest recommendation is unchanged: **the classifier is done at ~0.903
+pending more labels.** Four independent routes -- the learning curve, the
+noise-floor audit, the CatBoost resampling, and now nested CV -- all point at
+test-set size as the binding constraint rather than at model choice. Certifying
+a +0.008 effect needs roughly 1.5-2x the current 1,098 held-out stars.
+
+Scripts: `calibration_holdout_sweep.py` (28-arm sweep, ECE, mechanism test),
+`calibration_holdout_resample.py` (12 bootstraps), `calibration_nested_cv.py`;
+results `calibration_holdout_results.json`,
+`calibration_holdout_resample_results.json`,
+`calibration_nested_cv_results.json`.
+
+Two methodology notes worth carrying forward:
+
+- **`cv="prefit"` was removed in scikit-learn 1.6** (this env runs 1.9). The
+  supported path is `CalibratedClassifierCV(FrozenEstimator(base), method=...)`
+  fit on the holdout slice.
+- **`roc_auc_score` costs ~25 ms/call at n=1098**, almost all input validation,
+  which put this sweep's bootstrap at 47 minutes on its own. Replaced by an
+  exact rank-sum `fast_auc` with averaged ranks for ties (~18x faster, verified
+  to 1e-12 over 400 tie-heavy cases). Ties matter here specifically because
+  isotonic emits plateaus of identical probabilities. See ENVIRONMENT_NOTES §9.
+
 ## UNCERTAINTY QUANTIFICATION (not an accuracy change): split conformal prediction
 
 **Nothing about the model changed.** ROC-AUC is still 0.9031, the artifact md5 is

@@ -1,0 +1,892 @@
+{
+  "baseline": "HGB sigmoid cv=5 (refit in this run)",
+  "baseline_auc_full": 0.9021105768510613,
+  "baseline_auc_2min": 0.8943150046598323,
+  "baseline_brier": 0.0896204097916817,
+  "baseline_ece": 0.039316799829248406,
+  "n_train": 4386,
+  "n_test": 1098,
+  "n_test_2min": 968,
+  "ece_bins": 15,
+  "n_boot": 2000,
+  "rows": [
+    {
+      "family": "CatBoost",
+      "arm": "isotonic cv=20",
+      "kind": "crossfit",
+      "method": "isotonic",
+      "param": 20,
+      "n_base_per_fit": 4166,
+      "n_calibration": 219,
+      "n_models": 20,
+      "fit_s": 730.1,
+      "auc_full": 0.9125311443650546,
+      "auc_2min": 0.9075799937868904,
+      "brier": 0.08770659880272144,
+      "ece": 0.03665088843776984,
+      "ece_2min": 0.037149468264504076,
+      "delta_full": 0.010407844897166918,
+      "ci_full": [
+        0.0028240866643644224,
+        0.018227289124833908
+      ],
+      "clears_full": true,
+      "delta_2min": 0.01321302062805799,
+      "ci_2min": [
+        0.004849381667219463,
+        0.02203429048866535
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid cv=20",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 20,
+      "n_base_per_fit": 4166,
+      "n_calibration": 219,
+      "n_models": 20,
+      "fit_s": 861.9,
+      "auc_full": 0.912221573121227,
+      "auc_2min": 0.9075420247834041,
+      "brier": 0.0894639614212805,
+      "ece": 0.04096220242140853,
+      "ece_2min": 0.039324769590056846,
+      "delta_full": 0.010101928348728712,
+      "ci_full": [
+        0.0028179814835283005,
+        0.017743087438934692
+      ],
+      "clears_full": true,
+      "delta_2min": 0.013147589288150902,
+      "ci_2min": [
+        0.00495287045739346,
+        0.021696490733499083
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid cv=10",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 10,
+      "n_base_per_fit": 3947,
+      "n_calibration": 438,
+      "n_models": 10,
+      "fit_s": 487.4,
+      "auc_full": 0.9115375205340602,
+      "auc_2min": 0.9065065065065065,
+      "brier": 0.08963826012652197,
+      "ece": 0.04102804996060041,
+      "ece_2min": 0.0418193056161363,
+      "delta_full": 0.009392919288615829,
+      "ci_full": [
+        0.002015307519183632,
+        0.017205953084786032
+      ],
+      "clears_full": true,
+      "delta_2min": 0.012087369295088092,
+      "ci_2min": [
+        0.003475291946441783,
+        0.020688529466182104
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "isotonic cv=10",
+      "kind": "crossfit",
+      "method": "isotonic",
+      "param": 10,
+      "n_base_per_fit": 3947,
+      "n_calibration": 438,
+      "n_models": 10,
+      "fit_s": 491.6,
+      "auc_full": 0.9114776035191261,
+      "auc_2min": 0.9061716889303096,
+      "brier": 0.08822789529450549,
+      "ece": 0.02941245281427435,
+      "ece_2min": 0.02874693908032766,
+      "delta_full": 0.009349839489861783,
+      "ci_full": [
+        0.0023588777760557983,
+        0.016851304461013315
+      ],
+      "clears_full": true,
+      "delta_2min": 0.011770381480648549,
+      "ci_2min": [
+        0.003661068188151742,
+        0.020171675100156248
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid prefit holdout=5%",
+      "kind": "prefit",
+      "method": "sigmoid",
+      "param": 0.05,
+      "n_base_per_fit": 4166,
+      "n_calibration": 220,
+      "n_models": 1,
+      "fit_s": 49.4,
+      "auc_full": 0.9112129700364995,
+      "auc_2min": 0.9057471264367817,
+      "brier": 0.08995266956682402,
+      "ece": 0.03886198155423805,
+      "ece_2min": 0.045766152225826265,
+      "delta_full": 0.009114200527508583,
+      "ci_full": [
+        0.0006764656796881096,
+        0.018115121793297655
+      ],
+      "clears_full": true,
+      "delta_2min": 0.011264615635826756,
+      "ci_2min": [
+        0.00211675504103149,
+        0.02068275782606545
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "bare (no wrapper)",
+      "kind": "bare",
+      "method": "-",
+      "param": null,
+      "n_base_per_fit": 4386,
+      "n_calibration": 0,
+      "n_models": 1,
+      "fit_s": 39.8,
+      "auc_full": 0.9106737169020906,
+      "auc_2min": 0.9049670360015187,
+      "brier": 0.09381237312251726,
+      "ece": 0.04428561367513616,
+      "ece_2min": 0.04297972237566743,
+      "delta_full": 0.00853393769707033,
+      "ci_full": [
+        0.0004080760211060437,
+        0.017133409286027957
+      ],
+      "clears_full": true,
+      "delta_2min": 0.010537293183994245,
+      "ci_2min": [
+        0.0013890825956937552,
+        0.020142082136627243
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid prefit holdout=10%",
+      "kind": "prefit",
+      "method": "sigmoid",
+      "param": 0.1,
+      "n_base_per_fit": 3947,
+      "n_calibration": 439,
+      "n_models": 1,
+      "fit_s": 49.5,
+      "auc_full": 0.9102842563050176,
+      "auc_2min": 0.9054847951399676,
+      "brier": 0.09139135152906579,
+      "ece": 0.03514373686081943,
+      "ece_2min": 0.03773280780871354,
+      "delta_full": 0.008181745097728425,
+      "ci_full": [
+        -0.0006806470161942718,
+        0.01677870123746191
+      ],
+      "clears_full": false,
+      "delta_2min": 0.010965766828600981,
+      "ci_2min": [
+        0.001291211616457355,
+        0.020490257234563533
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid cv=5",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 5,
+      "n_base_per_fit": 3508,
+      "n_calibration": 877,
+      "n_models": 5,
+      "fit_s": 213.1,
+      "auc_full": 0.9085866075485453,
+      "auc_2min": 0.9030616823720273,
+      "brier": 0.09016267996719525,
+      "ece": 0.030579088053179847,
+      "ece_2min": 0.03298935533245942,
+      "delta_full": 0.006460431715345373,
+      "ci_full": [
+        -0.0004681301358041623,
+        0.013761919047351212
+      ],
+      "clears_full": false,
+      "delta_2min": 0.008673218533300841,
+      "ci_2min": [
+        0.0003053617444879947,
+        0.017174079174617933
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "isotonic cv=5",
+      "kind": "crossfit",
+      "method": "isotonic",
+      "param": 5,
+      "n_base_per_fit": 3508,
+      "n_calibration": 877,
+      "n_models": 5,
+      "fit_s": 252.9,
+      "auc_full": 0.9085541524987892,
+      "auc_2min": 0.9034310172241208,
+      "brier": 0.0882091384829821,
+      "ece": 0.026403101929055588,
+      "ece_2min": 0.027125329649250345,
+      "delta_full": 0.0064278770281297306,
+      "ci_full": [
+        -0.000699956578886185,
+        0.01397841350461731
+      ],
+      "clears_full": false,
+      "delta_2min": 0.009089079385976117,
+      "ci_2min": [
+        0.0006284451242048102,
+        0.01772989504295228
+      ],
+      "clears_2min": true
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid prefit holdout=20%",
+      "kind": "prefit",
+      "method": "sigmoid",
+      "param": 0.2,
+      "n_base_per_fit": 3508,
+      "n_calibration": 878,
+      "n_models": 1,
+      "fit_s": 46.6,
+      "auc_full": 0.907248460881679,
+      "auc_2min": 0.9018121569845707,
+      "brier": 0.09225404401098064,
+      "ece": 0.04188799505488914,
+      "ece_2min": 0.04156625825234874,
+      "delta_full": 0.0051602018690447985,
+      "ci_full": [
+        -0.003433626646306559,
+        0.013949395091822827
+      ],
+      "clears_full": false,
+      "delta_2min": 0.00742543706684975,
+      "ci_2min": [
+        -0.001889534558868433,
+        0.01745266832152531
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "CatBoost",
+      "arm": "isotonic prefit holdout=20%",
+      "kind": "prefit",
+      "method": "isotonic",
+      "param": 0.2,
+      "n_base_per_fit": 3508,
+      "n_calibration": 878,
+      "n_models": 1,
+      "fit_s": 48.6,
+      "auc_full": 0.9057929767272328,
+      "auc_2min": 0.900624762693728,
+      "brier": 0.08984489959055802,
+      "ece": 0.02444912018944147,
+      "ece_2min": 0.02780074419471909,
+      "delta_full": 0.003742338772441355,
+      "ci_full": [
+        -0.006036839665856225,
+        0.013839348824599201
+      ],
+      "clears_full": false,
+      "delta_2min": 0.006306607809035587,
+      "ci_2min": [
+        -0.004454437764356894,
+        0.017231531972304096
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid cv=3",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 3,
+      "n_base_per_fit": 2924,
+      "n_calibration": 1462,
+      "n_models": 3,
+      "fit_s": 108.3,
+      "auc_full": 0.9023951826719993,
+      "auc_2min": 0.8938731835283558,
+      "brier": 0.0922774187130983,
+      "ece": 0.043358854353638676,
+      "ece_2min": 0.041633218908863505,
+      "delta_full": 9.732308609512897e-05,
+      "ci_full": [
+        -0.008326853718344403,
+        0.008821379839112856
+      ],
+      "clears_full": false,
+      "delta_2min": -0.0004340833332847377,
+      "ci_2min": [
+        -0.010469148098216802,
+        0.009405864732751805
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "CatBoost",
+      "arm": "isotonic prefit holdout=10%",
+      "kind": "prefit",
+      "method": "isotonic",
+      "param": 0.1,
+      "n_base_per_fit": 3947,
+      "n_calibration": 439,
+      "n_models": 1,
+      "fit_s": 49.3,
+      "auc_full": 0.8966855904572167,
+      "auc_2min": 0.8913672292982637,
+      "brier": 0.09317079317628711,
+      "ece": 0.03174730736099606,
+      "ece_2min": 0.03360607463258293,
+      "delta_full": -0.005367780562804358,
+      "ci_full": [
+        -0.016247694571625282,
+        0.00605607888887652
+      ],
+      "clears_full": false,
+      "delta_2min": -0.0030380190528364803,
+      "ci_2min": [
+        -0.015284699609454246,
+        0.008587836797054075
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "CatBoost",
+      "arm": "isotonic prefit holdout=5%",
+      "kind": "prefit",
+      "method": "isotonic",
+      "param": 0.05,
+      "n_base_per_fit": 4166,
+      "n_calibration": 220,
+      "n_models": 1,
+      "fit_s": 46.5,
+      "auc_full": 0.8963785157556783,
+      "auc_2min": 0.8895792344068206,
+      "brier": 0.09047141925059128,
+      "ece": 0.02495898442773618,
+      "ece_2min": 0.02409279750350159,
+      "delta_full": -0.005811918391224642,
+      "ci_full": [
+        -0.01585456061962974,
+        0.0041635498811229505
+      ],
+      "clears_full": false,
+      "delta_2min": -0.004755627035118364,
+      "ci_2min": [
+        -0.0154908421098719,
+        0.006136204237697384
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "sigmoid cv=20",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 20,
+      "n_base_per_fit": 4166,
+      "n_calibration": 219,
+      "n_models": 20,
+      "fit_s": 916.4,
+      "auc_full": 0.9050864552594656,
+      "auc_2min": 0.8979186082634358,
+      "brier": 0.08926434158926033,
+      "ece": 0.030758959281615955,
+      "ece_2min": 0.029244815349278974,
+      "delta_full": 0.003006723073118196,
+      "ci_full": [
+        -0.0004912428758821418,
+        0.00701628917081889
+      ],
+      "clears_full": false,
+      "delta_2min": 0.0034885039938626736,
+      "ci_2min": [
+        -0.0004861686232105089,
+        0.007846223548436377
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "isotonic cv=20",
+      "kind": "crossfit",
+      "method": "isotonic",
+      "param": 20,
+      "n_base_per_fit": 4166,
+      "n_calibration": 219,
+      "n_models": 20,
+      "fit_s": 933.2,
+      "auc_full": 0.904896718045507,
+      "auc_2min": 0.8979358669013842,
+      "brier": 0.08924313345607114,
+      "ece": 0.023358134925919094,
+      "ece_2min": 0.02693671107062872,
+      "delta_full": 0.002789873396067332,
+      "ci_full": [
+        -0.0007720082307755338,
+        0.006731531739132218
+      ],
+      "clears_full": false,
+      "delta_2min": 0.003549965338658217,
+      "ci_2min": [
+        -0.0006068977226805384,
+        0.007985556502196985
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "sigmoid cv=10",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 10,
+      "n_base_per_fit": 3947,
+      "n_calibration": 438,
+      "n_models": 10,
+      "fit_s": 421.4,
+      "auc_full": 0.9048118356076833,
+      "auc_2min": 0.897248973111042,
+      "brier": 0.08853336905841189,
+      "ece": 0.01932153918256553,
+      "ece_2min": 0.020165682153350257,
+      "delta_full": 0.002729163632342514,
+      "ci_full": [
+        -0.00033239247668518653,
+        0.0059571591207825255
+      ],
+      "clears_full": false,
+      "delta_2min": 0.002867871395208521,
+      "ci_2min": [
+        -0.0004729833187589516,
+        0.006373029971866346
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "isotonic cv=10",
+      "kind": "crossfit",
+      "method": "isotonic",
+      "param": 10,
+      "n_base_per_fit": 3947,
+      "n_calibration": 438,
+      "n_models": 10,
+      "fit_s": 422.3,
+      "auc_full": 0.9044423473489217,
+      "auc_2min": 0.8965310137723931,
+      "brier": 0.08835690893812304,
+      "ece": 0.018085485938480993,
+      "ece_2min": 0.02275134231359959,
+      "delta_full": 0.002340185756481359,
+      "ci_full": [
+        -0.0012227024595696744,
+        0.006086335901474779
+      ],
+      "clears_full": false,
+      "delta_2min": 0.0021509905185014802,
+      "ci_2min": [
+        -0.0018155504054980232,
+        0.006264941036137086
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "bare (no wrapper)",
+      "kind": "bare",
+      "method": "-",
+      "param": null,
+      "n_base_per_fit": 4386,
+      "n_calibration": 0,
+      "n_models": 1,
+      "fit_s": 42.4,
+      "auc_full": 0.9036334676473083,
+      "auc_2min": 0.8955162058610335,
+      "brier": 0.1046411811956188,
+      "ece": 0.09262166820771961,
+      "ece_2min": 0.09620105137119164,
+      "delta_full": 0.0014654879236126988,
+      "ci_full": [
+        -0.003566726889598304,
+        0.006516935581562089
+      ],
+      "clears_full": false,
+      "delta_2min": 0.0010880077299470425,
+      "ci_2min": [
+        -0.0044989959330226205,
+        0.006793595201728104
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "sigmoid prefit holdout=10%",
+      "kind": "prefit",
+      "method": "sigmoid",
+      "param": 0.1,
+      "n_base_per_fit": 3947,
+      "n_calibration": 439,
+      "n_models": 1,
+      "fit_s": 48.4,
+      "auc_full": 0.9030542698362768,
+      "auc_2min": 0.8985813399606504,
+      "brier": 0.0909012663963665,
+      "ece": 0.025982831796020907,
+      "ece_2min": 0.025726141881016337,
+      "delta_full": 0.0011193120473936332,
+      "ci_full": [
+        -0.005433789123044411,
+        0.008028994103073377
+      ],
+      "clears_full": false,
+      "delta_2min": 0.004119734407301818,
+      "ci_2min": [
+        -0.0027797636069667397,
+        0.011709192376227567
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "sigmoid cv=5",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 5,
+      "n_base_per_fit": 3508,
+      "n_calibration": 877,
+      "n_models": 5,
+      "fit_s": 198.9,
+      "auc_full": 0.9021105768510613,
+      "auc_2min": 0.8943150046598323,
+      "brier": 0.0896204097916817,
+      "ece": 0.039316799829248406,
+      "ece_2min": 0.03890825753859048,
+      "delta_full": 0.0,
+      "ci_full": [
+        0.0,
+        0.0
+      ],
+      "clears_full": false,
+      "delta_2min": 0.0,
+      "ci_2min": [
+        0.0,
+        0.0
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "sigmoid prefit holdout=20%",
+      "kind": "prefit",
+      "method": "sigmoid",
+      "param": 0.2,
+      "n_base_per_fit": 3508,
+      "n_calibration": 878,
+      "n_models": 1,
+      "fit_s": 46.2,
+      "auc_full": 0.9015263859554518,
+      "auc_2min": 0.8966759863311587,
+      "brier": 0.09185707883118956,
+      "ece": 0.028210486406558037,
+      "ece_2min": 0.030984368143153532,
+      "delta_full": -0.00045814238325239665,
+      "ci_full": [
+        -0.007973951242837882,
+        0.007479626267200545
+      ],
+      "clears_full": false,
+      "delta_2min": 0.002185469292905073,
+      "ci_2min": [
+        -0.005661369874312275,
+        0.01073841731724617
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "isotonic prefit holdout=10%",
+      "kind": "prefit",
+      "method": "isotonic",
+      "param": 0.1,
+      "n_base_per_fit": 3947,
+      "n_calibration": 439,
+      "n_models": 1,
+      "fit_s": 41.4,
+      "auc_full": 0.9005327621244577,
+      "auc_2min": 0.8959821890856373,
+      "brier": 0.08966489692663124,
+      "ece": 0.019235330849987336,
+      "ece_2min": 0.020372092677015646,
+      "delta_full": -0.0013907095341763199,
+      "ci_full": [
+        -0.010094553130286236,
+        0.0074348859176360796
+      ],
+      "clears_full": false,
+      "delta_2min": 0.0016145172331886743,
+      "ci_2min": [
+        -0.007260839936344396,
+        0.011158860016169496
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "isotonic cv=5",
+      "kind": "crossfit",
+      "method": "isotonic",
+      "param": 5,
+      "n_base_per_fit": 3508,
+      "n_calibration": 877,
+      "n_models": 5,
+      "fit_s": 201.0,
+      "auc_full": 0.9003654937910993,
+      "auc_2min": 0.8918055987021506,
+      "brier": 0.08960200772364357,
+      "ece": 0.024542825870980153,
+      "ece_2min": 0.028819584208347106,
+      "delta_full": -0.0017644296761172176,
+      "ci_full": [
+        -0.00415934727955915,
+        0.0006175937549698178
+      ],
+      "clears_full": false,
+      "delta_2min": -0.00243869439732881,
+      "ci_2min": [
+        -0.005230393328923924,
+        0.0002924901567032477
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "sigmoid prefit holdout=5%",
+      "kind": "prefit",
+      "method": "sigmoid",
+      "param": 0.05,
+      "n_base_per_fit": 4166,
+      "n_calibration": 220,
+      "n_models": 1,
+      "fit_s": 39.9,
+      "auc_full": 0.8997887925223564,
+      "auc_2min": 0.8945773359566462,
+      "brier": 0.09292429636677521,
+      "ece": 0.03730366201833566,
+      "ece_2min": 0.03672187997383021,
+      "delta_full": -0.002246976550342786,
+      "ci_full": [
+        -0.008789168162840292,
+        0.00405906972547029
+      ],
+      "clears_full": false,
+      "delta_2min": 1.8256603366606284e-05,
+      "ci_2min": [
+        -0.005971901875265276,
+        0.005983630042864072
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "isotonic prefit holdout=20%",
+      "kind": "prefit",
+      "method": "isotonic",
+      "param": 0.2,
+      "n_base_per_fit": 3508,
+      "n_calibration": 878,
+      "n_models": 1,
+      "fit_s": 38.0,
+      "auc_full": 0.8987726998107621,
+      "auc_2min": 0.8940906423665043,
+      "brier": 0.09439485941239091,
+      "ece": 0.030115054969120876,
+      "ece_2min": 0.034672311529285724,
+      "delta_full": -0.0032187641758183237,
+      "ci_full": [
+        -0.011418960746991585,
+        0.005124075027839588
+      ],
+      "clears_full": false,
+      "delta_2min": -0.0003599899331314569,
+      "ci_2min": [
+        -0.009282367240224096,
+        0.00916828717114229
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "sigmoid cv=3",
+      "kind": "crossfit",
+      "method": "sigmoid",
+      "param": 3,
+      "n_base_per_fit": 2924,
+      "n_calibration": 1462,
+      "n_models": 3,
+      "fit_s": 111.2,
+      "auc_full": 0.8961038961038962,
+      "auc_2min": 0.8862862862862864,
+      "brier": 0.09307843351362731,
+      "ece": 0.032573761071409406,
+      "ece_2min": 0.031634608012480823,
+      "delta_full": -0.0060707859319360565,
+      "ci_full": [
+        -0.011478183577318505,
+        -0.0009752387933327653
+      ],
+      "clears_full": false,
+      "delta_2min": -0.00806160566412458,
+      "ci_2min": [
+        -0.01421826444462771,
+        -0.002169424274651791
+      ],
+      "clears_2min": false
+    },
+    {
+      "family": "HGB",
+      "arm": "isotonic prefit holdout=5%",
+      "kind": "prefit",
+      "method": "isotonic",
+      "param": 0.05,
+      "n_base_per_fit": 4166,
+      "n_calibration": 220,
+      "n_models": 1,
+      "fit_s": 43.2,
+      "auc_full": 0.8875906868986454,
+      "auc_2min": 0.8808532670601636,
+      "brier": 0.0979549721507583,
+      "ece": 0.04661940442893811,
+      "ece_2min": 0.04306598819756722,
+      "delta_full": -0.014569267663597509,
+      "ci_full": [
+        -0.023645576416359924,
+        -0.0063112861035370445
+      ],
+      "clears_full": false,
+      "delta_2min": -0.013670925319078233,
+      "ci_2min": [
+        -0.023543076229425704,
+        -0.004032705576686317
+      ],
+      "clears_2min": false
+    }
+  ],
+  "mechanism": [
+    {
+      "family": "HGB",
+      "holdout": 0.2,
+      "folds": 5,
+      "prefit_auc": 0.9015263859554518,
+      "crossfit_auc": 0.9021105768510613,
+      "gap": -0.0005841908956095709,
+      "n_base_prefit": 3508,
+      "n_base_crossfit": 3508
+    },
+    {
+      "family": "HGB",
+      "holdout": 0.1,
+      "folds": 10,
+      "prefit_auc": 0.9030542698362768,
+      "crossfit_auc": 0.9048118356076833,
+      "gap": -0.0017575657714065107,
+      "n_base_prefit": 3947,
+      "n_base_crossfit": 3947
+    },
+    {
+      "family": "HGB",
+      "holdout": 0.05,
+      "folds": 20,
+      "prefit_auc": 0.8997887925223564,
+      "crossfit_auc": 0.9050864552594656,
+      "gap": -0.005297662737109188,
+      "n_base_prefit": 4166,
+      "n_base_crossfit": 4166
+    },
+    {
+      "family": "CatBoost",
+      "holdout": 0.2,
+      "folds": 5,
+      "prefit_auc": 0.907248460881679,
+      "crossfit_auc": 0.9085866075485453,
+      "gap": -0.001338146666866269,
+      "n_base_prefit": 3508,
+      "n_base_crossfit": 3508
+    },
+    {
+      "family": "CatBoost",
+      "holdout": 0.1,
+      "folds": 10,
+      "prefit_auc": 0.9102842563050176,
+      "crossfit_auc": 0.9115375205340602,
+      "gap": -0.0012532642290425944,
+      "n_base_prefit": 3947,
+      "n_base_crossfit": 3947
+    },
+    {
+      "family": "CatBoost",
+      "holdout": 0.05,
+      "folds": 20,
+      "prefit_auc": 0.9112129700364995,
+      "crossfit_auc": 0.912221573121227,
+      "gap": -0.0010086030847274996,
+      "n_base_prefit": 4166,
+      "n_base_crossfit": 4166
+    }
+  ],
+  "single_fit_clearing": [
+    {
+      "family": "CatBoost",
+      "arm": "isotonic cv=20",
+      "delta": 0.010407844897166918
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid cv=20",
+      "delta": 0.010101928348728712
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid cv=10",
+      "delta": 0.009392919288615829
+    },
+    {
+      "family": "CatBoost",
+      "arm": "isotonic cv=10",
+      "delta": 0.009349839489861783
+    },
+    {
+      "family": "CatBoost",
+      "arm": "sigmoid prefit holdout=5%",
+      "delta": 0.009114200527508583
+    },
+    {
+      "family": "CatBoost",
+      "arm": "bare (no wrapper)",
+      "delta": 0.00853393769707033
+    }
+  ]
+}
