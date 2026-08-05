@@ -3650,6 +3650,106 @@ add nothing to the model.
 
 Scripts: `oddeven_timing.py`; data `oddeven_timing_features.csv`.
 
+## Expanded time-series statistics -- variance ratio + residual autocorrelation. NEGATIVE.
+
+Three statistics proposed. One is a duplicate and was not rebuilt; two were
+genuinely new, were built, passed every pre-model check, and still moved
+nothing.
+
+### Part 0: what was already tested, read from the code rather than summarised
+
+The closed medium-lift "phase-folded flux distribution statistics" experiment
+produced exactly nine columns, confirmed from its own output file
+`flux_distribution_features.csv`:
+
+    in_skew, in_kurt, out_skew, out_kurt, skew_diff, kurt_diff,
+    wavelet_e1, wavelet_e2, wavelet_e3
+
+| proposed statistic | verdict | reasoning |
+|---|---|---|
+| skewness/kurtosis of the phase-folded profile | **DUPLICATE** | exactly `in_/out_skew`, `in_/out_kurt` and their differences, on the phase-folded curve, split in/out of transit. Result was -0.0072, CI [-0.0153, +0.0010], nested CV flat. Not rebuilt. |
+| in-transit vs out-of-transit VARIANCE ratio | **GENUINELY NEW** | that work differenced the 3rd and 4th moments but never compared the 2nd. Its `n_in`/`n_out` columns are point counts, not variances. |
+| autocorrelation of residuals | **GENUINELY NEW** | repo-wide grep for `autocorr\|acf\|lag_1\|variance_ratio` returns zero matches. A different mathematical object: temporal correlation, not a single-point moment. |
+
+**A premise correction.** The request described the medium-lift round as having
+"a control that disqualified an apparent win as an artifact" for
+skewness/kurtosis. That belongs to a DIFFERENT experiment: Item 1 (multi-sector
+depth consistency) is the one headed "ARTIFACT, NOT PROMOTED". Item 2 (flux
+statistics) was measurably negative, and its issue was a bookkeeping bug caught
+before the result was trusted -- `build_feature_matrix` selects only
+`FEATURE_COLUMNS`, so merged columns never entered X and the run would have
+reported a perfectly null comparison that never actually differed. Two distinct
+failures; the summary in circulation had merged them.
+
+### The two new features, and the direction predicted BEFORE measuring
+
+```
+ts_var_ratio = var(in-transit flux) / var(out-of-transit flux)
+ts_acf_lag1, ts_acf_1hr = autocorrelation of (flux - own phase-folded binned
+                          profile) at 1 cadence and at ~1 hour
+```
+
+Predicted, in writing, before any measurement: **all three should score AUC
+below 0.5** (false positives above planets). A flat-bottomed transit leaves
+in-transit scatter near the out-of-transit noise and near-white residuals;
+grazing eclipses, blends and instrumental systematics inflate both.
+
+**All three predictions held.** Coverage 5,309/5,486 = **96.8%**.
+
+| feature | AUC | \|0.5-AUC\| | direction | max \|r\| vs the 26 | vs \|galactic b\| |
+|---|---|---|---|---|---|
+| `ts_var_ratio` | 0.4195 | 0.0805 | as predicted | 0.370 (`odd_even_mismatch`) | 0.060 |
+| `ts_acf_lag1` | 0.4131 | 0.0869 | as predicted | 0.340 (`snr`) | 0.073 |
+| `ts_acf_1hr` | 0.4491 | 0.0509 | as predicted | 0.413 (`duration`) | 0.016 |
+
+Class medians: false positives show higher in-transit variance (1.0518 vs
+1.0138) and more correlated residuals (+0.0017 vs -0.0036). Missingness clean
+(96.4% planets / 98.1% false positives, availability AUC 0.4917). No spatial
+exposure -- checked rather than assumed, per the giant-star lesson. Computable
+on both candidate pools, 20/20 and 20/20, checked BEFORE modelling.
+
+This is the strongest pre-model profile of any feature tested recently: real
+signal, correct sign, orthogonal, clean, high coverage. It earned a model fit.
+
+### And it still moves nothing (12 bootstraps, production recipe, vs 0.9208)
+
+Baseline resampled: AUC 0.9128 (sd 0.0020), Brier 0.0879, ECE 0.0417.
+
+| arm | features | mean delta | sd | range | positive | clears | >=MDE | delta 2-min | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|---|---|
+| A: +var_ratio | 27 | **-0.0015** | 0.0013 | -0.0042..+0.0001 | 1/12 | 0/12 | 0/12 | -0.0016 | 0.0884 | 0.0412 |
+| B: +residual ACF | 28 | **-0.0003** | 0.0012 | -0.0027..+0.0015 | 6/12 | 0/12 | 0/12 | -0.0017 | 0.0886 | 0.0409 |
+| C: all three | 29 | **-0.0010** | 0.0009 | -0.0029..+0.0001 | 2/12 | 0/12 | 0/12 | -0.0022 | 0.0889 | 0.0421 |
+
+**No arm clears, on either population. All three are slightly negative.**
+
+**The bug that nulled the earlier flux-statistics run was guarded against
+explicitly.** Every fit asserts its column count (26 -> 27/28/29) and aborts
+otherwise, so these zeros are real comparisons rather than the silent
+no-op that experiment first produced.
+
+### RECOMMENDATION: do not promote any of the three
+
+This is now the **fifth** independent measurement of the same pattern: a
+feature with genuine, physically-correct, low-correlation signal in isolation
+that adds nothing to the model. The others were `odd_even_significance` (AUC
+0.353), `duty_cycle` (0.353), `sec_significance` (0.381) and the harmonic
+power ratios (~0.41). Novel-by-correlation is not novel-to-the-model: a
+gradient-boosted ensemble over 26 correlated TLS statistics has already
+extracted this information by other routes, and low pairwise correlation with
+any SINGLE existing feature does not mean the information is unavailable as a
+COMBINATION of them.
+
+The practical implication is worth stating plainly: the remaining headroom in
+this feature space is small enough that new derived statistics from the same
+light curves are unlikely to clear 0.0097, however well motivated. The crowding
+result -- the one deployed win -- came from genuinely EXTERNAL data (a star
+catalog), not from another statistic computed on the same photometry.
+
+Scripts: `timeseries_stats.py`, `timeseries_stats_validate.py`; data
+`timeseries_stats_features.csv`; results
+`timeseries_stats_validate_results.json`.
+
 ## NON-KEPLER SURVEYS -- CLOSED AT THE PART 1 GATE. No download performed.
 
 K2, CoRoT, WASP, HATNet/HATSouth, KELT, NGTS and TRAPPIST assessed as training
