@@ -1,0 +1,101 @@
+{
+  "band": [
+    8.0,
+    40.0
+  ],
+  "n_train": 2797,
+  "n_test": 713,
+  "mde_rescaled": 0.012037273808022844,
+  "delta_mean": 0.009651744589385333,
+  "delta_sd": 0.002723906751778466,
+  "n_positive": 12,
+  "n_clearing": 7,
+  "fraction_retained": 0.8043120491154444,
+  "verdict": "SURVIVES -- effect is physical, not the sky-region difference",
+  "rows": [
+    {
+      "rep": 0,
+      "baseline_auc": 0.9025580703604554,
+      "crowd_auc": 0.9055055298666883,
+      "delta": 0.0027587563128961784,
+      "clears": false
+    },
+    {
+      "rep": 1,
+      "baseline_auc": 0.9032881750087882,
+      "crowd_auc": 0.9139287742354183,
+      "delta": 0.010617893696570943,
+      "clears": true
+    },
+    {
+      "rep": 2,
+      "baseline_auc": 0.8929855871934237,
+      "crowd_auc": 0.9047483843054541,
+      "delta": 0.011631561191167473,
+      "clears": true
+    },
+    {
+      "rep": 3,
+      "baseline_auc": 0.8995159676590683,
+      "crowd_auc": 0.9137394878451095,
+      "delta": 0.014073913599270696,
+      "clears": true
+    },
+    {
+      "rep": 4,
+      "baseline_auc": 0.8977042264946865,
+      "crowd_auc": 0.9086828371325816,
+      "delta": 0.01078243991097132,
+      "clears": true
+    },
+    {
+      "rep": 5,
+      "baseline_auc": 0.9087774803277358,
+      "crowd_auc": 0.9164706200481328,
+      "delta": 0.0076610325830796825,
+      "clears": false
+    },
+    {
+      "rep": 6,
+      "baseline_auc": 0.9079662529406992,
+      "crowd_auc": 0.918647413536681,
+      "delta": 0.010617070398751262,
+      "clears": true
+    },
+    {
+      "rep": 7,
+      "baseline_auc": 0.9010978610637895,
+      "crowd_auc": 0.9124144831129499,
+      "delta": 0.011285610468464933,
+      "clears": true
+    },
+    {
+      "rep": 8,
+      "baseline_auc": 0.8929450258240718,
+      "crowd_auc": 0.901598117952462,
+      "delta": 0.008454212990144311,
+      "clears": false
+    },
+    {
+      "rep": 9,
+      "baseline_auc": 0.8992185176171548,
+      "crowd_auc": 0.9077904870068414,
+      "delta": 0.00841416314569099,
+      "clears": false
+    },
+    {
+      "rep": 10,
+      "baseline_auc": 0.8979205537978961,
+      "crowd_auc": 0.9062356345150212,
+      "delta": 0.008137149642316606,
+      "clears": false
+    },
+    {
+      "rep": 11,
+      "baseline_auc": 0.897095805954409,
+      "crowd_auc": 0.9086287553067792,
+      "delta": 0.011387131133299607,
+      "clears": true
+    }
+  ]
+}

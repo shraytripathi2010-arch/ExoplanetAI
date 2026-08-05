@@ -1,0 +1,119 @@
+{
+  "n_resamples": 12,
+  "cat_minus_hgb_no_position_mean": 0.007422563480183896,
+  "cat_minus_hgb_with_position_mean": 0.0055007532562287124,
+  "shift": -0.0019218102239551837,
+  "n_clearing_no_position": 5,
+  "n_clearing_with_position": 3,
+  "verdict": "CatBoost's advantage is NOT positional -- unchanged when both see |b|",
+  "rows": [
+    {
+      "rep": 0,
+      "cat_minus_hgb_no_position": 0.0065425919310362155,
+      "clears_no_position": false,
+      "cat_minus_hgb_with_position": 0.004706455494396657,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.8927135916755294,
+      "cat_auc_base": 0.899204601626747
+    },
+    {
+      "rep": 1,
+      "cat_minus_hgb_no_position": 0.007484660831173512,
+      "clears_no_position": false,
+      "cat_minus_hgb_with_position": 0.004251369355615373,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.8957094424222452,
+      "cat_auc_base": 0.9032539932193911
+    },
+    {
+      "rep": 2,
+      "cat_minus_hgb_no_position": 0.0017537505705032235,
+      "clears_no_position": false,
+      "cat_minus_hgb_with_position": 0.0034129284110420766,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.8993893457561277,
+      "cat_auc_base": 0.9012118216270466
+    },
+    {
+      "rep": 3,
+      "cat_minus_hgb_no_position": 0.006585437254965728,
+      "clears_no_position": false,
+      "cat_minus_hgb_with_position": 0.004859377676473973,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.8954697743625079,
+      "cat_auc_base": 0.9019208396371026
+    },
+    {
+      "rep": 4,
+      "cat_minus_hgb_no_position": 0.007971814141602128,
+      "clears_no_position": true,
+      "cat_minus_hgb_with_position": 0.004165621372624561,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.8965133290392806,
+      "cat_auc_base": 0.9044273680951881
+    },
+    {
+      "rep": 5,
+      "cat_minus_hgb_no_position": 0.006584727990608291,
+      "clears_no_position": false,
+      "cat_minus_hgb_with_position": 0.0004915613501013441,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.9024151550103108,
+      "cat_auc_base": 0.9090010335685075
+    },
+    {
+      "rep": 6,
+      "cat_minus_hgb_no_position": 0.005346314279705121,
+      "clears_no_position": false,
+      "cat_minus_hgb_with_position": 0.005713462887405877,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.8954248366013071,
+      "cat_auc_base": 0.9007973956070842
+    },
+    {
+      "rep": 7,
+      "cat_minus_hgb_no_position": 0.013284674578752232,
+      "clears_no_position": true,
+      "cat_minus_hgb_with_position": 0.015321127230474437,
+      "clears_with_position": true,
+      "hgb_auc_base": 0.8913654588395072,
+      "cat_auc_base": 0.9045671744633683
+    },
+    {
+      "rep": 8,
+      "cat_minus_hgb_no_position": 0.011516118968212093,
+      "clears_no_position": true,
+      "cat_minus_hgb_with_position": 0.008550372445169112,
+      "clears_with_position": true,
+      "hgb_auc_base": 0.8917499263520025,
+      "cat_auc_base": 0.9033039240651699
+    },
+    {
+      "rep": 9,
+      "cat_minus_hgb_no_position": 0.009899324792964667,
+      "clears_no_position": true,
+      "cat_minus_hgb_with_position": 0.0081179820313953,
+      "clears_with_position": true,
+      "hgb_auc_base": 0.8950853068500126,
+      "cat_auc_base": 0.9050165520753757
+    },
+    {
+      "rep": 10,
+      "cat_minus_hgb_no_position": 0.0072859770643993816,
+      "clears_no_position": true,
+      "cat_minus_hgb_with_position": 0.00356270758434993,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.898850092621719,
+      "cat_auc_base": 0.9061499822745498
+    },
+    {
+      "rep": 11,
+      "cat_minus_hgb_no_position": 0.00481536935828415,
+      "clears_no_position": false,
+      "cat_minus_hgb_with_position": 0.002856073235695907,
+      "clears_with_position": false,
+      "hgb_auc_base": 0.8984756112783794,
+      "cat_auc_base": 0.9032639793885469
+    }
+  ]
+}

@@ -2420,7 +2420,100 @@ the catalog missed. The centroid result stands as recorded (+0.0032, CI crossed
 zero, 77.6% coverage). This is a different measurement that happens to work
 better, not a re-run of it.
 
-### Verdict
+### FINALISED: the confound-adjusted decision (supersedes the verdict below)
+
+Four further runs were done to settle what crowding is actually worth. Full
+metrics, 12 bootstraps each, production refit on identical rows.
+
+| arm | mean delta | sd | clears | >=MDE | Brier | ECE |
+|---|---|---|---|---|---|---|
+| +2 crowding (candidate) | +0.0167 | 0.0019 | 12/12 | 12/12 | 0.0879 | 0.0417 |
+| +\|b\| only (control) | +0.0135 | 0.0023 | 12/12 | 12/12 | 0.0879 | 0.0402 |
+| +\|b\| + crowding | +0.0255 | 0.0014 | 12/12 | 12/12 | 0.0840 | 0.0375 |
+| +\|eclat\| + crowding | **+0.0306** | 0.0023 | 12/12 | 12/12 | 0.0806 | 0.0347 |
+
+**A methodological correction, stated first because it invalidates an earlier
+claim in this file.** `|ecliptic latitude|` has a standalone AUC of **0.4920** --
+no marginal signal whatsoever -- and on that basis it was previously written
+here that TESS observing geometry is not a confound. **That inference was
+wrong.** Adding `|eclat|` on top of crowding produces **+0.0306**, the largest
+arm in the experiment. A variable with no marginal predictive power can still be
+a powerful *conditioning* variable: ecliptic latitude sets how many TESS sectors
+a star receives, which sets baseline length, transit count and SNR, which tells
+the model how to read every other feature.
+
+**Correlation and marginal AUC therefore cannot rule out a confound.** Any
+retrospective clearance in this file that rests on those two diagnostics alone
+(including parts of the audit below) is weaker evidence than it appears.
+
+**Neither position variable is a promotion candidate**, despite posting the
+largest numbers, because neither transfers to the pool actually scored:
+
+| | planets | false positives | UNKNOWN pool | KS vs planets |
+|---|---|---|---|---|
+| median \|b\| | 16.9 deg | 12.5 deg | **32.4 deg** | D=0.26, p=3e-17 |
+| median \|eclat\| | 59.2 deg | 52.0 deg | **39.7 deg** | **D=0.51, p=1e-67** |
+
+A model taught "higher \|b\| -> more likely planet" would apply it to candidates
+drawn from systematically different sky. Test-set AUC rises, production
+behaviour degrades. These arms measure the confound; they are not proposals.
+
+### The test that decides it: crowding inside a MATCHED sky region
+
+Modelling `|b|` removes the latitude axis but not the fact that the classes were
+drawn from different sky. So instead of modelling the difference, delete it:
+restrict both classes to `|b|` in [8, 40] deg.
+
+    band retains 3,510/5,485 stars (64%)  -- train 2,797, test 713
+    median |b| INSIDE band: planets 15.9 deg, false positives 19.7 deg
+                            (was 16.9 vs 12.5 -- the class difference INVERTS)
+    detection threshold rescaled for n=713: ~0.0120
+
+| | value |
+|---|---|
+| crowding delta inside the band | **+0.0097** (sd 0.0027, range +0.0028..+0.0141) |
+| positive | **12/12** |
+| clears (against the raised 0.0120 threshold) | 7/12 |
+| fraction of the +0.0120 estimate retained | **80%** |
+
+**The effect survives with the sky-region difference inverted.** That is the
+strongest available evidence that the mechanism is physical -- a crowded field
+really does produce blended false positives -- rather than an artifact of which
+survey found the star.
+
+### RECOMMENDATION: GO, at +0.010 to +0.012, not +0.0167
+
+Three independent estimates converge: +0.0167 raw, **+0.0120 beyond modelled
+position**, **+0.0097 inside a matched sky region**. The honest expected value is
+**~+0.010-0.012**, at or just above the 0.0097 threshold -- roughly a third
+smaller than the headline. It is positive on 12/12 resamples in every framing
+tested, improves Brier (-0.0066) and ECE (-0.0024), needs no new dependency, is
+100% available on unknown candidates from the TIC key alone, and is
+near-orthogonal to the existing 24 (max |r| 0.204).
+
+**The decision is yours; nothing has been promoted.** What it would involve:
+
+1. **`06_download_unknown.py`** gains the cone search (~0.34 s/star, threaded,
+   resumable) so candidates get the features at scoring time.
+2. **`training.csv` must gain `crowd_flux_ratio_max` / `crowd_nearest_arcsec`
+   BEFORE `FEATURE_COLUMNS` is edited.** `build_feature_matrix` raises
+   `SystemExit` on missing columns, so editing the feature list first would
+   crash the next scheduled retrain. Values already exist in
+   `crowding_per_star.csv` for all 5,485 stars.
+3. **This is NOT automatically a manual offline decision -- correcting an
+   earlier assumption.** `web/retrain_pipeline.py` reads `m05.FEATURE_COLUMNS`
+   and calls `m05.build_feature_matrix` directly, so once the feature list
+   changes the **scheduler picks it up on its next retrain tick** and the
+   challenger would be fitted on the new feature set while production still
+   uses the old. That silently breaks the gate's own stated invariant ("the
+   same model, trained on more data") and would likely auto-promote, since
+   +0.012 clears `ci_lo > 0`. **Sequence deliberately: backfill training.csv,
+   pause or verify the retrain tick, edit `FEATURE_COLUMNS`, retrain offline,
+   inspect, then resume.**
+4. **Regenerate `models/conformal_calibration.json`** -- it records `model_md5`
+   and is invalidated by design when the model changes.
+
+### Verdict (original, superseded by the finalised decision above)
 
 **NOT PROMOTED** -- per the standing instruction, a robust clear is reported,
 not deployed. What promoting it would involve:
@@ -2443,6 +2536,95 @@ leakage, production availability), `crowding_validate.py` (12 resamples),
 `crowding_control.py` (sky-position control); data `crowding_per_star.csv`;
 results `crowding_checks.json`, `crowding_validate_results.json`,
 `crowding_control_results.json`.
+
+## RETROSPECTIVE SPATIAL-CONFOUND AUDIT
+
+Prompted by the crowding work, where `|galactic b|` alone produced a fully
+clearing +0.0135 that means nothing astrophysically. Any earlier result resting
+on features correlated with position, survey provenance or target selection
+could be inflated the same way -- or, for a closed negative, could have had a
+real effect masked.
+
+### Diagnostic 1 -- how exposed are the 24 production features?
+
+| feature | \|r\| vs \|b\| | \|r\| vs \|eclat\| |
+|---|---|---|
+| period_uncertainty | 0.145 | **0.213** |
+| rp_rs | **0.192** | 0.130 |
+| st_teff | 0.143 | 0.055 |
+| distinct_transit_count | 0.130 | 0.140 |
+| transit_count | 0.105 | 0.113 |
+| secondary_eclipse_depth | 0.018 | 0.045 |
+| st_rad | 0.016 | 0.039 |
+| depth_duration_ratio | 0.008 | 0.010 |
+
+Nothing exceeds 0.25, against crowding which IS a position-derived quantity.
+The transit-shape and depth features cannot be confounded this way.
+
+**But this diagnostic is weaker than it looks** -- see the `|eclat|` correction
+above. A feature can be uncorrelated with position and still combine with it.
+Low correlation is evidence, not proof.
+
+### Diagnostic 2 -- CatBoost, the one case correlations cannot settle
+
+A model-family change could extract more from weakly position-correlated
+features than HGB does. Only refitting answers that. Like-for-like
+(HGB+sigmoid+cv=5 vs CatBoost+sigmoid+cv=5), 12 bootstraps:
+
+| comparison | mean | sd | positive | clears |
+|---|---|---|---|---|
+| CatBoost - HGB, neither sees position | +0.0074 | 0.0029 | 12/12 | 5/12 |
+| CatBoost - HGB, BOTH given \|b\| | +0.0055 | 0.0036 | 12/12 | 3/12 |
+
+Shift **-0.0019**, which is **smaller than the per-resample sd** and therefore
+not distinguishable from zero. **No verdict revision:** CatBoost's advantage is
+not meaningfully positional. If anything the position-controlled estimate
+(+0.0055) sits further below the 0.0097 threshold, reinforcing the existing
+"real but uncertifiable" reading rather than overturning it.
+
+### What was checked, and what changed
+
+| prior result | exposure | outcome |
+|---|---|---|
+| CatBoost +0.0080 | model family; weak proxies only | **unchanged** (+0.0074 -> +0.0055 under control, within noise) |
+| multi-sector consistency | `|eclat|` drives sector coverage | **no revision**, but see caveat |
+| weak secondary eclipse | \|r\| 0.018 / 0.045 | not exposed |
+| GBM averaging ensemble | same 24 features | not exposed |
+| stellar parameters (st_rad/st_teff) | \|r\| <= 0.143 | not exposed |
+| pixel centroid (closed negative) | pixel-domain, not catalog | not exposed; corr with crowding -0.084 |
+| **catalog crowding** | position-derived by construction | **REVISED: +0.0167 -> +0.010-0.012** |
+
+**Only one verdict moved, and it is the new one.** No previously closed negative
+shows signs of a masked real effect, and no previously reported positive besides
+crowding needs revision.
+
+The multi-sector entry carries a real caveat: it was cleared on correlation and
+marginal AUC, exactly the reasoning the `|eclat|` result just undermined. It was
+a negative result, so a hidden confound would have had to *mask* signal rather
+than manufacture it, which is the less likely direction -- but it is not proven
+clean and is the first place to look if that line is ever reopened.
+
+### METHODOLOGICAL RULE GOING FORWARD (recommended)
+
+**Yes -- a spatial control should be standard.** Specifically:
+
+1. **Any feature derived from a star catalog, sky position, stellar density, or
+   anything correlated with target-selection history gets a `|galactic b|`
+   control arm**, reported next to the headline. Cost is one extra arm.
+2. **Do not clear a feature on low correlation or marginal AUC alone.**
+   `|eclat|` had AUC 0.4920 and still contributed +0.0139 in combination.
+   Marginal independence does not imply conditional independence.
+3. **Where a control shows exposure, run the matched-stratum test** -- restrict
+   both classes to a common band and re-measure. That is what distinguished
+   crowding's physical component (+0.0097 retained, 80%) from the artifact.
+4. **Check the unknown pool's distribution before adopting any feature that
+   correlates with position.** Both `|b|` (KS D=0.26) and `|eclat|` (D=0.51)
+   differ sharply between training and the candidates actually scored; a
+   relationship learned on one does not transfer to the other.
+
+Scripts: `crowding_final.py`, `crowding_stratified.py`,
+`catboost_spatial_control.py`; results `crowding_final_results.json`,
+`crowding_stratified_results.json`, `catboost_spatial_control_results.json`.
 
 ## UNCERTAINTY QUANTIFICATION (not an accuracy change): split conformal prediction
 
