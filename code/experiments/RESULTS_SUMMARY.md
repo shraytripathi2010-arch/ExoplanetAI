@@ -2120,6 +2120,27 @@ on the same rows each time:
 
 **No arm clears on more than 6 of 12. None is robust.**
 
+**And the calibration cost is not marginal -- it is the one thing here that IS
+consistent.** Across the same 12 resamples, production averages Brier 0.0945 /
+**ECE 0.0441**, and every CatBoost arm is worse on both:
+
+| arm | Brier | vs prod | **ECE** | **vs prod** |
+|---|---|---|---|---|
+| CatBoost isotonic cv=10 | 0.0952 | +0.0007 | 0.0541 | **+0.0100** |
+| CatBoost isotonic cv=20 | 0.0955 | +0.0010 | 0.0561 | **+0.0120** |
+| CatBoost bare | 0.0970 | +0.0026 | 0.0529 | **+0.0088** |
+| CatBoost sigmoid cv=20 | 0.0972 | +0.0027 | 0.0577 | **+0.0136** |
+| CatBoost sigmoid cv=10 | 0.0972 | +0.0028 | 0.0586 | **+0.0145** |
+| CatBoost sigmoid prefit 5% | 0.1003 | +0.0059 | 0.0610 | **+0.0169** |
+
+That is a **20-38% relative worsening of calibration error**, in the same
+direction for all six arms on all 12 draws. So the trade is not "a possible
++0.008 in ranking for free": it is an *uncertifiable* ranking gain against a
+*consistent* calibration loss, in an application whose UI, confidence tiers,
+CTOI export and conformal layer all consume the probability itself. Ranking the
+arms by ECE also reverses the AUC order -- `sigmoid cv=10` is the best on AUC
+and the second-worst on ECE.
+
 Three readings worth separating:
 
 - **This reproduces the earlier CatBoost measurement.** `sigmoid cv=20` lands at
@@ -2162,18 +2183,25 @@ read, because its value is that it has not been optimised against.
 | HGB bare | 0.9353 | 0.9118 | 0.9332 | 0.9093 | 0.9181 | 0.9215 | 0.0108 |
 
 Pooled out-of-fold -- every training star predicted exactly once by a model that
-never saw it (n = 4,386):
+never saw it (n = 4,386 full, 3,884 2-min):
 
-| arm | AUC | Brier | ECE | delta | ci_lo | ci_hi | clears |
-|---|---|---|---|---|---|---|---|
-| HGB sigmoid cv=5 (production) | 0.9220 | 0.0838 | **0.0208** | -- | -- | -- | -- |
-| **CatBoost sigmoid cv=20** | 0.9262 | 0.0830 | 0.0335 | **+0.0042** | **+0.0012** | +0.0074 | **YES** |
-| CatBoost bare | 0.9240 | 0.0872 | 0.0408 | +0.0020 | -0.0014 | +0.0056 | no |
-| HGB bare | 0.9215 | 0.0945 | **0.0749** | -0.0005 | -0.0027 | +0.0017 | no |
+| arm | AUC | Brier | ECE | delta | ci_lo | ci_hi | clears | AUC 2-min | d_2min | ci_lo 2-min | clears |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| HGB sigmoid cv=5 (production) | 0.9220 | 0.0838 | **0.0208** | -- | -- | -- | -- | 0.9211 | -- | -- | -- |
+| **CatBoost sigmoid cv=20** | 0.9262 | 0.0830 | 0.0335 | **+0.0042** | **+0.0012** | +0.0074 | **YES** | 0.9249 | **+0.0038** | **+0.0003** | **yes** |
+| CatBoost bare | 0.9240 | 0.0872 | 0.0408 | +0.0020 | -0.0014 | +0.0056 | no | 0.9225 | +0.0014 | -0.0024 | no |
+| HGB bare | 0.9215 | 0.0945 | **0.0749** | -0.0005 | -0.0027 | +0.0017 | no | 0.9203 | -0.0007 | -0.0033 | no |
 
 **CatBoost sigmoid cv=20 beats production on 5 of 5 outer folds and clears
-`ci_lo > 0` on the pooled predictions.** The ordering is a property of the
-models, not of the frozen test set.
+`ci_lo > 0` on the pooled predictions, on both populations.** The ordering is a
+property of the models, not of the frozen test set.
+
+**But the 2-min result barely clears (`ci_lo = +0.0003`) and, importantly, the
+2-min effect is SMALLER than the full-population one here (+0.0038 vs +0.0042)
+-- the opposite of the frozen-test pattern, where 2-min showed the effect more
+strongly (+0.0095 vs +0.0082).** The population that helps CatBoost most is not
+consistent across evaluations, which is a reason to distrust reading much into
+either subgroup split at these effect sizes.
 
 Three cautions on reading this:
 
@@ -2199,6 +2227,7 @@ Collecting three independent lines of evidence on CatBoost sigmoid cv=20:
 | frozen test, single fit | +0.0101 | clears `ci_lo > 0` |
 | frozen test, 12 training bootstraps | +0.0082 | positive 12/12, clears only **6/12** |
 | nested CV, pooled out-of-fold | +0.0042 | clears `ci_lo > 0`, 5/5 folds |
+| **calibration (ECE), 12 bootstraps** | **+0.0136 worse** | **consistent on 12/12** |
 
 **The effect is almost certainly real.** It is positive in every one of 12
 training draws, positive on all 5 rotated star panels, and reproduces an earlier
@@ -2209,6 +2238,14 @@ independent estimate (+0.0080). Nothing else in this project has that record.
 12, against the >=90% requirement. Both the single-fit pass and the nested-CV
 pass come from evaluations that are either one lucky pairing or a different
 population. **NOT PROMOTED.**
+
+**The decisive asymmetry is that the benefit is uncertain and the cost is
+not.** The ranking gain cannot be certified on any evaluation this project
+trusts for promotion; the calibration loss (+0.0136 ECE on the like-for-like
+arm) appears on 12 of 12 resamples in the same direction. Trading a measured,
+consistent degradation in the quantity the product actually displays for an
+unmeasurable improvement in one it does not is a bad trade regardless of how
+the AUC argument resolves.
 
 ### What promoting it would involve (for the record -- not done, not recommended yet)
 

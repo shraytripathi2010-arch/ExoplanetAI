@@ -56,6 +56,7 @@ ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
 
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
+CADENCE = os.path.join(SCRIPT_DIR, "cadence_per_star.csv")
 PROD = os.path.join(ROOT, "models", "best_model.joblib")
 RESULTS = os.path.join(SCRIPT_DIR, "calibration_nested_cv_results.json")
 
@@ -135,6 +136,12 @@ def _init():
     y = np.asarray(y)
     tr, _ = m05.split_by_host(df)
     tr = np.asarray(tr)
+    # 2-min cadence mask, carried through so every arm can also be reported on
+    # the population the model is actually deployed on.
+    cad = pd.read_csv(CADENCE)
+    c = pd.to_numeric(df.merge(cad, on="host", how="left")["cadence_min"],
+                      errors="coerce")
+    is2 = ((c >= 1.0) & (c <= 2.6)).to_numpy() | c.isna().to_numpy()
     prod = joblib.load(PROD)
     from catboost import CatBoostClassifier
     cat = Pipeline([("impute", SimpleImputer(strategy="median")),
@@ -143,7 +150,7 @@ def _init():
                         auto_class_weights="Balanced",
                         allow_writing_files=False, **CAT_PARAMS))])
     # TRAINING ROWS ONLY -- the frozen test set is never read here.
-    _G.update(X=X[tr].reset_index(drop=True), y=y[tr],
+    _G.update(X=X[tr].reset_index(drop=True), y=y[tr], is2=is2[tr],
               models={"HGB": clone(getattr(prod, "estimator", prod)),
                       "CatBoost": cat})
 
@@ -219,25 +226,36 @@ def main():
                                  "mean_auc": float(a.mean()),
                                  "sd_auc": float(a.std())}
 
+    is2 = _G["is2"]
+    y2 = y[is2]
     print("\n" + "=" * 104)
     print("POOLED OUT-OF-FOLD (paired bootstrap vs production)")
     print("=" * 104)
+    print(f"  n = {len(y)} full, {int(is2.sum())} 2-min\n")
     print(f"  {'arm':<34}{'AUC':>9}{'Brier':>9}{'ECE':>8}"
-          f"{'delta':>10}{'ci_lo':>9}{'ci_hi':>9}{'clears':>8}")
+          f"{'delta':>10}{'ci_lo':>9}{'ci_hi':>9}{'clr':>5}"
+          f"{'AUC2m':>9}{'d_2min':>10}{'ci_lo2':>9}{'clr2':>6}")
     base_p = pooled[BASELINE]
     for label, _, _, _ in ARMS:
         p = pooled[label]
         d, lo, hi = paired_boot(y, base_p, p)
-        clears = lo > 0
+        d2, lo2, hi2 = paired_boot(y2, base_p[is2], p[is2])
+        clears, clears2 = lo > 0, lo2 > 0
         print(f"  {label:<34}{fast_auc(y, p):>9.4f}"
               f"{brier_score_loss(y, p):>9.4f}{ece(y, p):>8.4f}"
               f"{d:>+10.4f}{lo:>+9.4f}{hi:>+9.4f}"
-              f"{('yes' if clears else 'no'):>8}")
+              f"{('yes' if clears else 'no'):>5}"
+              f"{fast_auc(y2, p[is2]):>9.4f}{d2:>+10.4f}{lo2:>+9.4f}"
+              f"{('yes' if clears2 else 'no'):>6}")
         out["summary"][label].update(
             pooled_auc=float(fast_auc(y, p)),
             pooled_brier=float(brier_score_loss(y, p)),
             pooled_ece=ece(y, p), delta_vs_production=d,
-            ci=[lo, hi], clears=bool(clears))
+            ci=[lo, hi], clears=bool(clears),
+            pooled_auc_2min=float(fast_auc(y2, p[is2])),
+            pooled_ece_2min=ece(y2, p[is2]),
+            delta_2min=d2, ci_2min=[lo2, hi2], clears_2min=bool(clears2))
+    out["n_2min"] = int(is2.sum())
 
     out["folds"] = [{"fold": r["fold"], "n_train": r["n_train"],
                      "n_val": r["n_val"],
