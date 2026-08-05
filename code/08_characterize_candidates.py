@@ -735,6 +735,50 @@ def plausibility_verdict(rp_earth, blend_status, vsx_hit):
 # =====================================
 # 6. MULTI-FACTOR CONFIDENCE TIER
 # =====================================
+# ---- measured error/discrimination profile of the large-host regime --------
+#
+# WHY THIS IS NOT A HARDCODED SENTENCE ANY MORE. The candidate-facing text below
+# used to assert "21% error vs 6% elsewhere on held-out data". That was measured
+# on the 24-feature 0.9031 model and went silently wrong when the crowding
+# features were deployed and the model became 0.9208 -- the numbers drifted to
+# 14.3% / 6.7% while the sentence kept claiming 21% / 6%. Nobody noticed until a
+# separate investigation happened to re-measure it.
+#
+# So the figures are now READ from the diagnostic's own output when it is
+# present, and fall back to the last hand-verified values otherwise. Re-running
+# `code/experiments/giant_star_diagnose.py` refreshes what candidate pages say.
+GIANT_STATS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "experiments", "giant_star_diagnose.json")
+GIANT_STATS_LAST_VERIFIED = "2026-08-05 (model md5 0c996a41, 26 features)"
+GIANT_STATS_FALLBACK = {"joint_error_pct": 14.3, "baseline_error_pct": 6.7,
+                        "joint_auc": 0.9158, "baseline_auc": 0.8637}
+
+
+def _giant_regime_stats():
+    """Measured error rates for the large-host/strong-signal regime.
+
+    Never raises: a missing or malformed diagnostic file falls back to the
+    last hand-verified numbers rather than breaking characterization.
+
+    `json` is imported locally because this module does not import it at top
+    level -- and a NameError here would be swallowed by the except below,
+    silently pinning the text to the fallback values forever, which is the
+    exact silent-staleness failure this function exists to prevent.
+    """
+    import json
+    try:
+        with open(GIANT_STATS_PATH) as f:
+            cells = json.load(f)["cells"]
+        return {
+            "joint_error_pct": cells["BOTH (the blind spot)"]["error_pct"],
+            "baseline_error_pct": cells["neither (small rad, low SDE)"]["error_pct"],
+            "joint_auc": cells["BOTH (the blind spot)"]["auc"],
+            "baseline_auc": cells["neither (small rad, low SDE)"]["auc"],
+        }
+    except Exception:
+        return dict(GIANT_STATS_FALLBACK)
+
+
 def confidence_tier(row):
     """Returns (tier, supporting_evidence, doubting_evidence). Tiers are
     High/Medium/Low -- and EVEN "High" here means "strong candidate worth
@@ -765,31 +809,51 @@ def confidence_tier(row):
             doubt.append(f"marginal detection statistics: SDE={sde:.1f}, only {int(n_transits)} distinct transits observed"
                           + (" -- the period itself is less certain with this few" if n_transits < 3 else ""))
 
-    # Large host star + strong signal = the regime where this model is least
-    # reliable, which is exactly the regime the SDE bonus above rewards.
+    # Large host star + strong signal -- the regime the SDE bonus above rewards
+    # and the one where a given probability is worth least.
     #
-    # Measured on the frozen test set (code/experiments/
-    # audit_calibration_threshold_errors.py): stars that are neither
-    # large-radius nor high-SDE have a 5.8% classifier error rate; large radius
-    # AND high SDE is 21.1%, and the two single-factor cells are 17-18%. 74% of
-    # all false negatives fall in the top SNR quartile, 3.0x over-represented.
+    # THE CLAIM THIS TEXT USED TO MAKE WAS WRONG, not merely stale. It said the
+    # classifier is "measurably least reliable in this combination". Re-measured
+    # on the deployed 0.9208 model, the opposite is true of its DISCRIMINATION:
     #
-    # Physically this is the eclipsing-binary corner: deep, long, high-SNR
-    # events on giants and subgiants (st_rad in the top quartile reaches
-    # 102 R_sun) look exactly like the strong detections the SDE bonus is meant
-    # to reward. The -1 deliberately does not cancel the +2 -- the detection IS
-    # strong, and pretending otherwise would be its own distortion. It tempers
-    # a net +2 down to +1 and, more importantly, puts the reason in writing on
-    # the candidate page so a human knows to weigh the blend and secondary-
-    # eclipse evidence harder here.
+    #   cell                  n    error@0.5    AUC      planets%
+    #   neither             629       6.7%    0.8637       92.4
+    #   large radius only   180      20.6%    0.8974       57.8
+    #   high SDE only       204      16.2%    0.8990       67.6
+    #   BOTH (this rule)     49      14.3%    0.9158       44.9
+    #
+    # The model RANKS BEST in the cell this rule fires on (AUC 0.9158) and worst
+    # in the "safe" cell (0.8637). The error-rate ordering is inverted relative
+    # to AUC purely because of class balance: 92.4% of the safe cell are real
+    # planets, against 44.9% here. So the honest statement is not "the model is
+    # worse at these" but "these come from a near-50/50 population, so the same
+    # probability carries much weaker odds" -- which is still a real reason to
+    # demand more evidence, just not the reason previously given.
+    #
+    # The condition is deliberately NOT broadened to st_rad>=1.5 alone, even
+    # though that cell now has the higher raw error rate (20.6%). Three reasons:
+    # (1) this -1 exists to temper the +2 the SDE bonus just awarded, so it is
+    # structurally tied to sde>=10 -- applied to giants that never got the bonus
+    # it would be a different, unjustified penalty; (2) that cell's higher error
+    # rate is the same base-rate artifact (57.8% planets vs 92.4%), and its AUC
+    # is BETTER than the safe cell's, so re-aiming on error rate alone would
+    # repeat the reasoning error this comment exists to correct; (3) giants are
+    # ~50% of the real candidate pool, and a flag that fires on half of
+    # everything stops being a flag.
     st_rad = row.get("st_rad")
     if pd.notna(st_rad) and pd.notna(sde) and st_rad >= 1.5 and sde >= 10:
+        g = _giant_regime_stats()
         doubt.append(
             f"host star is large (R = {st_rad:.2f} R_sun) and the detection is strong "
-            f"(SDE = {sde:.1f}) -- the classifier is measurably least reliable in this "
-            f"combination (21% error vs 6% elsewhere on held-out data), because deep, "
-            f"long eclipses on giant stars mimic strong planet detections; treat the "
-            f"blend and secondary-eclipse checks as decisive here")
+            f"(SDE = {sde:.1f}) -- on held-out data this regime is close to an even "
+            f"split between real planets and false positives, so errors at a fixed "
+            f"threshold run {g['joint_error_pct']:.1f}% here against "
+            f"{g['baseline_error_pct']:.1f}% for small-host/low-SDE candidates; the "
+            f"model still separates the two classes well here "
+            f"(AUC {g['joint_auc']:.3f}), but a high probability is worth less when "
+            f"the underlying odds are near 50/50, because deep, long eclipses on "
+            f"giant stars mimic strong planet detections; treat the blend and "
+            f"secondary-eclipse checks as decisive here")
         score -= 1
 
     if row.get("radius_plausible"):
