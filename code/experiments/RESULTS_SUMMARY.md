@@ -243,6 +243,90 @@ Scripts: `compute_training_centroids.py` (multi-sector),
 `training_centroid_results_multisector.csv`,
 `retrain_centroid_multisector_results.json`.
 
+### PROPOSED AND REJECTED: "surrogate center-of-light shift" -- READ THIS BEFORE RE-PROPOSING
+
+**Proposed (2026-08-05):** a "surrogate centroid / center-of-light shift"
+feature -- use pixel time-series data to compute the photocenter position
+in-transit versus out-of-transit and take the difference, as a
+background-binary/blend detector, citing LEO-Vetter's centroid test.
+
+**Verdict: DUPLICATE of the experiment closed above. Not implemented.** No
+feature was built, nothing was retrained, production was untouched.
+
+**Why it is the same test.** Both use the same data source (TESS Target Pixel
+Files via lightkurve), the same phase split into in-transit vs out-of-transit
+cadences, the same operation (a flux-weighted centroid, i.e. "center of
+light"), and target the same physical mechanism (a blended source producing
+the dimming instead of the target). The only difference is the arithmetic:
+
+    BUILT (and closed):  centroid( median_OOT_image - median_IT_image ),
+                         compared to the target's catalog position via WCS
+    PROPOSED:            centroid(IT image) - centroid(OOT image)
+
+**Why the difference makes it strictly WEAKER, not different.** The difference
+image contains only the flux that changed, so its centroid sits on whichever
+star actually dimmed, independent of transit depth. The direct photocenter
+shift is diluted by every photon that did not change: for fractional aperture
+depth `d` and true source offset `r`, the whole-stamp photocenter moves by
+about `d*r`, while the difference image reports `r` regardless.
+
+Simulated on an 11x11 TESS-like stamp with the transit deliberately placed on a
+contaminant 2.000 px from the target -- the exact blend case both variants
+exist to catch (`centroid_variant_sensitivity.py`, reproducible):
+
+| aperture depth | DIRECT photocenter shift | DIFFERENCE-image offset |
+|---|---|---|
+| 11.54% | 0.20060 px | **1.99946 px** |
+| 4.61% | 0.07442 px | **1.99946 px** |
+| 1.15% | 0.01795 px | **1.99946 px** |
+| 0.23% | **0.00356 px** | **1.99946 px** |
+
+The difference image recovers the true 2 px offset at every depth. The direct
+shift scales with depth and collapses toward zero. **Real transits in this
+dataset are ~0.01-1% deep**, so the proposed statistic would be measuring a
+~0.004 px displacement against pixel-scale measurement noise -- it is the same
+test with the signal divided by the transit depth.
+
+Two supporting points. The proposal cited **LEO-Vetter's centroid test**, which
+is itself a difference-image offset test -- i.e. the citation points at the
+implementation that already exists here. And **coverage would be bounded
+identically** (77.6%), since the direct variant needs the same TPF downloads
+and the same ephemeris-validation guard; that guard caused 96% of the failures
+and rejecting those sectors is correct, not a bug.
+
+### The one genuinely untested variant, considered and deliberately NOT pursued
+
+The closed experiment used **raw displacement magnitude only**. Confirmed by
+inspection: `training_centroid_results.csv` and
+`training_centroid_results_multisector.csv` contain a single `shift_pixels`
+column and no uncertainty. A **noise-normalised significance** version
+(displacement divided by a per-star positional uncertainty) is therefore a real
+open thread, and it is not a no-op for a tree model -- significance is not a
+monotone transform of displacement, so it is genuinely a different feature.
+
+**It was considered and deliberately deprioritised**, for three reasons that
+should be weighed before anyone spends compute on it:
+
+- **Weak ceiling.** Raw `shift_pixels` has single-feature AUC 0.536 and the
+  retrain landed at +0.0021, CI [-0.0020, +0.0059]. Re-scaling a feature that
+  weak is unlikely to clear the 0.0097 detection threshold.
+- **Same coverage limit.** It inherits the identical 77.6% ceiling; ~22% of
+  stars would still be missing, with the same class-asymmetric missingness
+  (31.9% positive vs 16.3% negative).
+- **Requires infrastructure that does not exist.** There is no per-star
+  centroid uncertainty anywhere in the pipeline. Producing one means either
+  bootstrapping the centroid over cadences or propagating per-pixel flux
+  errors through `center_of_mass` -- new code plus a re-run across all 5,486
+  training stars and both candidate pools.
+
+If it is ever revisited, it is a fresh experiment subject to the standing
+rules: 10+ training bootstraps for AUC *and* Brier/ECE, and -- because a
+centroid is a position-derived quantity, exactly the exposure class the
+spatial-confound audit flagged -- a `|galactic b|` control arm and a
+matched-sky-band test.
+
+Script: `centroid_variant_sensitivity.py` (run it to re-derive the table).
+
 ## Small-lift trio: class weighting / engineered ratios / stacking -- ALL NEGATIVE
 
 Three ideas that use only what is already in the pipeline, tested independently
