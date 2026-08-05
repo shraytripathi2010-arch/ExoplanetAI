@@ -3360,6 +3360,151 @@ to `split_by_host`'s test side (1,100), which does not move the ~0.0097 MDE.
 
 Script: none required -- this entry is a code and results audit.
 
+## GIANT-STAR BLIND SPOT -- the premise does not survive re-measurement. ALL THREE FIXES NULL.
+
+Investigated whether the model itself can be improved for large-radius stars,
+which are currently handled only by a post-hoc confidence-tier penalty.
+**Nothing was promoted; production stays at 0.9208 / 26 features.** The
+interesting result is the diagnosis, not the fixes.
+
+### What the post-hoc penalty actually does
+
+`confidence_tier()` in `08_characterize_candidates.py` applies `score -= 1` when
+`st_rad >= 1.5 AND SDE >= 10`, and appends a human-readable reason.
+**`predicted_probability` is never modified** -- it is only read. So the penalty
+is not cosmetic (the candidate list sorts by tier first, so a High -> Medium
+demotion moves a candidate materially) but it does not touch the probability,
+the conformal sets, or any probability threshold.
+
+### The 3.6x figure is stale, and it never described st_rad alone
+
+The original number came from the JOINT cell: 21.1% error for
+`st_rad>=1.5 AND SDE>=10` against 5.8% for neither = 3.64x, measured on the
+**24-feature 0.9031 model**. Re-measured on the deployed 0.9208 model:
+
+| cell | n | error % | AUC | planets % |
+|---|---|---|---|---|
+| neither | 629 | 6.7 | 0.8637 | 92.4 |
+| large radius only | 180 | **20.6** | 0.8974 | 57.8 |
+| high SDE only | 204 | 16.2 | 0.8990 | 67.6 |
+| BOTH (the "blind spot") | 49 | 14.3 | 0.9158 | 44.9 |
+
+**Now 2.14x, not 3.6x -- and the cell structure inverted.** The joint cell the
+penalty targets is no longer the worst; "large radius only" is.
+
+### The blind spot is mostly BASE RATE and CALIBRATION, not ranking
+
+| population | n | planets % | AUC | err@0.5 | err@best thr | ECE |
+|---|---|---|---|---|---|---|
+| dwarfs <1.5 | 833 | 86.3 | **0.9017** | 9.0 | 8.9 | **0.0204** |
+| giants >=1.5 | 229 | 55.0 | **0.9013** | 19.2 | 16.2 | **0.0867** |
+| subgiants 1.5-3 | 176 | 51.1 | **0.8548** | 23.9 | 19.9 | 0.1044 |
+| giants proper >=3 | 53 | 67.9 | **0.9935** | 3.8 | 3.8 | 0.0787 |
+
+Three findings that reframe the problem:
+
+1. **The giant-vs-dwarf AUC gap is -0.0004.** The model ranks giants as well as
+   it ranks dwarfs. The error-rate gap is largely the class prior: giants are
+   55% planets against 86% for dwarfs, so a FIXED 0.5 threshold necessarily
+   misclassifies more of them at identical ranking quality. Re-thresholding
+   alone takes 19.2% -> 16.2%.
+2. **Giant calibration is 4.2x worse** (ECE 0.0867 vs 0.0204) -- a real defect
+   AUC cannot see, and the one the diagnosis actually points at.
+3. **"Giant" is the wrong label for the deficit.** The genuine ranking gap is
+   confined to **subgiants 1.5-3** (AUC 0.8548, -0.0469 vs dwarfs, 16% of the
+   test set). Giants *proper* (>=3) score **0.9935** -- the model's BEST
+   population, better than dwarfs.
+
+### Mechanism: how giants differ
+
+Median giant/dwarf ratios on the test set: duration 1.56x, snr 1.76x, period
+1.41x, but rp_rs 0.51x, depth_mean_std 0.24x, chi2red_min 0.05x,
+secondary_eclipse_depth 0.19x, crowd_flux_ratio_max 0.11x. Longer, higher-SNR,
+smoother events on quieter hosts -- the eclipsing-binary corner, exactly as the
+penalty's comment says. SDE is identical (1.00x), which is why an SDE-based
+bonus cannot separate them.
+
+### THREE FIXES, ALL NULL (12 bootstraps, production recipe, vs 0.9208)
+
+Baseline resampled: AUC 0.9128, giant AUC 0.8944, Brier 0.0879, ECE 0.0417,
+giant ECE 0.0956.
+
+| arm | d_overall | sd | pos | clears | >=MDE | **d_GIANT** | pos | clears | Brier | ECE | giantECE |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| A: +st_rad interactions | -0.0005 | 0.0010 | 3/12 | 0/12 | 0/12 | **+0.0011** | 9/12 | 1/12 | 0.0878 | 0.0407 | 0.0954 |
+| B: giant upweight x3 | -0.0001 | 0.0002 | 6/12 | 0/12 | 0/12 | +0.0001 | 6/12 | 0/12 | 0.0882 | 0.0433 | 0.0971 |
+| C: stratified calibration | -0.0020 | 0.0032 | 2/12 | 0/12 | 0/12 | +0.0008 | 8/12 | 0/12 | 0.0901 | 0.0508 | **0.1094** |
+
+**No arm clears on either the overall or the giant-subpopulation delta.**
+
+- **A** was expected to be weak and is: `st_rad` is already the single most
+  important feature in the deployed model (permutation importance +0.04454,
+  rank 1/26), so a tree can already split on it directly. An explicit
+  indicator or interaction adds nothing a tree cannot already represent.
+- **B** is a no-op (-0.0001, sd 0.0002). Distinct from the closed
+  class-weighting experiment -- that reweighted by LABEL, this by
+  SUBPOPULATION -- but the answer is the same.
+- **C is the informative failure.** It was designed to fix the calibration
+  defect and made calibration **worse**: giant ECE 0.0956 -> 0.1094 (+0.0138),
+  overall ECE 0.0417 -> 0.0508. **Splitting the calibration set costs more in
+  variance than specialisation gains in bias**: the per-group Platt scaler sees
+  ~900 giant training rows (~570 unique under bootstrap) where the global one
+  sees 4,386. This is the same lesson as the `sigmoid cv=3` result -- a
+  calibrator fitted on a small slice is a bad calibrator -- now measured on a
+  second axis (subpopulation rather than fold count).
+
+### SPATIAL CONFOUND: severe, and concentrated exactly where a fix would apply
+
+Mandatory per the standing rule, and it fires hard:
+
+    AUC of |galactic b| ALONE, within giants : 0.7092   (|0.5-a| = 0.209)
+    AUC of |galactic b| ALONE, within dwarfs : 0.5482
+    corr(st_rad, |galactic b|)               : +0.016
+    KS giants vs dwarfs on |b|: D=0.187, p=3e-29
+
+`st_rad` itself is not position-correlated, but the giant SUBPOPULATION is far
+more spatially segregated by class than dwarfs are. Physically consistent:
+giants are intrinsically bright, detected to greater distance, sampling a
+larger volume toward the galactic plane where EB false positives concentrate.
+**So even arm A's +0.0011 giant-subpopulation blip cannot be trusted** -- inside
+that subpopulation, position alone is a stronger predictor than anything being
+tested. Any future giant-targeted work owes a matched-sky-band test up front,
+not as a follow-up.
+
+### Production pool composition -- the practically important number
+
+`st_rad` is 100% present on both ranked candidate pools; **no backfill would be
+required.** But the pools are far more giant-heavy than the test set:
+
+| pool | n | giants (st_rad>=1.5) |
+|---|---|---|
+| frozen test set | 1,098 | 20.9% |
+| ranked_candidates | 254 | **49.6%** |
+| ranked_candidates (widesector) | 54 | **42.6%** |
+
+Roughly **half of what production actually scores** is in this subpopulation,
+a 2.4x enrichment over the test set. That raises the stakes of the null result
+rather than lowering them -- and raises the extrapolation risk for any future
+correction learned on a spatially-segregated training giant population.
+
+### RECOMMENDATION: do not promote. And the existing penalty needs its numbers refreshed.
+
+No arm earns promotion; none clears on either framing. The post-hoc tier
+penalty remains the right instrument, because the defect is a
+calibration/threshold effect on a subpopulation with a different class prior --
+not a ranking failure the feature set can repair.
+
+**One actionable follow-up, NOT applied here:** the penalty's user-facing text
+in `08_characterize_candidates.py` still asserts *"21% error vs 6% elsewhere on
+held-out data"*. On the deployed model those cells are **14.3% and 6.7%**, and
+the cell it targets is no longer the worst -- "large radius only" (20.6%) is.
+The claim shown on candidate pages is stale. Refreshing it, and possibly
+re-aiming the condition from `st_rad>=1.5 AND SDE>=10` to large-radius alone,
+is a small text/logic change awaiting a go-ahead.
+
+Scripts: `giant_star_diagnose.py`, `giant_star_fix.py`; results
+`giant_star_diagnose.json`, `giant_star_fix_results.json`.
+
 ## NON-KEPLER SURVEYS -- CLOSED AT THE PART 1 GATE. No download performed.
 
 K2, CoRoT, WASP, HATNet/HATSouth, KELT, NGTS and TRAPPIST assessed as training
