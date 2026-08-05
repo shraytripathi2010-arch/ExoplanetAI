@@ -267,7 +267,12 @@ def process_and_append_new_examples(max_new=None):
 
 
 def _paired_bootstrap_auc_diff(y_test, proba_a, proba_b, n_bootstrap=N_BOOTSTRAP, seed=RANDOM_SEED):
-    from sklearn.metrics import roc_auc_score
+    # `fast_auc` is the same statistic as sklearn's roc_auc_score computed by
+    # rank-sum (verified to 1e-12, ties averaged). sklearn's version costs
+    # ~25 ms/call at this test-set size, nearly all input validation, which
+    # would put these 2000 iterations x 2 calls at ~90 s inside the retrain
+    # path. See code/fast_auc.py and ENVIRONMENT_NOTES section 9.
+    from fast_auc import fast_auc
     rng = np.random.RandomState(seed)
     y_arr = np.asarray(y_test)
     n = len(y_arr)
@@ -275,9 +280,10 @@ def _paired_bootstrap_auc_diff(y_test, proba_a, proba_b, n_bootstrap=N_BOOTSTRAP
     for _ in range(n_bootstrap):
         idx = rng.randint(0, n, n)
         y_b = y_arr[idx]
-        if len(np.unique(y_b)) < 2:
+        n_pos = int((y_b == 1).sum())
+        if n_pos == 0 or n_pos == n:
             continue
-        diffs.append(roc_auc_score(y_b, proba_b[idx]) - roc_auc_score(y_b, proba_a[idx]))
+        diffs.append(fast_auc(y_b, proba_b[idx]) - fast_auc(y_b, proba_a[idx]))
     diffs = np.array(diffs)
     lo, hi = np.percentile(diffs, [2.5, 97.5])
     return float(diffs.mean()), float(lo), float(hi)

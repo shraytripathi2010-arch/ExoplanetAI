@@ -29,6 +29,12 @@ Author: Ray's Exoplanet AI Project
 import importlib.util
 import json
 import os
+import sys
+
+# `fast_auc` is a sibling module. Resolved implicitly when this file is run as
+# `python3 code/05b_model_analysis.py`, but not when it is imported from
+# elsewhere -- so put its directory on the path explicitly.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import joblib
 import matplotlib
@@ -42,8 +48,9 @@ from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     brier_score_loss, f1_score, precision_recall_curve, precision_score,
-    recall_score, roc_auc_score,
+    recall_score,
 )
+from fast_auc import roc_auc_score  # exact drop-in, ~23x faster inside bootstraps
 from sklearn.model_selection import (
     RandomizedSearchCV, StratifiedKFold, cross_validate, learning_curve, train_test_split,
 )

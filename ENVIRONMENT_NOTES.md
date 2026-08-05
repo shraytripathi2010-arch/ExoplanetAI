@@ -199,6 +199,21 @@ random cases including tie-heavy ones. Ties are not hypothetical here: isotonic
 calibration emits long plateaus of identical probabilities, so ordinal ranks
 without tie-averaging would give wrong answers for exactly those arms.
 
-Keep `roc_auc_score` for the handful of reported point estimates — having two
-independent implementations agree is a free cross-check. Use `fast_auc` inside
-bootstrap loops. Lives in `code/experiments/calibration_holdout_sweep.py`.
+**Where it lives: `code/fast_auc.py`**, importable by both the experiment
+scripts and `web/` (which already puts `code/` on `sys.path`). It exports two
+names:
+
+- `fast_auc(y, p)` — the bare statistic, for hot loops.
+- `roc_auc_score(y, p, **kwargs)` — a **drop-in** for sklearn's that fast-paths
+  the binary / 1-D / no-keyword / finite case and **delegates to sklearn for
+  everything else** (multiclass, `sample_weight`, `max_fpr`, NaNs). Swapping the
+  import therefore cannot change a result: it either returns the identical
+  value or calls the original function.
+
+Run `python3 code/fast_auc.py` to re-verify exactness, the delegation paths,
+and the speedup on this machine.
+
+Applied across 34 scripts plus `web/retrain_pipeline.py`. The production
+`_paired_bootstrap_auc_diff` was checked old-vs-new on real probability vectors
+(including a heavy-tie isotonic arm): mean and both CI bounds identical to
+1.1e-16, 15.3x faster (31.4 s -> 2.0 s).

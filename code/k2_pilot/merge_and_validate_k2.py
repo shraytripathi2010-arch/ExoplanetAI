@@ -39,7 +39,6 @@ import numpy as np
 import pandas as pd
 import joblib
 from sklearn.base import clone
-from sklearn.metrics import roc_auc_score
 
 PILOT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(PILOT_DIR, "..")
@@ -47,6 +46,7 @@ ROOT = os.path.join(CODE_DIR, "..")
 EXP_DIR = os.path.join(CODE_DIR, "experiments")
 sys.path.insert(0, CODE_DIR)
 sys.path.insert(0, EXP_DIR)
+from fast_auc import roc_auc_score  # exact drop-in, ~23x faster inside bootstraps
 
 FEATURES = os.path.join(PILOT_DIR, "k2_pilot_features.csv")
 SAMPLE = os.path.join(PILOT_DIR, "k2_pilot_sample.csv")

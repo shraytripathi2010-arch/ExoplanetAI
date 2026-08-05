@@ -37,12 +37,13 @@ from sklearn.impute import SimpleImputer
 from sklearn.frozen import FrozenEstimator
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, brier_score_loss
+from sklearn.metrics import brier_score_loss
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
+from fast_auc import roc_auc_score, fast_auc  # exact drop-ins, ~23x faster in loops
 
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 CADENCE = os.path.join(SCRIPT_DIR, "cadence_per_star.csv")
@@ -73,26 +74,6 @@ def _m05():
     sys.modules["m05"] = m
     spec.loader.exec_module(m)
     return m
-
-
-def fast_auc(y, p):
-    """Exact ROC-AUC by rank-sum, averaged ranks for ties. See the sweep script:
-    verified to 1e-12 against roc_auc_score on 400 tie-heavy cases, and ~18x
-    faster, which matters because isotonic arms produce many tied probabilities.
-    """
-    n = p.shape[0]
-    order = np.argsort(p, kind="mergesort")
-    sp = p[order]
-    newgrp = np.empty(n, bool)
-    newgrp[0] = True
-    np.not_equal(sp[1:], sp[:-1], out=newgrp[1:])
-    gid = np.cumsum(newgrp) - 1
-    avg = (np.bincount(gid, weights=np.arange(1, n + 1, dtype=np.float64))
-           / np.bincount(gid))
-    r = np.empty(n, np.float64)
-    r[order] = avg[gid]
-    n1 = int(y.sum())
-    return (r[y == 1].sum() - n1 * (n1 + 1) / 2.0) / (n1 * (n - n1))
 
 
 def paired_boot(y, pa, pb, n=N_BOOT, seed=SEED):

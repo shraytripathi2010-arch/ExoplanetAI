@@ -39,12 +39,12 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import StratifiedKFold, cross_validate
-from sklearn.metrics import roc_auc_score
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
+from fast_auc import roc_auc_score  # exact drop-in, ~23x faster inside bootstraps
 
 TRAINING_CSV = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 FEATURES_CSV = os.path.join(SCRIPT_DIR, "multisector_consistency.csv")

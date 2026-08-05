@@ -42,12 +42,13 @@ import pandas as pd
 import joblib
 from sklearn.base import clone
 from sklearn.model_selection import StratifiedKFold, cross_validate
-from sklearn.metrics import roc_auc_score, brier_score_loss
+from sklearn.metrics import brier_score_loss
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
+from fast_auc import roc_auc_score  # exact drop-in, ~23x faster inside bootstraps
 
 TRAINING_CSV = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 CADENCE_CSV = os.path.join(SCRIPT_DIR, "cadence_per_star.csv")
