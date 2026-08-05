@@ -191,6 +191,28 @@ FEATURE_COLUMNS = [
     "st_rad", "st_teff",
     "chi2red_min", "depth_consistency_std", "secondary_eclipse_depth", "transit_shape_ratio",
     "depth_duration_ratio",
+    # Catalog neighbour crowding (promoted 2026-08-05). Validated at +0.010 to
+    # +0.012 after removing the galactic-latitude confound: +0.0167 raw,
+    # +0.0120 with position modelled explicitly, +0.0097 inside a matched sky
+    # band where the class |b| difference inverts. Positive on 12/12 bootstrap
+    # resamples in every framing, and improves Brier and ECE as well as AUC.
+    #
+    # Sky position itself (|galactic b|, |ecliptic latitude|) posts LARGER
+    # gains and is deliberately excluded: the unknown candidate pool sits at a
+    # systematically different latitude than either training class (median |b|
+    # 32.4 deg vs 16.9/12.5; KS D=0.26, and D=0.51 for ecliptic), so a learned
+    # position->label rule would not transfer. See RESULTS_SUMMARY.md.
+    #
+    # Produced for candidates by 06_download_unknown.add_crowding_features and
+    # for newly-labelled training stars by retrain_pipeline._crowding_for_host.
+    # Both resolve from the TIC id alone.
+    #
+    # This list and the deployed artifact must change together. A 24-feature
+    # model raises ValueError on a 26-column matrix and vice versa, so editing
+    # either one alone crashes the scheduler's next retrain tick. Deployed
+    # 2026-08-05 alongside model md5 0c996a41... (rollback:
+    # models/versions/best_model_pre_crowding_341f1a39.joblib).
+    "crowd_flux_ratio_max", "crowd_nearest_arcsec",
 ]
 
 

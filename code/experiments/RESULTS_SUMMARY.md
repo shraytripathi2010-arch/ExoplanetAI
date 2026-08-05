@@ -1,8 +1,33 @@
 # Model architecture experiments -- honest results summary
 
-Production model is **unchanged**: `models/best_model.joblib`
-(HistGradientBoosting, test ROC-AUC **0.9031** on the 1,098-star deduplicated
-clean test set; md5 `341f1a3907e77f6ec294f182833e613c`) remains deployed.
+**DEPLOYED 2026-08-05: the number of record is now 0.9208.**
+`models/best_model.joblib` (HistGradientBoosting + sigmoid calibration, **26
+features**, md5 `0c996a41a76cc765895d3013830a536b`) replaced the long-standing
+0.9031 model (md5 `341f1a3907e77f6ec294f182833e613c`, kept at
+`models/versions/best_model_pre_crowding_341f1a39.joblib`).
+
+**This is the first deployed model change in the project's history** -- the
+model-improvement track's first gain that actually shipped, after ~31
+experiments that did not. The change is two catalog neighbour-crowding features
+(`crowd_flux_ratio_max`, `crowd_nearest_arcsec`); see the crowding section below
+for the full validation and the galactic-latitude confound analysis that set the
+honest expectation at +0.010 to +0.012 rather than the +0.0167 headline.
+
+Measured at real scale on the complete backfilled dataset, old vs new:
+
+| | old (24 feat) | new (26 feat) |
+|---|---|---|
+| headline test ROC-AUC | 0.9021 refit / 0.9031 artefact | **0.9208** |
+| resampled mean (12 bootstraps) | 0.8961 | **0.9128**, delta +0.0166, 12/12 positive, 12/12 clearing |
+| nested CV (5 folds) | 0.9222 | **0.9298**, wins 5/5 |
+| Brier | 0.0945 | **0.0879** |
+| ECE | 0.0441 | **0.0417** |
+
+Deployed by **manual offline swap, not the live promotion gate**: the gate
+compares challenger and production on one feature matrix, and a 24-feature model
+raises `ValueError` on a 26-column matrix, so it cannot judge a feature-set
+change. After the swap both sides use 26 features and the gate works normally
+again.
 
 **Which baseline a new experiment is measured against.** Use **0.9021**, the
 refit-on-clean-train figure, not 0.9031. A challenger is itself a refit, so

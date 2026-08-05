@@ -849,6 +849,52 @@ def bin_lightcurve(time_arr, flux_arr, flux_err_arr):
     return t_binned, f_binned, e_binned
 
 
+CROWDING_COLUMNS = ["crowd_flux_ratio_max", "crowd_nearest_arcsec"]
+
+
+def add_crowding_features(df, max_workers=4):
+    """Adds catalog neighbour-crowding features to a candidate feature frame.
+
+    These are model INPUTS (promoted to FEATURE_COLUMNS), so they must be
+    produced by this pipeline for every unknown candidate, not only backfilled
+    onto the training set -- a feature that exists solely for labelled stars
+    would score every real candidate as missing.
+
+    Resolution needs the TIC id alone (hosts here are keyed `TIC_<id>`), so no
+    ra/dec is required and this works identically for training stars and
+    candidates. ~0.34 s/star against MAST; threaded modestly to stay polite.
+
+    Never raises: a catalog outage leaves the columns NaN, which
+    HistGradientBoosting handles natively, rather than failing a whole batch of
+    otherwise-good candidates.
+    """
+    import sys as _sys_mod                    # not imported at module scope here
+    import concurrent.futures as _cf
+    _sys_mod.path.insert(0, os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "experiments"))
+    try:
+        from crowding_features import crowding_for
+    except Exception as e:
+        print(f"  crowding: module unavailable ({e}); leaving columns NaN")
+        for c in CROWDING_COLUMNS:
+            df[c] = np.nan
+        return df
+
+    hosts = df["host"].tolist()
+    out = {}
+    try:
+        with _cf.ThreadPoolExecutor(max_workers=max_workers) as ex:
+            for h, r in zip(hosts, ex.map(lambda x: crowding_for(x), hosts)):
+                out[h] = r
+    except Exception as e:
+        print(f"  crowding: batch failed ({e}); leaving columns NaN")
+    for c in CROWDING_COLUMNS:
+        df[c] = [out.get(h, {}).get(c, np.nan) for h in hosts]
+    ok = int(sum(1 for h in hosts if out.get(h, {}).get("crowd_ok")))
+    print(f"  crowding: resolved {ok}/{len(hosts)} candidates")
+    return df
+
+
 def compute_all_features(csv_path, host, r_star, m_star, required_columns):
     """Runs TLS once with real stellar params and extracts every scalar TLS
     field the model needs PLUS the v2 feature set (chi2red_min,
@@ -1021,6 +1067,7 @@ def extract_features(candidates_df, required_columns):
 
         if batch_rows:
             new_df = pd.DataFrame(batch_rows)
+            new_df = add_crowding_features(new_df)
             if os.path.exists(FEATURES_PATH):
                 old = pd.read_csv(FEATURES_PATH)
                 combined = pd.concat([old, new_df], ignore_index=True).drop_duplicates(subset="host", keep="last")

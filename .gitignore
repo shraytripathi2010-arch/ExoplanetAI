@@ -70,3 +70,7 @@ code/k2_pilot/processed/
 # fit cache for calibration_holdout_sweep.py -- reproducible, ~1MB, not a result
 code/experiments/calibration_holdout_raw.json
 code/experiments/*.json.partial
+
+# pre-crowding backups (local rollback safety, not history)
+*_backup_pre_crowding.csv
+data/training_dataset/training_backup_before_crowding_backfill.csv

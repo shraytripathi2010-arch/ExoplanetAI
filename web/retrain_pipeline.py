@@ -184,6 +184,25 @@ def _fetch_stellar_params_for_host(tic_id):
             float(row["mass"]) if row["mass"] is not None else None)
 
 
+CROWDING_COLUMNS = ["crowd_flux_ratio_max", "crowd_nearest_arcsec"]
+
+
+def _crowding_for_host(host):
+    """Catalog crowding features for one newly-labelled star, by TIC id.
+
+    Returns NaNs rather than raising: a MAST hiccup must not lose a star that
+    was otherwise successfully downloaded, preprocessed and TLS-searched.
+    """
+    try:
+        sys.path.insert(0, os.path.join(CODE_DIR, "experiments"))
+        from crowding_features import crowding_for
+        r = crowding_for(host)
+        return {c: r.get(c, float("nan")) for c in CROWDING_COLUMNS}
+    except Exception as e:
+        print(f"  crowding unavailable for {host}: {e}")
+        return {c: float("nan") for c in CROWDING_COLUMNS}
+
+
 def process_and_append_new_examples(max_new=None):
     """Runs every pending watch-queue entry through download -> preprocess
     -> TLS feature extraction, reusing 06_download_unknown.py's
@@ -240,6 +259,13 @@ def process_and_append_new_examples(max_new=None):
             row = dict(feats)
             row.update({"host": host, "label": label, "st_rad": st_rad, "st_teff": st_teff,
                         "st_mass": st_mass})
+            # Crowding features are MODEL INPUTS. The reindex below leaves any
+            # unpopulated column NaN, so without this every auto-appended star
+            # would silently arrive with missing crowding and quietly degrade
+            # the feature over time. Observed for real: TIC_453789494 was
+            # appended between the backfill fetch and the promotion and had to
+            # be patched by hand. Resolution needs only the TIC id.
+            row.update(_crowding_for_host(host))
             # BUG FIXED (caught live): appending with header=False writes
             # values POSITIONALLY -- a naive pd.DataFrame([row]) has whatever
             # key order dict(feats) happened to produce, which does NOT

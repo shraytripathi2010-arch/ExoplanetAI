@@ -1,0 +1,41 @@
+{
+  "model_name": "HistGradientBoosting+sigmoid_calibration (tuned, v3 stellar params)",
+  "feature_columns": [
+    "SDE",
+    "SDE_raw",
+    "FAP",
+    "period",
+    "period_uncertainty",
+    "duration",
+    "depth",
+    "depth_mean",
+    "depth_mean_std",
+    "depth_mean_even",
+    "depth_mean_odd",
+    "odd_even_mismatch",
+    "rp_rs",
+    "snr",
+    "transit_count",
+    "distinct_transit_count",
+    "empty_transit_count",
+    "st_rad",
+    "st_teff",
+    "chi2red_min",
+    "depth_consistency_std",
+    "secondary_eclipse_depth",
+    "transit_shape_ratio",
+    "depth_duration_ratio"
+  ],
+  "random_seed": 42,
+  "confusion_matrix_threshold": 0.5,
+  "training_rows": 4392,
+  "test_rows": 1099,
+  "class_balance": {
+    "positive": 4336,
+    "negative": 1155
+  },
+  "test_roc_auc": 0.9031559838011451,
+  "test_brier_score": 0.08851013878885666,
+  "updated_by": "restored after Stage 1 (TOI FA expansion) came back as noise, 2026-07-11",
+  "note": "Stage 1 negative-class-growth experiment (TOI FA dispositions, +98 stars) confirmed no meaningful improvement (0.893 vs 0.903, mutually overlapping bootstrap CIs) -- reverted to the pre-experiment 5,491-row dataset and this model as final."
+}

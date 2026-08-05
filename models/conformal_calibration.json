@@ -1,27 +1,27 @@
 {
   "generated_from": "frozen test split (1,098 stars), production model",
-  "model_md5": "341f1a3907e77f6ec294f182833e613c",
+  "model_md5": "0c996a41a76cc765895d3013830a536b",
   "regenerate_when": "the production model changes, or the frozen test set gains stars -- see RESULTS_SUMMARY",
-  "n_calibration": 1098,
-  "n_calibration_pos": 867,
+  "n_calibration": 1100,
+  "n_calibration_pos": 869,
   "n_calibration_neg": 231,
   "method": "Mondrian (class-conditional) LAC",
-  "prevalence": 0.7896174863387978,
+  "prevalence": 0.79,
   "thresholds": {
     "0.1": {
-      "q_neg": 0.9244745330181002,
-      "q_pos": 0.3206828472601517,
-      "lac_q": 0.567648707289617
+      "q_neg": 0.9115985989961368,
+      "q_pos": 0.27532159175169935,
+      "lac_q": 0.54217358374139
     },
     "0.05": {
-      "q_neg": 0.9653466931991712,
-      "q_pos": 0.4507734154456722,
-      "lac_q": 0.7838659398170797
+      "q_neg": 0.9514305721610559,
+      "q_pos": 0.4098717856700922,
+      "lac_q": 0.7400766348883778
     },
     "0.01": {
-      "q_neg": 0.9940108278747439,
-      "q_pos": 0.7492307782547427,
-      "lac_q": 0.9656799290341314
+      "q_neg": 0.9887463928839898,
+      "q_pos": 0.6553837194767375,
+      "lac_q": 0.9514305721610559
     }
   }
 }
