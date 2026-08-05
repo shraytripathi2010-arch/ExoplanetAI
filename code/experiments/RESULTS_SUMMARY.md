@@ -3540,6 +3540,116 @@ conformal layer, the model, the gate and the scheduler are untouched, and
 Scripts: `giant_star_diagnose.py`, `giant_star_fix.py`; results
 `giant_star_diagnose.json`, `giant_star_fix_results.json`.
 
+## Fitted transit shape + odd-even TIMING -- shape is a REFINEMENT, timing is NOVEL AND EMPTY
+
+Two proposals. Neither reached a model fit, for different and specific reasons.
+
+### transit_shape_ratio is structurally broken -- so a fitted version is a genuine refinement, NOT a duplicate
+
+The existing feature is not a working shape metric. It is a ratio of two
+FIXED-PHASE windows that never scale to the transit's duration:
+
+```
+center_mask = |phase| < 0.005
+edge_mask   = 0.005 <= |phase| < 0.015
+shape_ratio = (1 - median(flux[edge])) / (1 - median(flux[center]))
+```
+
+Whether those windows land on the flat bottom, the ingress, or entirely outside
+the transit is decided by the star's duty cycle, not by its shape. Measured
+against the actual half-duration in phase units:
+
+| where the windows fall | share of stars | what the feature returns |
+|---|---|---|
+| transit fits inside the CENTER window | **36.9%** | edge window samples out-of-transit, ratio -> 0 |
+| both windows inside the flat bottom | **18.2%** | both depths ~ full depth, ratio -> 1 |
+| windows near ingress/egress | 45.0% | actually measures shape |
+
+**For 55% of stars the value is fixed by geometry, not by the transit profile.**
+Coverage is 69.7%, single-feature AUC 0.4333, permutation importance +0.0001.
+
+The initial hypothesis -- that it is a disguised duty-cycle proxy -- was WRONG
+and was checked rather than assumed: |corr| with duration/period is 0.018, with
+duration 0.016, with period 0.001. It is not a proxy for anything. It is mostly
+noise.
+
+**Verdict: a properly duration-scaled trapezoid fit is a refinement with real
+headroom, not a duplicate.** The physical quantity (ingress/egress versus flat
+bottom) has never actually been measured in this pipeline; the existing column
+is a broken implementation of the same idea, so its near-zero importance is
+evidence about the implementation, not about whether shape information helps.
+**Not built here** -- it needs its own fitting infrastructure and its own
+validation cycle, and the timing piece was prioritised as the more novel of the
+two.
+
+### Odd-even TIMING offset -- genuinely novel, cleanly built, and the signature is ABSENT
+
+Distinct from everything deployed: `odd_even_mismatch` compares odd/even
+DEPTHS, the closed weak-secondary work is depth significance, and no existing
+feature uses transit phase POSITION. Its nearest neighbour is
+`power_ratio_half_period` (already tested, negative), which asks the same
+physical question in the frequency domain.
+
+Built by folding each parity group together and measuring its flux-weighted
+phase centroid -- deliberately NOT per-transit mid-times, because this project
+already hit a wall there ("threshold-crossing on raw per-cadence photometry
+doesn't reliably measure a single transit's duration"). Group folding recovers
+the SNR individual events lack. No TLS re-run; the fold comes from stored
+period/T0.
+
+    offset_frac = |centroid_even - centroid_odd| / (duration / period)
+
+**Coverage 4,315/5,486 = 78.7%.** Failures are almost entirely too-few-epochs
+(a parity group needs >=2 distinct epochs), which is the honest limitation of
+asking a per-parity question on short baselines.
+
+Every hygiene check passes -- and the feature still fails, which is the point:
+
+| check | result |
+|---|---|
+| missingness by class | 78.4% planets vs 79.5% false positives, gap -1.1pp |
+| AUC of mere availability | 0.4946 (no leakage) |
+| max correlation vs the 26 production features | 0.174 (`depth_duration_ratio`) |
+| orthogonality vs `odd_even_mismatch` | **0.064** -- genuinely different information |
+| spatial confound, corr vs \|galactic b\| | 0.034 / 0.020 (clean) |
+| production pools | computable, 16/20 and 15/20 sampled candidates |
+
+**THE CLASS-RATE GATE IS DECISIVE AND NEGATIVE:**
+
+| group | n | median offset | p90 | % > 0.25 duration | % > 0.5 duration |
+|---|---|---|---|---|---|
+| planets | 3,399 | 0.0305 | 0.1019 | 0.4% | **0.0%** |
+| false positives | 916 | 0.0250 | 0.0804 | 0.2% | **0.0%** |
+
+**Not one star in either class shows a timing offset beyond half a transit
+duration**, and the tiny median difference runs the WRONG way -- planets show
+slightly larger offsets than false positives, the reverse of the eclipsing-binary
+prediction. Single-feature AUC 0.5570 for the offset (wrong sign for the
+physics) and 0.5062 for the significance version, i.e. noise.
+
+**The phenomenon the feature was built to detect does not occur in this dataset
+at measurable levels.** Physically consistent: depth-asymmetric binaries are
+already caught by `odd_even_mismatch`, circular ones put the secondary at
+exactly phase 0.5 and produce no offset by construction, so the residual
+population is eccentric binaries whose eclipse depths happen to match -- and
+that population is empirically empty here.
+
+**STOPPED AT THE GATE, no model fit run.** The brief specifies the class-rate
+check as a test to run BEFORE modelling, and it says there is nothing to model:
+a feature whose two classes are indistinguishable and whose extreme tail is
+empty in both cannot produce the ~0.0097 needed to clear. Resampling exists to
+stop a positive being believed too early; declaring a negative does not require
+it when the raw class rates are this flat. A 12-resample retrain can be run for
+completeness on request.
+
+**RECOMMENDATION: do not promote either piece.** The timing feature is closed as
+an empty-signature negative. The fitted-shape refinement remains genuinely open
+and is the better of the two to revisit, with the caveat that it inherits this
+project's four-times-measured pattern that a real, orthogonal signal can still
+add nothing to the model.
+
+Scripts: `oddeven_timing.py`; data `oddeven_timing_features.csv`.
+
 ## NON-KEPLER SURVEYS -- CLOSED AT THE PART 1 GATE. No download performed.
 
 K2, CoRoT, WASP, HATNet/HATSouth, KELT, NGTS and TRAPPIST assessed as training
