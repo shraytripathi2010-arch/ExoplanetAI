@@ -1,0 +1,102 @@
+{
+  "coverage_resolved_pct": 99.39835916134913,
+  "missingness_by_class": {
+    "crowd_contratio": {
+      "present_planet_pct": 54.234941149319184,
+      "present_fp_pct": 78.73263888888889,
+      "availability_auc": 0.37751151130215144
+    },
+    "crowd_numcont": {
+      "present_planet_pct": 54.234941149319184,
+      "present_fp_pct": 78.73263888888889,
+      "availability_auc": 0.37751151130215144
+    },
+    "crowd_flux_ratio_max": {
+      "present_planet_pct": 99.2384029540734,
+      "present_fp_pct": 100.0,
+      "availability_auc": 0.49619201477036695
+    },
+    "crowd_nearest_arcsec": {
+      "present_planet_pct": 98.63835679667666,
+      "present_fp_pct": 99.73958333333334,
+      "availability_auc": 0.4944938673167167
+    }
+  },
+  "single_feature_auc": {
+    "crowd_contratio": {
+      "auc": 0.3260245372868235,
+      "n": 3257
+    },
+    "crowd_numcont": {
+      "auc": 0.3435011377231462,
+      "n": 3257
+    },
+    "crowd_flux_ratio_max": {
+      "auc": 0.5284358850129199,
+      "n": 5452
+    },
+    "crowd_nearest_arcsec": {
+      "auc": 0.6037768391712515,
+      "n": 5423
+    }
+  },
+  "top_correlations": {
+    "crowd_contratio": [
+      {
+        "feature": "rp_rs",
+        "abs_r": 0.20353248285109313
+      },
+      {
+        "feature": "depth_mean_std",
+        "abs_r": 0.18015231789562358
+      },
+      {
+        "feature": "depth_consistency_std",
+        "abs_r": 0.14161394483630804
+      }
+    ],
+    "crowd_numcont": [
+      {
+        "feature": "st_rad",
+        "abs_r": 0.14251121614342513
+      },
+      {
+        "feature": "st_teff",
+        "abs_r": 0.11223198208386068
+      },
+      {
+        "feature": "distinct_transit_count",
+        "abs_r": 0.06098429516088519
+      }
+    ],
+    "crowd_flux_ratio_max": [
+      {
+        "feature": "rp_rs",
+        "abs_r": 0.027821989180158033
+      },
+      {
+        "feature": "st_teff",
+        "abs_r": 0.023214978218050047
+      },
+      {
+        "feature": "transit_count",
+        "abs_r": 0.015630723160302413
+      }
+    ],
+    "crowd_nearest_arcsec": [
+      {
+        "feature": "rp_rs",
+        "abs_r": 0.16921084390753036
+      },
+      {
+        "feature": "period_uncertainty",
+        "abs_r": 0.1311987090166235
+      },
+      {
+        "feature": "st_teff",
+        "abs_r": 0.10865468870005246
+      }
+    ]
+  },
+  "unknown_pool_resolved": "5/5"
+}

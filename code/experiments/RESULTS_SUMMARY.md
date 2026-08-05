@@ -2291,6 +2291,159 @@ Two methodology notes worth carrying forward:
   to 1e-12 over 400 tie-heavy cases). Ties matter here specifically because
   isotonic emits plateaus of identical probabilities. See ENVIRONMENT_NOTES §9.
 
+## Catalog crowding features -- THE FIRST ROBUST CLEAR, and a dataset-level confound found while checking it
+
+Catalog-based neighbour-star crowding from the TIC (which already cross-matches
+Gaia and 2MASS). **Distinct from the closed pixel-centroid work**: that asked
+whether the photocentre shifts during transit, from TESS images; this asks how
+many catalogued stars sit near the target and how bright they are, using no
+pixel data at all. Their measured correlation is **-0.084** (see below), so they
+are near-independent probes of the same physical worry.
+
+### Part 1 -- coverage: dense, not sparse
+
+**5,452 / 5,485 stars resolved (99.4%)**; the 33 failures are all "nearest TIC
+source > 15 arcsec", i.e. genuinely unresolvable, not errors.
+
+| radius | >=1 neighbour | median | p90 | max |
+|---|---|---|---|---|
+| 21" (1 TESS px) | 82.4% | 3 | 12 | 131 |
+| 42" (2 TESS px) | **96.1%** | 12 | 48 | 499 |
+| 63" (3 TESS px) | 99.5% | 26 | 105 | 1033 |
+
+The expectation going in was a rare-but-informative signal. **The opposite is
+true**: at the aperture scale that matters essentially every TESS target is
+crowded, and the feature is about degree, not presence.
+
+Aperture: 42" (2 px). A TESS pixel is ~21", SPOC apertures run 1-4 px, and
+contaminating flux is dominated by the inner 1-2. One 63" query per star serves
+all radii, so re-deriving at another radius needs no re-query. 0.34 s/star,
+~18 min for the full set.
+
+### Part 2 -- TIC provides contamination natively, and it is unusable here
+
+`contratio` (flux contamination ratio) and `numcont` come back from the same
+batch-by-ID call the pipeline already makes for st_rad/st_teff. No separate
+Gaia/2MASS query is needed. **But they fail two independent checks:**
+
+| check | result |
+|---|---|
+| availability, planets vs false positives | 54.2% vs **78.7%** |
+| single-feature AUC of *mere availability* | **0.3775** |
+| availability on the unknown pool | **37.5%** |
+
+TIC populates `contratio` only for **Candidate Target List** stars, and TOIs are
+in the CTL *by construction*. So its missingness encodes **label provenance**,
+and HistGradientBoosting handles NaN natively -- it would learn exactly that.
+Worse, a feature present for 78.7% of training negatives but 37.5% of real
+candidates is a train/serve mismatch on top of the leak. **Reported, not used.**
+
+The two features actually carried forward are computed from the cone search and
+are clean: availability gaps of 0.8 / 1.1 points, availability-AUC 0.496 /
+0.495, **100% present on unknown candidates**, and max |r| against the existing
+24 features of only **0.204** -- no redundancy anywhere near the 0.80 threshold.
+
+### Part 4 -- resampled result: it clears, decisively
+
+12 training bootstraps, production refit on identical rows, nothing from a
+single fit. Baseline 0.8961 (sd 0.0031), Brier 0.0945, ECE 0.0441.
+
+| arm | mean delta | sd | range | positive | clears | >= MDE 0.0097 | delta 2-min | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|---|
+| **+2 full-coverage** | **+0.0167** | 0.0019 | +0.0138..+0.0201 | 12/12 | **12/12** | **12/12** | +0.0160 | **0.0879** | **0.0417** |
+| +4 incl. TIC native | +0.0197 | 0.0017 | +0.0161..+0.0223 | 12/12 | 12/12 | 12/12 | +0.0193 | 0.0881 | 0.0411 |
+
+**This is the first robust clear in ~31 experiments.** It is ~1.7x the detection
+threshold, positive on every resample, and -- unlike CatBoost -- it *improves*
+calibration rather than trading it away (Brier -0.0066, ECE -0.0024).
+
+### THE CONTROL THAT COMPLICATES IT: sky position alone also clears
+
+Crowding tracks stellar density, which tracks galactic latitude, and the two
+classes are not drawn from the same sky:
+
+    |galactic latitude| alone   AUC 0.6287   <-- HIGHER than the feature itself
+    right ascension alone       AUC 0.6032
+    crowd_nearest_arcsec        AUC 0.6039
+
+    median |b|:               planets 16.8 deg, false positives 12.5 deg
+    median nearest neighbour: planets 10.3",   false positives  7.4"
+
+Same 12 resamples, adding `|galactic b|` as a control feature:
+
+| arm | mean delta | clears | >= MDE |
+|---|---|---|---|
+| +2 crowding | +0.0167 | 12/12 | 12/12 |
+| **+\|b\| only (control)** | **+0.0135** | **12/12** | **12/12** |
+| +\|b\| + crowding | +0.0255 | 12/12 | 12/12 |
+
+**Raw sky position alone buys +0.0135 and clears on every resample.** Sky
+coordinates cannot cause a transit signal to be planetary; that gain is purely
+an artifact of how the training set was assembled -- confirmed planets from
+well-studied high-latitude fields, TOI false positives from all-sky TESS
+detections concentrated toward the plane.
+
+**This is a finding about the dataset, not about crowding, and it is arguably
+the more important half of this experiment.** It sets a floor of ~+0.0135 on
+what *any* position-correlated feature can appear to earn here without meaning
+anything, and it means other features correlated with sky position may already
+be flattered by the same effect.
+
+**Crowding survives the control, but at a discount:**
+
+    crowding beyond position:  +0.0255 - 0.0135 = +0.0120   (still above MDE)
+    position beyond crowding:  +0.0255 - 0.0167 = +0.0088   (below MDE)
+
+So crowding is **not** merely a spatial proxy -- it carries ~+0.0120 of
+independently certifiable information, and it subsumes position better than
+position subsumes it. But **+0.0120 is the defensible estimate, not +0.0167**,
+and even that is measured inside a spatially confounded sample: controlling for
+|b| removes the latitude axis, not every route by which survey selection could
+enter.
+
+### Relationship to the closed pixel-centroid result
+
+Both proxy the same physical concern (blended sources). On the 2,693 stars with
+both measured:
+
+| | value |
+|---|---|
+| corr(shift_pixels, crowd_nearest_arcsec) | **-0.084** |
+| corr(shift_pixels, crowd_flux_ratio_max) | -0.009 |
+| single-feature AUC, shift_pixels | 0.5328 |
+| single-feature AUC, crowd_nearest_arcsec | 0.6355 |
+
+**They are nearly independent.** The catalog proxy does not replace the pixel
+one and does not explain why it failed; a faint contaminant unresolvable in
+TESS pixels still appears in Gaia, and a centroid shift can come from a source
+the catalog missed. The centroid result stands as recorded (+0.0032, CI crossed
+zero, 77.6% coverage). This is a different measurement that happens to work
+better, not a re-run of it.
+
+### Verdict
+
+**NOT PROMOTED** -- per the standing instruction, a robust clear is reported,
+not deployed. What promoting it would involve:
+
+- **Pipeline work, not just a model swap.** `06_download_unknown.py` would need
+  the cone search wired in (~0.34 s/star, resumable) so candidates get the
+  features at scoring time. The features themselves are confirmed available:
+  100% of a 40-star unknown sample resolved from the `TIC_<id>` key alone, with
+  no ra/dec and no label.
+- **A decision about the confound.** The honest expected gain is the +0.0120
+  that survives the position control, not the +0.0167 headline -- and the
+  spatial confound should probably be investigated on its own terms first,
+  since it affects how every other feature in this set should be read.
+- **No new dependency and no calibration cost** -- astroquery is already a
+  dependency, and both Brier and ECE improve.
+- **The frozen split, the gate, the scheduler and the model are untouched.**
+
+Scripts: `crowding_features.py` (fetch), `crowding_checks.py` (coverage,
+leakage, production availability), `crowding_validate.py` (12 resamples),
+`crowding_control.py` (sky-position control); data `crowding_per_star.csv`;
+results `crowding_checks.json`, `crowding_validate_results.json`,
+`crowding_control_results.json`.
+
 ## UNCERTAINTY QUANTIFICATION (not an accuracy change): split conformal prediction
 
 **Nothing about the model changed.** ROC-AUC is still 0.9031, the artifact md5 is
