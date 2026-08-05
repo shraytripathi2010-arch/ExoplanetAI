@@ -3240,6 +3240,126 @@ distinction three times.
 Scripts: `weak_secondary.py`, `weak_secondary_validate.py`; results
 `weak_secondary_features.csv`, `weak_secondary_results.json`.
 
+### PROPOSED AND REJECTED: "formalize odd-even + add secondary eclipse SNR" -- BOTH ALREADY EXIST
+
+**Proposed (2026-08-05):** formalise the odd-even depth test into a proper
+significance statistic `|d_odd - d_even| / sqrt(sigma_odd^2 + sigma_even^2)`
+per LEO-Vetter, and add a secondary-eclipse SNR feature. Stated premise: the
+project has only a *raw* odd-even depth comparison
+(`depth_mean_odd`/`depth_mean_even`), with no significance normalisation.
+
+**Verdict: BOTH halves already exist. Nothing was built or retrained.** Two of
+the stated premises were also wrong and are corrected below.
+
+### Half 1 -- secondary eclipse SNR: ALREADY RUN, and negative
+
+Covered in full by "Weak secondary eclipse (noise-normalised)" above. That
+experiment computed exactly the proposed statistic --
+`significance = secondary_depth / sigma_eff`, `sigma_eff = 1.4826 * MAD(out-of-
+eclipse) / sqrt(N_in_window)` -- at **97.8% coverage**, with the class-rate
+check the proposal asks for (false positives show 18.2% above 3 sigma versus
+5.3% for planets, a 3.4x rate). Single-feature AUC 0.381, max correlation
+against existing features 0.245. **No arm cleared**: bare +0.0026
+[-0.0037, +0.0088], calibrated -0.0029 [-0.0083, +0.0024] -- the two arms
+disagree in sign by more than the effect. The paired GBM-averaging ensemble
+from that same round also ran (`gbm_ensemble_results.json`). Do not re-run.
+
+### Half 2 -- odd-even significance: ALREADY A PRODUCTION FEATURE
+
+The premise that the project holds only raw depths is **false**.
+`odd_even_mismatch` is one of the 26 deployed features, and TLS computes it as
+the significance statistic, not a raw difference:
+
+```
+stats.py:392   depth_mean_odd_std = std(flux_intransit_odd) / sqrt(N_odd)   <- standard ERROR
+main.py:394    odd_even_difference = abs(depth_mean_odd - depth_mean_even)
+main.py:395    odd_even_std_sum    = depth_mean_odd_std + depth_mean_even_std
+main.py:396    odd_even_mismatch   = odd_even_difference / odd_even_std_sum
+```
+
+Same numerator as LEO-Vetter, same per-group standard errors. **The only
+difference is that TLS sums the errors linearly where LEO-Vetter sums them in
+quadrature**, and that difference is bounded:
+
+    OE_quadrature / OE_linear = (1 + r) / sqrt(1 + r^2),  r = sigma_odd/sigma_even
+    over r in [0.01, 100]:  min 1.0099, max 1.4142
+    at equal errors (the typical case): exactly sqrt(2) = 1.4142
+
+So the proposed statistic is the deployed one multiplied by a factor between
+1.00 and 1.41 -- and very nearly a *constant* sqrt(2) whenever the odd and even
+groups have comparable scatter, which they generally do since they have similar
+N. It is not strictly a monotone transform (the factor varies with
+sigma_odd/sigma_even), so a tree model *could* in principle see it differently,
+but the room for that is a <=41% rescaling of one feature.
+
+A further engineered variant, `odd_even_mismatch / depth_mean_std`, was ALSO
+already tested in the small-lift trio: single-feature AUC 0.353, and the
+four-ratio arm containing it returned **+0.0001 [-0.0055, +0.0057]**.
+
+### Two premise corrections
+
+- **`depth_mean_odd` vs `depth_mean_even` are NOT correlated at 0.981.**
+  Measured on the current training set: **|r| = 0.162**. The pair is not
+  redundant, and no 0.981 figure for this pair appears in the feature audit.
+- **The existing odd-even treatment is not "raw depth only".** There are three
+  separate columns -- the two group depths AND the significance statistic --
+  and the significance one is in production.
+
+### Why a refinement has essentially no headroom
+
+Permutation importance in the **deployed 0.9208 model** (frozen test, 5 repeats,
+ROC-AUC scoring):
+
+| feature | importance | rank |
+|---|---|---|
+| st_rad | +0.04454 | 1 |
+| chi2red_min | +0.03558 | 2 |
+| st_teff | +0.02781 | 3 |
+| crowd_flux_ratio_max | +0.01719 | 4 |
+| secondary_eclipse_depth | +0.00663 | 6 |
+| **odd_even_mismatch** | **+0.00346** | **13 / 26** |
+| depth_mean_even | +0.00192 | 16 |
+| depth_mean_odd | +0.00100 | 20 |
+
+Single-feature AUCs: `odd_even_mismatch` 0.4650, `depth_mean_odd` 0.4295,
+`depth_mean_even` 0.4340, `secondary_eclipse_depth` 0.4935.
+
+The entire odd/even family contributes about **+0.006** of permutation
+importance combined, an order of magnitude below `st_rad`. Re-deriving one of
+those columns with a denominator that changes it by at most 41% cannot
+plausibly produce the ~+0.010 needed to clear the detection threshold.
+
+### The one genuinely new piece, NOT built: fit-based odd-even
+
+Everything above is *box*-based (TLS's in-transit flux means). A **fitted
+transit model** per odd/even group -- fitting a limb-darkened transit to each
+group separately and comparing fitted depths -- is genuinely untested. `batman`
+is already a dependency (used by the injection-recovery work), so the model
+itself is available.
+
+**It was not built, and is not recommended, for three measured reasons:**
+
+- **No headroom.** The box-based version it would refine ranks 13/26 at +0.0035.
+- **Heavy new infrastructure**, which this project has repeatedly found not to
+  pay: per-group transit fits across 5,486 training stars plus both candidate
+  pools, with per-star convergence handling, versus a statistic already
+  computed for free inside the existing TLS call.
+- **The documented pattern.** `odd_even_significance` (AUC 0.353), `duty_cycle`
+  (0.353) and `sec_significance` (0.381) all measured real, physically correct,
+  low-correlation signal and all returned ~0.000 in the model. Novel-by-
+  correlation is not novel-to-the-model, now measured four times.
+
+If it is ever revisited it is a fresh experiment owing the standing rules:
+10+ training bootstraps for AUC *and* Brier/ECE against the **0.9208 / 26-feature**
+baseline, and a spatial-confound check (a transit-shape feature is a priori not
+exposed, but the rule says confirm).
+
+Detection threshold unchanged: the frozen manifest test set is still 1,098
+stars (`frozen_test_mask`); the 50/50 post-freeze allocation has added 2 stars
+to `split_by_host`'s test side (1,100), which does not move the ~0.0097 MDE.
+
+Script: none required -- this entry is a code and results audit.
+
 ## NON-KEPLER SURVEYS -- CLOSED AT THE PART 1 GATE. No download performed.
 
 K2, CoRoT, WASP, HATNet/HATSouth, KELT, NGTS and TRAPPIST assessed as training
