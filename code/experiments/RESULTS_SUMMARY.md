@@ -5060,6 +5060,157 @@ Scripts: `variability_nested_cv.py`, `variability_worstcase_control.py`,
 `variability_features.py` (production), `variability_backfill.py`,
 `promote_variability_retrain.py`, `deploy_variability_model.py`.
 
+## RAVEN-STYLE SYNTHETIC FALSE POSITIVES -- CLOSED AT THE PART 0 FEASIBILITY GATE
+
+**This closes synthetic data for this project.** Second and final attempt.
+Nothing was built; the decision rests on measurement, not argument. Production
+untouched at 0.9300 / 31 features / md5 `1f0b7cb8`.
+
+### The proposal's central premise is factually wrong
+
+The brief proposes "use real stellar light curves as injection hosts" as the
+single most important available realism upgrade, on the belief that the first
+attempt "may not have fully used" them. Read from `injection.py` rather than
+assumed, the first attempt ALREADY did all of this:
+
+* line 2: *"synthetic transit injection into REAL processed light curves"*
+* *"so the injected signal sits in genuine TESS noise/systematics, not
+  synthetic noise"* -- real activity, real instrumental structure, real noise
+  correlation, already inherited
+* period/depth/duration drawn by **empirical resampling from real positives**,
+  explicitly *"not an assumed parametric distribution"*
+* `inject_eclipsing_binary()` already produced a **grazing V-shaped EB with a
+  secondary eclipse** -- one of the very scenarios the brief proposes adding
+
+So the largest proposed upgrade is already spent, and it produced 0.9654.
+
+### What actually makes RAVEN work, and what this project lacks
+
+From the RAVEN paper (arXiv:2509.17645) and its MNRAS follow-up: five
+scenarios (Planet, EB, BEB, HEB, HTP) are simulated with **PASTIS**, plus a
+**non-simulated** set of real TESS candidates driven by stellar variability and
+systematics.
+
+| RAVEN ingredient | this project |
+|---|---|
+| real TESS light curves as hosts | **already has it** |
+| non-simulated FP set of real candidates | **already has it** -- the negative class IS real TOI false positives |
+| **PASTIS**: Robin/Besancon galactic population synthesis + MESA isochrones, generating physically self-consistent blended/background stars with their own mass, age, radius, temperature and hence correct dilution | **does not have it.** `import pastis` fails; only `batman` is installed |
+
+That last row is the whole difference, and it is precisely what the blend
+scenarios need. BEB/HEB/HTP are *defined* by a second star whose luminosity
+ratio sets the dilution. Without a galactic population model those dilution
+factors would be invented -- exactly the "convenient assumption over real data"
+this project has repeatedly found produces off-distribution features.
+
+### The decisive measurement: the gap is not where a better injector could fix it
+
+Domain-separability run on the 1,800 existing synthetic rows vs 5,486 real
+training rows, splitting the production features into how the signal was FOUND
+versus what it LOOKS like:
+
+| feature group | n | domain AUC |
+|---|---|---|
+| all shared features | 24 | **0.9692** (reproduces the recorded 0.9654) |
+| **DETECTION statistics only** (SDE, SDE_raw, FAP, snr, chi2red_min, transit counts) | 8 | **0.9382** |
+| **SHAPE / everything else** | 16 | **0.9500** |
+
+**A hypothesis stated in the script BEFORE running it was refuted.** The
+prediction was that separability would concentrate in the detection statistics
+-- a selection-function mismatch that better simulation cannot fix. It does
+not. **Both halves are independently near-trivially separable.** Deleting the
+entire detection group still leaves 0.9500; deleting all shape features still
+leaves 0.9382. There is no subset to fix.
+
+Per-feature standardized mean differences confirm it spans both kinds:
+
+| feature | SMD (synth - real) | group | single-feature domain AUC |
+|---|---|---|---|
+| SDE | +0.78 | DETECTION | 0.7444 |
+| SDE_raw | +0.76 | DETECTION | 0.7620 |
+| FAP | -0.48 | DETECTION | 0.5400 |
+| snr | +0.47 | DETECTION | 0.7793 |
+| **st_teff** | **+0.44** | shape | **0.7284** |
+| depth_duration_ratio | -0.37 | shape | 0.6079 |
+
+`st_teff` is the quiet killer. It is a **stellar** property, not something any
+injector controls: it reflects which hosts were injected into. Synthetic
+positives are made by injecting into negative-class light curves, so they
+inherit the negative class's stellar population, which differs from the
+confirmed-planet population. Any host choice imports that host population's
+parameters. A perfect transit simulator does not touch this.
+
+### 7 of 31 production features cannot be given honest synthetic values at all
+
+Found while running the comparison, and structural rather than incidental:
+
+    crowd_flux_ratio_max, crowd_nearest_arcsec,
+    var_oot_rms, var_excess, var_ls_amp, var_ls_power, var_ls_period
+
+* **Crowding** is a TIC-catalog property of a real star at real coordinates.
+  An injected row inherits the *host's* real neighbours, which describe the
+  host, not the simulated scenario. For a simulated BEB this is actively
+  contradictory: the scenario's defining feature is a blended companion that
+  the crowding columns know nothing about.
+* **Variability** is computed from the RAW pre-flatten light curve. Injection
+  happens into ALREADY-PROCESSED curves, so a synthetic row has no raw
+  counterpart and the five columns cannot be computed at all.
+
+So 23% of the deployed feature space -- including **both deployed wins** --
+would arrive either NaN or filled with values that contradict the injected
+physics. Both options are themselves a distribution shift, on top of the 0.969
+already measured.
+
+### The pattern this fits
+
+Both deployed wins came from information the photometry does not contain:
+crowding from an external star catalog, variability from a *different
+representation* of the data (raw rather than flattened). Synthetic injection
+adds neither -- it resamples the information already present. That is the
+mechanism-level reason it has now failed twice, and it is not addressed by
+adding scenarios.
+
+### RECOMMENDATION: do not build. Do not attempt a third time without PASTIS.
+
+Every scenario in the brief was assessed:
+
+| scenario | buildable here? |
+|---|---|
+| grazing EB | yes -- **already built** (`inject_eclipsing_binary`), part of the 0.9654 |
+| background/diluted EB | only with invented dilution factors; needs a galactic population model |
+| hierarchical triple / HEB / HTP | no -- needs PASTIS-equivalent multi-body + population synthesis |
+| non-simulated FP (variability/systematics) | **already have it** -- that is the real negative class |
+
+The measured position: the gap is 0.969 overall, 0.950 on shape alone, 0.938 on
+detection alone, spans stellar parameters no injector controls, and 7 of 31
+features are uncomputable in principle. The bar set for proceeding was
+"meaningfully below ~0.90". Nothing available here plausibly reaches it.
+
+**This is the definitive closure of synthetic-data approaches for this
+project.** A third attempt should not be made unless PASTIS (or an equivalent
+galactic population synthesis + multi-body simulator) becomes available AND the
+crowding/variability computability problem is solved -- and even then the
+`st_teff` host-population mismatch would remain.
+
+Script: `synthetic_gap_attribution.py`; results
+`synthetic_gap_attribution.json`.
+
+### MDE re-verified at the current test-set composition
+
+Asked to confirm rather than assume the ~0.0097 threshold after the
+backfills and the 31-feature deployment. Frozen test set is unchanged at
+**n=1,098 (867 positive / 231 negative, prevalence 0.790)**, deployed model
+scoring 0.9300 on it.
+
+A first estimate here perturbed one model's predictions and reported 0.0022.
+**That was measuring the wrong quantity** and is discarded: perturbation leaves
+the two prediction vectors almost perfectly correlated, so it understates the
+variance of a genuine refit-vs-refit comparison. The correct figure is the one
+measured directly during the variability deployment on this same test set --
+the 26-vs-31 headline comparison gave CI [+0.0019, +0.0164] around +0.0091,
+a **half-width of ~0.0072**. **~0.0097 has NOT materially shifted** and remains
+the working threshold.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
