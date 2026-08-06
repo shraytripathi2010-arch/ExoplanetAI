@@ -4650,6 +4650,116 @@ within a single star's products. Both fixes live in
 Scripts: `multisector_cheap_path.py`; data `multisector_cheap_stageA.csv`
 (per-star single vs stacked values, sector cadences, windows, spans).
 
+## Multi-sector transit CONSISTENCY re-proposal -- DUPLICATE **and** BLOCKED. Nothing built.
+
+Proposed as untested headroom: "check if transits repeat consistently across
+sectors -- if a candidate transits in multiple sectors that boosts confidence,
+or the reverse if inconsistent." Closed at Part 0 on two independent grounds,
+either of which alone would be sufficient. No feature was built, no model fit.
+
+### Ground 1: it is the same measurement, not a different framing
+
+`multisector_consistency.py` already implements exactly this. Read from the
+code, not from a summary:
+
+| proposal | what the closed experiment already did |
+|---|---|
+| "do transits repeat consistently across sectors" | `_measure_depth()` folds **each sector separately** at the stored ephemeris and measures its depth |
+| a consistency score | `sector_depth_frac_scatter` = std(depth)/mean(depth) across sectors |
+| inconsistency weighted by noise | `sector_depth_chi2red` = uncertainty-weighted reduced chi-square of per-sector depths about their mean |
+| "transits in multiple sectors" | `n_sectors_measured` |
+
+Coverage then: 4,964/5,137 usable, 92.2% with >=2 sectors. There is no residual
+variant here -- depth, duration and count consistency were all covered.
+
+**A premise correction.** The re-proposal describes the prior test as finding
+"no gain". It did not. It found **+0.0094, 95% CI [+0.0008, +0.0177] -- it
+CLEARED the promotion bar**, and agreed under nested CV (0.9202 -> 0.9276) and
+after calibration (0.8907 -> 0.9009). It was then **disqualified by control**:
+missingness was class-asymmetric (19.1% of positives lacked the features vs
+3.5% of negatives, from 494 positives with no resolvable TIC ID), and an
+indicator-only arm carrying no measured values at all returned **+0.0102 --
+108% of the gain**. Holding missingness constant left +0.0021, CI spanning
+zero. The failure mode was bookkeeping, not absent signal. That distinction
+matters: "no gain" invites a retest, "cleared then disqualified as artifact"
+does not.
+
+### Ground 2: the ephemeris wall applies here too, and harder
+
+The proposal folds per sector rather than stacking sectors, so it might have
+escaped the wall that closed stacking. It does not. `_measure_depth()` uses the
+**stored** `t0` and `period` with a **fixed** phase window `|phase| <= half`.
+Accumulated timing error `span x sigma_P / P` therefore walks each successive
+sector's transit out of that window, and the measured depth falls with sector
+epoch. Apparent "inconsistency" is manufactured by drift.
+
+Measured on the 4,664 stars of the closed run's own output that have >=2
+sectors and a usable `period_uncertainty` (`duration` is in DAYS in
+`training.csv` -- a units slip caught before it reached these numbers):
+
+| quantity | value |
+|---|---|
+| median accumulated drift | **124.7 transit durations** |
+| fraction drifting > 1 full duration | **99.5%** |
+| median `sector_depth_frac_scatter` | **2.20** |
+
+The stacking work found 95% drifting past one duration at a 759-d median span;
+this is **99.5%** at a 1,151-d median span. Strictly worse, because consistency
+needs the full sector baseline by construction.
+
+The scatter magnitude settles it independently of any drift model. A median
+`frac_scatter` of 2.20 means the per-sector depths vary by **220% of their own
+mean**. A genuinely repeating transit repeats to within a few percent. Depths
+scattering twice their mean are not astrophysical measurements of anything.
+
+**One honest limit on the causal chain.** The drift dose-response here is
+FLAT (median `frac_scatter` 1.95 / 2.15 / 2.25 / 2.14 across the 1-10, 10-100,
+100-1000, >1000 duration bins; Spearman vs log drift only +0.042) -- unlike the
+clean monotone dose-response the stacking work found. That is not evidence
+against the diagnosis: it is **saturation**. Once drift exceeds a duration the
+transit sits at effectively random phase in the fold, and drifting further
+changes nothing. The only bin below the cliff, `drift < 1`, has the lowest
+scatter (1.40 vs 2.20), which points the right way, but at n=23 it is a weak
+confirmation and is reported as such rather than dressed up.
+
+### The reliably-measurable population is 0.45%
+
+Applying an explicit precision bar -- drift below one transit duration, the
+threshold the stacking work established:
+
+| bar | n | share of 5,137 | class split |
+|---|---|---|---|
+| drift < 1.0 duration | **23** | **0.45%** | 20 planets / 3 FPs |
+| drift < 0.5 duration | 4 | 0.08% | 3 planets / 1 FP |
+
+23 stars, 3 of them false positives. On the frozen 1,098-star test set that is
+roughly **5 stars**. No AUC, class-rate gate, spatial control arm or resampled
+delta can be estimated from that, at any effort level. Part 1 was not run
+because there is no population to run it on.
+
+### Loose end closed: `chi2red`'s apparent separation is mostly SNR
+
+`sector_depth_chi2red` scores AUC 0.3120 (FP median 15.89 vs planet 2.32),
+which looks like strong separation. Its largest correlation against the 26
+production features is **|r| = 0.729 vs `snr`** (then SDE 0.606,
+`depth_duration_ratio` 0.601). Below the 0.80 redundancy threshold, but it is
+substantially restating signal-to-noise -- deeper, higher-SNR eclipses give
+tighter per-sector errors and hence larger reduced chi-square. Not an
+independent consistency channel.
+
+### RECOMMENDATION: do not build. No promotion, no Part 1.
+
+Blocked twice over. As a duplicate it has already been measured, cleared, and
+disqualified by a control that reproduced 108% of its gain. As a measurement it
+is corrupted for 99.5% of the stars it would apply to, leaving 23 usable stars.
+Measuring "consistency" across sectors requires an ephemeris precise enough to
+fold coherently across the full multi-year baseline, and obtaining one requires
+searching that baseline -- **the same circularity that closed the cheap path**.
+Production stays at 0.9208 / 26 features / md5 `0c996a41`.
+
+Scripts: `multisector_consistency.py`, `multisector_missingness_control.py`
+(both pre-existing, unmodified); data `multisector_consistency.csv`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
