@@ -4922,6 +4922,144 @@ the resample rate roughly quadrupled. Not the project's scheduler -- checked
 before touching it. The general lesson for this repo: `python3 - <<EOF` and
 `multiprocessing` must not be combined, because spawn cannot re-import `<stdin>`.
 
+## DEPLOYED: stellar variability, 26 -> 31 features, 0.9208 -> 0.9300
+
+**The second deployed model change in the project's history**, and the first
+since crowding. Production is now **0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`** (rollback:
+`models/versions/best_model_pre_variability_0c996a41.joblib`).
+
+### The gate that was missing, and what it showed
+
+The prior round left one thing unrun: nested CV, which the deployed validation
+suite requires. Nested CV and the resampled test-set numbers answer DIFFERENT
+questions -- resampling perturbs the training draw against one fixed 1,098-star
+panel; nested CV rotates WHICH stars are held out -- so both are reported.
+
+| test | old | new | delta | verdict |
+|---|---|---|---|---|
+| nested CV, pooled out-of-fold (4,386 rows) | 0.9295 | **0.9389** | **+0.0094**, CI [+0.0064, +0.0129] | clears |
+| nested CV, mean of 5 outer folds | 0.9298 | 0.9393 | — | **new arm wins 5/5 folds** |
+| fold-to-fold sd | 0.0097 | **0.0067** | — | more stable, not just higher |
+
+Being precise rather than rounding toward the expected answer: the nested-CV
+mean is **+0.0094, marginally BELOW the 0.0097 MDE**. That MDE was derived for
+the 1,098-star frozen test set; nested CV pools 4,386 out-of-fold predictions,
+so its interval is tighter and the operative criterion is that the CI excludes
+zero. It agrees with the held-out +0.0101/+0.0098 rather than contradicting it.
+
+### The combined worst-case control
+
+Three controls had been run SEPARATELY. Passing three separately is not passing
+all at once, so the most conservative available test was run before deploying:
+reference = 26 + `abs_gal_b` + five availability indicators, both arms fitted
+and scored ONLY on the population where all five values exist, so sky,
+missingness and population are all constant by construction.
+
+| arm | nfeat | mean d | positive | clears |
+|---|---|---|---|---|
+| worst case, +all five VALUES | 37 | **+0.0087** | 12/12 | 9/12 |
+| worst case, +four (no `var_oot_rms`) | 36 | +0.0075 | 12/12 | 8/12 |
+
+For contrast the density feature's equivalent control gave +0.0036, 4/12 --
+which is why density was not promoted and this was.
+
+### Final validation at real scale, on the fully backfilled dataset
+
+| measure | old (26) | new (31) |
+|---|---|---|
+| frozen test AUC, single fit | 0.9208 | **0.9300** (+0.0091, CI [+0.0019, +0.0164]) |
+| 12 training bootstraps | — | **+0.0100** (sd 0.0014), positive 12/12, **clears 12/12**, >=MDE 8/12 |
+| 2-min-only subset | — | +0.0097, clears 10/12 |
+| Brier (resampled) | 0.0879 | **0.0832** |
+| ECE (resampled) | 0.0417 | **0.0365** |
+| nested CV pooled OOF | 0.9295 | **0.9389** |
+
+The 26-feature arm reproduced **0.9208 exactly**, confirming the recipe matches
+what is deployed.
+
+### The raw-light-curve dependency, and how it is protected
+
+These five are the ONLY model inputs not computed from `data/processed*`.
+`02_preprocess.py` savgol-flattens over ~13.4 h, a high-pass filter that
+removes the multi-day rotation signal being measured -- a processed file would
+yield the detrending residual, silently, with no error. Protections:
+
+* `variability_features.py` takes the raw path as an EXPLICIT ARGUMENT. An
+  earlier draft kept it in module state; under `spawn` the workers reverted to
+  the default directory and the pool broke (`BrokenProcessPool`). Per-call
+  paths make that unreachable.
+* Both forward paths were wired and are documented at the call site:
+  `06_download_unknown.add_variability_features` (reads `RAW_FOLDER`, which is
+  run-tag aware so widesector runs follow automatically) and
+  `retrain_pipeline._variability_for_raw` (reads `raw_path`, NOT
+  `processed_path`).
+* The requirement is restated in `FEATURE_COLUMNS`, in the module docstring,
+  and in `best_model_metadata.json` under `raw_lightcurve_dependency`.
+
+### Backfill integrity
+
+| target | rows | verification |
+|---|---|---|
+| `training.csv` | 5,486 | 44 pre-existing columns byte-identical, host order identical |
+| `unknown_features.csv` | 2,454 | 28 pre-existing columns byte-identical; 100% on all 488 scorable rows |
+| `unknown_features_widesector.csv` | 271 | 28 pre-existing columns byte-identical; 100% on all 69 scorable rows |
+
+Backups written to `*.pre_variability.bak`. Raw light curves found for
+2,454/2,454 and 271/271 -- nothing imputed for missing input.
+
+### Live consumption, proven -- and reported honestly
+
+Deployed model reports `n_features_in_ = 31`. Partial dependence over the
+**488 real scorable candidates**, sweeping each feature p10 -> p90:
+
+| feature | direction | marginal AUC predicts | agrees? |
+|---|---|---|---|
+| `var_oot_rms` | UP 0.668 -> 0.766 | UP (0.6526) | yes |
+| `var_ls_amp` | UP 0.694 -> 0.796 | UP (0.5927) | yes |
+| `var_ls_power` | DOWN 0.752 -> 0.663 | DOWN (0.4168) | yes |
+| `var_excess` | UP 0.653 -> 0.766 | DOWN (0.4067) | **no** |
+| `var_ls_period` | 0.725 -> 0.713, ~flat | UP (0.5889) | **no** (flat) |
+
+Consumption is unambiguous -- predictions move materially and monotonically.
+**Three of five match their marginal direction, two do not**, and that is
+stated rather than smoothed over. A boosted ensemble's conditional effect at
+fixed values of 30 other features need not match a univariate marginal, and the
+candidate pool is a different population from training (the documented
+non-exchangeability). This is evidence of real consumption, not independent
+confirmation of the physical hypothesis.
+
+### Deployment mechanics
+
+Manual offline swap, same structural reason as crowding: the live promotion
+gate compares challenger and production on ONE matrix built from the current
+`FEATURE_COLUMNS`, and the deployed model raises `ValueError` across a
+feature-set change. Scheduler was removed with `launchctl bootout` first so the
+race was impossible rather than unlikely; that also terminated a retrain tick
+that had been **hung for 6.5 hours** on an archive query (it had modified
+nothing). Post-deploy the scheduler was bootstrapped back, `/health` returns
+`status: ok` with a live thread, and **a real retrain tick completed
+successfully against the 31-feature configuration** (19:39:52, 139 watch
+labels) -- live proof the auto-retrain path does not crash.
+
+`conformal_calibration.json` was regenerated proactively and records the new
+md5 (this was missed and had to be fixed reactively during crowding).
+
+### A pre-existing bug found while verifying, and fixed
+
+The 32-member bootstrap ensemble (`models/bootstrap_ensemble/`) was still at
+**24 features**, dated 2026-07-29. It was never rebuilt for the crowding
+promotion despite its own manifest saying "rebuild whenever the production
+model is replaced". Its `predict_proba` raised `ValueError` listing
+`crowd_flux_ratio_max`/`crowd_nearest_arcsec` as unseen -- proving it had been
+broken since 2026-08-05, before this change. Only caller is the batch script
+`backfill_uncertainty.py`, not the live request path. Rebuilt at 31 features
+(32 members, 4.2 min).
+
+Scripts: `variability_nested_cv.py`, `variability_worstcase_control.py`,
+`variability_features.py` (production), `variability_backfill.py`,
+`promote_variability_retrain.py`, `deploy_variability_model.py`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,

@@ -213,6 +213,34 @@ FEATURE_COLUMNS = [
     # 2026-08-05 alongside model md5 0c996a41... (rollback:
     # models/versions/best_model_pre_crowding_341f1a39.joblib).
     "crowd_flux_ratio_max", "crowd_nearest_arcsec",
+    # Stellar variability / activity (promoted 2026-08-06). Out-of-transit
+    # scatter and Lomb-Scargle structure. Validated: frozen test 0.9208 ->
+    # 0.9300; +0.0100 over 12 training bootstraps, positive 12/12, clearing
+    # 12/12, at/above the 0.0097 MDE on 8/12; 2-min subset +0.0097. Nested CV
+    # pooled out-of-fold 0.9295 -> 0.9389, CI [+0.0064, +0.0129], and the new
+    # arm wins on all 5 outer folds. Brier 0.0879 -> 0.0832, ECE 0.0417 ->
+    # 0.0365.
+    #
+    # Controls, run separately AND combined: sky (|galactic b|) held constant
+    # +0.0098 12/12; missingness-indicator-only +0.0000 0/12; and a worst-case
+    # arm holding sky, availability indicators and population constant all at
+    # once still gives +0.0087, 12/12 positive, 9/12 clearing.
+    #
+    # *** COMPUTED FROM THE RAW, PRE-FLATTEN LIGHT CURVE. ***
+    # These are the ONLY features here not derived from data/processed*.
+    # 02_preprocess.py savgol-flattens over ~13.4 h, a high-pass filter that
+    # removes the multi-day rotation signal these measure -- a processed file
+    # would yield the detrending residual with no error raised. Produced by
+    # 06_download_unknown.add_variability_features (from RAW_FOLDER) and
+    # retrain_pipeline._variability_for_raw (from raw_path, NOT
+    # processed_path). Implementation: experiments/variability_features.py.
+    #
+    # This list and the deployed artifact must change together. A 26-feature
+    # model raises ValueError on a 31-column matrix and vice versa, so editing
+    # either one alone crashes the scheduler's next retrain tick. Deployed
+    # 2026-08-06 alongside model md5 1f0b7cb8... (rollback:
+    # models/versions/best_model_pre_variability_0c996a41.joblib).
+    "var_oot_rms", "var_excess", "var_ls_amp", "var_ls_power", "var_ls_period",
 ]
 
 

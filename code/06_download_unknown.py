@@ -895,6 +895,66 @@ def add_crowding_features(df, max_workers=4):
     return df
 
 
+VARIABILITY_COLUMNS = ["var_oot_rms", "var_excess", "var_ls_amp",
+                       "var_ls_power", "var_ls_period"]
+
+
+def add_variability_features(df, raw_dir=None, max_workers=4):
+    """Adds stellar variability / activity features to a candidate frame.
+
+    *** THIS READS THE RAW LIGHT CURVE, NOT data/processed/. ***
+
+    Every other feature in this pipeline is computed from the flattened,
+    processed light curve. These five cannot be: `02_preprocess.py` savgol-
+    flattens over ~13.4 h, which is a high-pass filter that removes the
+    multi-day rotational signal these features exist to measure. Passing a
+    processed file here would yield the detrending residual and no error.
+
+    `raw_dir` therefore defaults to this stage's OWN raw download folder
+    (RAW_FOLDER), the same files `download_one_star` wrote before
+    preprocessing. If that folder is ever cleaned up to save disk, these
+    features go NaN for new candidates and the model silently degrades --
+    so the resolved count is printed every run.
+
+    Never raises: a failure leaves the columns NaN, which the median imputer
+    and HistGradientBoosting handle, rather than losing a whole batch.
+    """
+    import sys as _sys_mod
+    import concurrent.futures as _cf
+    _sys_mod.path.insert(0, os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "experiments"))
+    try:
+        import variability_features as _vf
+    except Exception as e:
+        print(f"  variability: module unavailable ({e}); leaving columns NaN")
+        for c in VARIABILITY_COLUMNS:
+            df[c] = np.nan
+        return df
+
+    raw_dirs = [raw_dir] if raw_dir else [RAW_FOLDER]
+    hosts = df["host"].tolist()
+    jobs = []
+    for _, r in df.iterrows():
+        jobs.append((r["host"], _vf.find_raw(r["host"], raw_dirs),
+                     pd.to_numeric(r.get("period"), errors="coerce"),
+                     pd.to_numeric(r.get("T0"), errors="coerce"),
+                     pd.to_numeric(r.get("duration"), errors="coerce")))
+    out = {}
+    try:
+        # threads, not processes: the work is I/O plus modest numpy, and a
+        # process pool here would re-import this module in each child.
+        with _cf.ThreadPoolExecutor(max_workers=max_workers) as ex:
+            for r in ex.map(_vf.worker, jobs):
+                out[r["host"]] = r
+    except Exception as e:
+        print(f"  variability: batch failed ({e}); leaving columns NaN")
+    for c in VARIABILITY_COLUMNS:
+        df[c] = [out.get(h, {}).get(c, np.nan) for h in hosts]
+    ok = int(sum(1 for h in hosts if out.get(h, {}).get("var_status") == "ok"))
+    print(f"  variability: computed {ok}/{len(hosts)} candidates from RAW light curves")
+    return df
+
+
 def compute_all_features(csv_path, host, r_star, m_star, required_columns):
     """Runs TLS once with real stellar params and extracts every scalar TLS
     field the model needs PLUS the v2 feature set (chi2red_min,
@@ -1068,6 +1128,9 @@ def extract_features(candidates_df, required_columns):
         if batch_rows:
             new_df = pd.DataFrame(batch_rows)
             new_df = add_crowding_features(new_df)
+            # Variability reads RAW_FOLDER (the pre-flatten downloads), NOT
+            # data/processed_unknown/. See add_variability_features.
+            new_df = add_variability_features(new_df)
             if os.path.exists(FEATURES_PATH):
                 old = pd.read_csv(FEATURES_PATH)
                 combined = pd.concat([old, new_df], ignore_index=True).drop_duplicates(subset="host", keep="last")

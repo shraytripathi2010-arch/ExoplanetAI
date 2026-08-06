@@ -74,3 +74,9 @@ code/experiments/*.json.partial
 # pre-crowding backups (local rollback safety, not history)
 *_backup_pre_crowding.csv
 data/training_dataset/training_backup_before_crowding_backfill.csv
+
+# Deployment scratch: staged artifact is byte-identical to the deployed
+# model once promoted, and *.pre_variability.bak duplicates what git history
+# already holds. The ROLLBACK copy in models/versions/ IS tracked.
+models/best_model_*_staged.joblib
+*.pre_variability.bak

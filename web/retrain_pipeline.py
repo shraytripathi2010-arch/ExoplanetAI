@@ -203,6 +203,34 @@ def _crowding_for_host(host):
         return {c: float("nan") for c in CROWDING_COLUMNS}
 
 
+VARIABILITY_COLUMNS = ["var_oot_rms", "var_excess", "var_ls_amp",
+                       "var_ls_power", "var_ls_period"]
+
+
+def _variability_for_raw(raw_path, period, t0, duration):
+    """Variability features for one newly-labelled star.
+
+    *** TAKES THE RAW PATH, NOT THE PROCESSED ONE. ***
+
+    Every other feature appended here derives from `processed_path`. These five
+    must not: `02_preprocess.py` savgol-flattens over ~13.4 h, removing the
+    multi-day rotational signal these features measure. Handing this function
+    `processed_path` would produce plausible numbers computed on the wrong
+    signal, silently. The caller passes `raw_path`, which it already has from
+    the download step.
+
+    Returns NaNs rather than raising, matching _crowding_for_host.
+    """
+    try:
+        sys.path.insert(0, os.path.join(CODE_DIR, "experiments"))
+        from variability_features import variability_for_raw
+        r = variability_for_raw(raw_path, period, t0, duration)
+        return {c: r.get(c, float("nan")) for c in VARIABILITY_COLUMNS}
+    except Exception as e:
+        print(f"  variability unavailable for {raw_path}: {e}")
+        return {c: float("nan") for c in VARIABILITY_COLUMNS}
+
+
 def process_and_append_new_examples(max_new=None):
     """Runs every pending watch-queue entry through download -> preprocess
     -> TLS feature extraction, reusing 06_download_unknown.py's
@@ -266,6 +294,14 @@ def process_and_append_new_examples(max_new=None):
             # appended between the backfill fetch and the promotion and had to
             # be patched by hand. Resolution needs only the TIC id.
             row.update(_crowding_for_host(host))
+            # Same reasoning as crowding -- these are MODEL INPUTS, and the
+            # reindex below leaves anything unpopulated as NaN, so an
+            # auto-appended star would otherwise arrive with no variability
+            # and degrade the feature over time. Note `raw_path`, NOT
+            # `processed_path`: flattening destroys the signal being measured.
+            row.update(_variability_for_raw(
+                raw_path, feats.get("period"), feats.get("T0"),
+                feats.get("duration")))
             # BUG FIXED (caught live): appending with header=False writes
             # values POSITIONALLY -- a naive pd.DataFrame([row]) has whatever
             # key order dict(feats) happened to produce, which does NOT
