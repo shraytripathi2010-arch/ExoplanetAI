@@ -5889,6 +5889,121 @@ Scripts: `cluster1_rv_verification.py`; data `cluster1_rv_verification.json`,
 `cluster1_rv_verification.csv`, `cluster1_test_impact.json`,
 `nasa_pscomppars_cache.csv`.
 
+## CLUSTER-1 POOL EVIDENCE CROSS-CHECK -- HYPOTHESIS NOT SUPPORTED. Thread closed.
+
+Third and final part of the cluster-1 thread. **Read-only: nothing modified.**
+Production untouched at 0.9300 / 31 features / md5 `1f0b7cb8`.
+
+The hypothesis had **two** parts and both had to hold: cluster-1 pool candidates
+should be (a) scored at least as confidently as the rest of the pool, and
+(b) trip independent false-positive evidence MORE often. High confidence alone
+is not a problem; high confidence *combined with* independent red flags is.
+
+**(a) holds. (b) fails, and the two genuinely external checks point the other
+way.**
+
+### Part 1 -- cluster-1 candidates in the current pools
+
+Partition reproduced exactly (cluster 1: n=532, 444 positives; 9.7% of
+training), then pool rows mapped to their best-matching unit -- the same fitted
+partition, not a re-fit.
+
+| pool | scorable | in cluster 1 | over-representation |
+|---|---|---|---|
+| A | 254 | **84 (33.1%)** | **3.41x** |
+| B (widesector) | 54 | 14 (25.9%) | 2.67x |
+
+The earlier 33.1% figure **reproduces exactly** against current pool state.
+
+**Confidence is genuinely elevated in pool A** -- prediction (a) confirmed:
+
+| | median prob | mean | >= 0.9 |
+|---|---|---|---|
+| cluster 1 | **0.9214** | 0.8315 | **57.1%** |
+| rest of pool | 0.7905 | 0.7054 | 32.4% |
+
+Mann-Whitney **p = 1.5e-05**. In pool B there is no difference at all
+(0.8162 vs 0.8023, p = 0.98).
+
+### Part 2 -- independent evidence: the prediction fails
+
+| check | cluster 1 | rest | odds ratio | p |
+|---|---|---|---|---|
+| **VSX variable-star HIT** | 20/75 (**26.7%**) | 48/126 (38.1%) | **0.59** | 0.12 |
+| **Gaia blend risk HIGH** | 16/75 (**21.3%**) | 41/126 (32.5%) | **0.56** | 0.11 |
+| ExoFOP/TFOP | 201/201 NO_HIT | -- | -- | -- |
+
+Both external checks run **opposite** to the prediction -- cluster-1 candidates
+trip them *less* often, not more. Neither reaches significance, but neither
+supports the hypothesis either. ExoFOP returns nothing, confirming rather than
+assuming that these candidates remain TOI-free by construction.
+
+In-pipeline signatures are genuinely mixed:
+
+| signature | cluster 1 | rest | p | reads as |
+|---|---|---|---|---|
+| odd_even_mismatch | 1.765 | 0.582 | <1e-4 | **concerning** (EB-like) |
+| var_excess | 2.046 | 1.172 | <1e-4 | **concerning** (variable host) |
+| var_ls_power | 0.195 | 0.084 | 0.0008 | **concerning** |
+| secondary_eclipse_depth | 8.7e-06 | 1.5e-04 | <1e-4 | *reassuring* (less EB-like) |
+| crowd_flux_ratio_max | 0.0034 | 0.0258 | 0.005 | *reassuring* (less contaminated) |
+| SDE / FAP | 6.71 / 0.0155 | 7.45 / 0.0043 | <1e-4 | **circular** -- these define cluster 1 |
+
+The SDE/FAP rows are not evidence: low SDE and high FAP are part of what puts a
+star in cluster 1 in the first place, so finding them there is tautological.
+They are listed only to be explicit about which comparisons carry no weight.
+
+### VERDICT: NOT SUPPORTED
+
+The model is measurably more confident in this region (0.9214 vs 0.7905,
+p=1.5e-05), but that confidence is **not** accompanied by elevated independent
+false-positive evidence. On the two checks that are genuinely external to the
+feature space -- VSX and Gaia blending -- cluster-1 candidates look *cleaner*
+than the pool baseline, not dirtier.
+
+**Two honest caveats against over-reading the null:**
+
+1. **Under-powered.** 75 vs 126 candidates with evidence; p = 0.12 and 0.11.
+   These are not tight nulls, they are non-significant differences that happen
+   to point the reassuring way.
+2. **The VSX direction may be partly mechanical, which cuts against the
+   reassuring reading too.** Cluster 1 is long-period by construction
+   (6.38 d vs 2.45 d) and VSX is richest in short-period variables, so a lower
+   cross-match rate for long-period signals could be a detection bias rather
+   than genuine cleanliness. This weakens the "cluster 1 looks clean"
+   interpretation as much as it weakens the hypothesis.
+
+So the correct statement is not "cluster-1 candidates are fine". It is: **the
+specific predicted signature -- high confidence plus elevated independent red
+flags -- was looked for and is not there.**
+
+### No mitigation is proposed
+
+A confidence-tier caveat for cluster-1-like candidates, analogous to the
+existing giant-star penalty, would have been the natural mitigation had the
+hypothesis held. It did not, so building one would be penalising a
+subpopulation on evidence that does not exist. Not recommended, not scoped.
+
+### THE CLUSTER-1 THREAD IS CLOSED, WITH ITS CENTRAL FINDING STILL UNEXPLAINED
+
+Three investigations, each ruling out one explanation:
+
+| # | investigation | outcome |
+|---|---|---|
+| 1 | SOM diagnostic | found cluster 1: worst AUC 0.8280, worst ECE 0.0934, 3.4x over-represented in the pool. Validity check only PARTIALLY passed (giants did not isolate), so it was flagged as a lead, not a finding |
+| 2 | RV-discovery verification | 31.3% non-transiting -- a marginal pass of the declared 30% bar -- but the label-noise mechanism was **refuted**: those rows score 0.9622 median and removing them moves test AUC by +0.0001 |
+| 3 | pool evidence cross-check (this) | confidence elevation **confirmed** (p=1.5e-05); elevated independent FP evidence **not found**; the two external checks point the other way |
+
+**Cluster 1's 0.8280 AUC remains genuinely unexplained.** Two plausible
+mechanisms were proposed, tested and eliminated. That is a real if unsatisfying
+result, and it is recorded as open rather than dressed up. Anyone resuming this
+should note the diagnostic's own validity check never cleanly passed, so a
+prior worth holding is that cluster 1 may be partly an artifact of an
+unsupervised partition that was never shown able to recover known structure.
+
+Scripts: `som_cluster_diagnostic.py`, `cluster1_rv_verification.py`,
+`cluster1_pool_evidence.py`; data `cluster1_pool_evidence.json`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
