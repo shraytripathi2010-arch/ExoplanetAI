@@ -1,0 +1,397 @@
+{
+  "n_resamples": 12,
+  "rows": [
+    {
+      "rep": 0,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.011509458806423149,
+          "ci_lo": 0.004657845410092798,
+          "ci_hi": 0.01917583936868037,
+          "clears": true,
+          "auc": 0.9297972308352931
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.008929629388779402,
+          "ci_lo": 0.0021178045743464823,
+          "ci_hi": 0.016190914278663145,
+          "clears": true,
+          "auc": 0.9216984476500047
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.912795777847681
+        }
+      },
+      "base_auc": 0.912795777847681
+    },
+    {
+      "rep": 1,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.010496543899015496,
+          "ci_lo": 0.004234986708887589,
+          "ci_hi": 0.01708299087621334,
+          "clears": true,
+          "auc": 0.9328180470048983
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.007066003721302847,
+          "ci_lo": -0.0004418733076680558,
+          "ci_hi": 0.014748146638226317,
+          "clears": false,
+          "auc": 0.9201855430229132
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9131403006835533
+        }
+      },
+      "base_auc": 0.9131403006835533
+    },
+    {
+      "rep": 2,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.00901639684579645,
+          "ci_lo": 0.003377592830018808,
+          "ci_hi": 0.01487774526302955,
+          "clears": true,
+          "auc": 0.9329528602885004
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.007092813537507804,
+          "ci_lo": 0.0002105175984854963,
+          "ci_hi": 0.014466723085949203,
+          "clears": true,
+          "auc": 0.9211492083464401
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9140989729225023
+        }
+      },
+      "base_auc": 0.9140989729225023
+    },
+    {
+      "rep": 3,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.010648379613389505,
+          "ci_lo": 0.00485193808294804,
+          "ci_hi": 0.016953569107137315,
+          "clears": true,
+          "auc": 0.9335670096915771
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.012363573010566838,
+          "ci_lo": 0.005892347096596284,
+          "ci_hi": 0.019384923635078873,
+          "clears": true,
+          "auc": 0.9251386829241501
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9128756672009266
+        }
+      },
+      "base_auc": 0.9128756672009266
+    },
+    {
+      "rep": 4,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.011472100750158433,
+          "ci_lo": 0.0046901759488642645,
+          "ci_hi": 0.018660316354029684,
+          "clears": true,
+          "auc": 0.9318793471042606
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.012407821873580452,
+          "ci_lo": 0.004337880937221738,
+          "ci_hi": 0.021049407345784376,
+          "clears": true,
+          "auc": 0.9226720991426873
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9103891110811526
+        }
+      },
+      "base_auc": 0.9103891110811526
+    },
+    {
+      "rep": 5,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.007931388870333443,
+          "ci_lo": 0.0021803964763822434,
+          "ci_hi": 0.013919682172895636,
+          "clears": true,
+          "auc": 0.9337567469055359
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.00676191518149676,
+          "ci_lo": 0.0005624799798019332,
+          "ci_hi": 0.013339985942182742,
+          "clears": true,
+          "auc": 0.9231614214313175
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9164607019278299
+        }
+      },
+      "base_auc": 0.9164607019278299
+    },
+    {
+      "rep": 6,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.007639371186703009,
+          "ci_lo": 0.0015040315384094894,
+          "ci_hi": 0.014211850019661692,
+          "clears": true,
+          "auc": 0.9307409238205087
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.00962656449292192,
+          "ci_lo": 0.002406751680742647,
+          "ci_hi": 0.016727896733713436,
+          "clears": true,
+          "auc": 0.9209944227245266
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9114576311808147
+        }
+      },
+      "base_auc": 0.9114576311808147
+    },
+    {
+      "rep": 7,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.01051170738845273,
+          "ci_lo": 0.0042256869100425086,
+          "ci_hi": 0.01700005922014599,
+          "clears": true,
+          "auc": 0.9267614354119544
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.007108756608024542,
+          "ci_lo": 0.00020084345513874134,
+          "ci_hi": 0.014589530898086973,
+          "clears": true,
+          "auc": 0.9168202040174359
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.909700065409408
+        }
+      },
+      "base_auc": 0.909700065409408
+    },
+    {
+      "rep": 8,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.0097215285876983,
+          "ci_lo": 0.0021480880514551993,
+          "ci_hi": 0.017466380958782297,
+          "clears": true,
+          "auc": 0.9275653220289899
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.010570338694368435,
+          "ci_lo": 0.002870927323494518,
+          "ci_hi": 0.018673412829446148,
+          "clears": true,
+          "auc": 0.9207247961573222
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9101794015288824
+        }
+      },
+      "base_auc": 0.9101794015288824
+    },
+    {
+      "rep": 9,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.014352723345718028,
+          "ci_lo": 0.007505033332649613,
+          "ci_hi": 0.02158000464876632,
+          "clears": true,
+          "auc": 0.9341212420797196
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.008625602537008385,
+          "ci_lo": 0.001625245573949763,
+          "ci_hi": 0.016437582518574523,
+          "clears": true,
+          "auc": 0.9214937311823125
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9128007709322588
+        }
+      },
+      "base_auc": 0.9128007709322588
+    },
+    {
+      "rep": 10,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.006920602116326692,
+          "ci_lo": 0.0003678587110340277,
+          "ci_hi": 0.013456844514996215,
+          "clears": true,
+          "auc": 0.9332274799402827
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.006594335872348526,
+          "ci_lo": -0.00010351700853284405,
+          "ci_hi": 0.013794251256151366,
+          "clears": false,
+          "auc": 0.9220180050629878
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9154920435197251
+        }
+      },
+      "base_auc": 0.9154920435197251
+    },
+    {
+      "rep": 11,
+      "arms": {
+        "D_sky: +all five | sky": {
+          "n_features": 32,
+          "delta": 0.007013246082131041,
+          "ci_lo": 0.000993971360550286,
+          "ci_hi": 0.013169914127645075,
+          "clears": true,
+          "auc": 0.9302416153627225
+        },
+        "D_nooot: drop var_oot_rms": {
+          "n_features": 30,
+          "delta": 0.008493303019974486,
+          "ci_lo": 0.001478608859390651,
+          "ci_hi": 0.015619189984307091,
+          "clears": true,
+          "auc": 0.9222726523764586
+        },
+        "D_avail: indicators ONLY": {
+          "n_features": 31,
+          "delta": 0.0,
+          "ci_lo": 0.0,
+          "ci_hi": 0.0,
+          "clears": false,
+          "auc": 0.9138343394398758
+        }
+      },
+      "base_auc": 0.9138343394398758
+    }
+  ],
+  "summary": {
+    "D_sky: +all five | sky": {
+      "n_features": 32,
+      "delta_mean": 0.009769453957678855,
+      "delta_sd": 0.002101246810468819,
+      "delta_min": 0.006920602116326692,
+      "delta_max": 0.014352723345718028,
+      "n_positive": 12,
+      "n_clearing": 12,
+      "n_at_or_above_mde": 7
+    },
+    "D_nooot: drop var_oot_rms": {
+      "n_features": 30,
+      "delta_mean": 0.008803388161490032,
+      "delta_sd": 0.0019890148243303088,
+      "delta_min": 0.006594335872348526,
+      "delta_max": 0.012407821873580452,
+      "n_positive": 12,
+      "n_clearing": 10,
+      "n_at_or_above_mde": 3
+    },
+    "D_avail: indicators ONLY": {
+      "n_features": 31,
+      "delta_mean": 0.0,
+      "delta_sd": 0.0,
+      "delta_min": 0.0,
+      "delta_max": 0.0,
+      "n_positive": 0,
+      "n_clearing": 0,
+      "n_at_or_above_mde": 0
+    }
+  }
+}

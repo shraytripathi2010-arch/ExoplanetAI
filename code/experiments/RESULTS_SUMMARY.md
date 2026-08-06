@@ -4760,6 +4760,168 @@ Production stays at 0.9208 / 26 features / md5 `0c996a41`.
 Scripts: `multisector_consistency.py`, `multisector_missingness_control.py`
 (both pre-existing, unmodified); data `multisector_consistency.csv`.
 
+## Stellar parameters round 2: DENSITY (do not promote) and VARIABILITY (**promotion candidate**)
+
+Two mechanistically different additions, run as two investigations. One dies at
+its controls; the other is the strongest result since crowding and is the first
+thing in ~40 experiments recommended for promotion. **Nothing was promoted --
+production remains 0.9208 / 26 features / md5 `0c996a41`, verified before and
+after.**
+
+### Part 0: the TIC data was already arriving and being thrown away
+
+Verified live rather than assumed. `06_download_unknown.py:468` calls
+`Catalogs.query_criteria(catalog="Tic", ID=chunk)`, which returns a **125-column**
+row per star. The next line keeps eight:
+
+    r[["ID", "ra", "dec", "rad", "e_rad", "mass", "e_mass", "Teff"]]
+
+Among the 117 discarded columns are **`logg`, `e_logg`, `rho`, `e_rho`, `lum`**.
+This is the `contratio`/`numcont` pattern exactly -- data already in the response,
+unused -- except that this time the discarded fields turn out to be clean. No new
+fetch mechanism was needed, only a wider column selection.
+
+**Does duration/period already encode density?** Partly, and the distinction
+matters. For a central circular transit `rho_circ = 3P / (G pi^2 T14^3)`, so the
+transit-IMPLIED density is largely reconstructable from `period` and `duration`,
+both production features. The discriminator is the RATIO to the star's catalogued
+density -- and that needs `rho_star`, which requires stellar MASS. `st_mass` is
+**not** among the 26 features. So the numerator is available to the model and the
+denominator is not.
+
+### Part 1: density passes its gate, then fails its controls
+
+CTL trap checked first, against the specific failure crowding hit:
+
+| field | planets | FP | availability-AUC |
+|---|---|---|---|
+| `rho` / `logg` / `rho_ratio` | 81.4% | 81.8% | **0.4984** |
+| `contratio` (reference) | 50.3% | 78.8% | **0.3574** |
+| `priority` (reference) | 50.2% | 78.7% | 0.3575 |
+
+Clean -- and the same test reproduces the CTL signature on `contratio` in the
+same run, so it is demonstrably sensitive rather than merely silent.
+
+| feature | AUC | coverage | max \|r\| vs the 26 | verdict |
+|---|---|---|---|---|
+| `rho_circ` | 0.7087 | 98.0% | 0.905 (`duration`) | REDUNDANT |
+| `st_rho` | 0.6929 | 81.5% | 0.921 (`st_rad`) | REDUNDANT |
+| `st_logg` | 0.6775 | 81.5% | 0.896 (`st_rad`) | REDUNDANT |
+| `rho_ratio` | 0.6015 | 81.5% | 0.754 | passes |
+
+Those are the widest single-feature separations measured in this project. But
+three of four exceed the 0.80 redundancy threshold, and `rho` is largely a
+function of `st_rad` because mass and radius track each other on the main
+sequence.
+
+**Resampled, 12 bootstraps, vs resampled baseline 0.9128:**
+
+| arm | nfeat | mean d | clears | >=MDE | d 2-min | Brier | ECE |
+|---|---|---|---|---|---|---|---|
+| A: +rho_ratio | 27 | +0.0030 | 2/12 | 0/12 | +0.0025 | 0.0868 | 0.0414 |
+| **B: +all four** | 30 | **+0.0091** | **12/12** | 6/12 | +0.0094 | 0.0848 | 0.0389 |
+| C: +rho_ratio \| sky | 28 | +0.0024 | 2/12 | 0/12 | +0.0023 | 0.0832 | 0.0364 |
+| D: availability ONLY | 27 | +0.0024 | 6/12 | 0/12 | +0.0026 | 0.0873 | 0.0394 |
+
+**A methodological error caught and fixed rather than shipped.** The sky control
+was run on arm A, which does not clear -- proving nothing about arm B, which
+does, and which contains the most spatially exposed column. The controls were
+re-run on the arm that actually won:
+
+| control | nfeat | mean d | clears |
+|---|---|---|---|
+| B_sky: all four, sky held constant | 31 | +0.0075 | 11/12 |
+| B_avail4: four indicators, NO values | 30 | +0.0025 | 6/12 |
+| **B_restricted: values only, missingness constant** | 30 | **+0.0036** | **4/12** |
+
+**+0.0091 decomposes into roughly +0.0036 measured values, +0.0025 missingness,
++0.0016 sky -- and the values-only arm does not clear.** Same shape as the
+multi-sector depth-consistency artifact, though far milder than that 108%.
+Compounding it: pool availability is **~65%** against 87.1% in training, a real
+train/serve gap.
+
+**RECOMMENDATION for density: do not promote.** Positive but not attributable to
+the physics it was proposed for.
+
+### Part 2: variability -- the prediction half-inverted, and that was the diagnostic
+
+Computed from RAW light curves, not `data/processed/`. `02_preprocess.py`
+savgol-flattens with a window capped at 401 points (~13.4 h), which is a
+high-pass filter: it removes exactly the multi-day rotational signal this
+feature is about. The pipeline's own `validate_schema`/`choose_flux_columns` are
+imported rather than reimplemented (that file documents EIGHT real schemas), and
+every cleaning step is kept except the flatten. Transits are masked at 2x
+duration so the signal cannot inflate its own vetting statistic. Single sector
+per star by construction.
+
+Predicted in writing before measuring: false positives more variable, AUC below
+0.5 for all five. **It held for two of five and inverted for three:**
+
+| feature | AUC | direction | max \|r\| | vs \|b\| |
+|---|---|---|---|---|
+| `var_oot_rms` | 0.6526 | OPPOSITE | **0.967** (`chi2red_min`) | -0.296 |
+| `var_excess` | 0.4067 | as predicted | 0.576 | +0.121 |
+| `var_ls_amp` | 0.5927 | OPPOSITE | 0.785 | -0.286 |
+| `var_ls_power` | 0.4168 | as predicted | 0.266 | -0.010 |
+| `var_ls_period` | 0.5889 | OPPOSITE | 0.162 | -0.000 |
+
+The split is the confound named in advance. RAW scatter runs backwards and
+correlates **0.967 with `chi2red_min`**, the model's #3 feature -- it is not
+measuring activity, it is re-deriving a noise level already present. Normalising
+by each star's own photometric error (`var_excess`) restores the predicted
+direction. Coverage **99.7%**, availability-AUC 0.5057.
+
+**Resampled, 12 bootstraps, vs 0.9128:**
+
+| arm | nfeat | mean d | clears | >=MDE | d 2-min | Brier | ECE |
+|---|---|---|---|---|---|---|---|
+| A: +var_excess | 27 | +0.0043 | 6/12 | 0/12 | +0.0045 | 0.0862 | 0.0381 |
+| B: +var_ls_power | 27 | +0.0060 | 7/12 | 1/12 | +0.0067 | 0.0848 | 0.0388 |
+| C: +clean trio | 29 | +0.0086 | 9/12 | 3/12 | +0.0089 | 0.0835 | 0.0369 |
+| **D: +all five** | 31 | **+0.0101** | **12/12** | **8/12** | +0.0096 | 0.0832 | 0.0365 |
+| E: +pair \| sky | 29 | +0.0071 | 10/12 | 0/12 | +0.0078 | 0.0808 | 0.0355 |
+
+Same error as the density arm, same fix: arm E holds sky constant for the two
+LEAST exposed metrics while arm D contains the two MOST exposed. Re-run on D:
+
+| control | nfeat | mean d | clears | >=MDE |
+|---|---|---|---|---|
+| **D_sky: all five, sky held constant** | 32 | **+0.0098** | **12/12** | 7/12 |
+| D_nooot: drop the `chi2red_min`-redundant column | 30 | +0.0088 | 10/12 | 3/12 |
+| **D_avail: five indicators, NO values** | 31 | **+0.0000** | **0/12** | 0/12 |
+
+**Every control passes.** Sky costs 0.0003 despite the arm carrying the largest
+spatial exposure in the project. Missingness contributes **exactly zero**.
+Dropping the redundant column costs 0.0013, so this is not `chi2red_min`
+relabelled. Brier improves 0.0879 -> 0.0832 and ECE 0.0417 -> 0.0365. Pool
+availability checked on real candidates: **30/30 and 30/30 = 100%** on both
+pools, against density's ~65%.
+
+### RECOMMENDATION: variability is a promotion candidate. NOT promoted here.
+
+The honest caveat: the mean delta sits AT the 0.0097 detection threshold, not
+comfortably above it -- 8/12 resamples reach MDE, and the sky-controlled version
+7/12. This is a real effect at roughly the smallest size this test set can
+resolve. Before any promotion it still needs nested CV, which the deployed
+validation suite requires and which was not run here.
+
+Scripts: `stellar_density_fetch.py`, `stellar_density_checks.py`,
+`stellar_density_validate.py`, `stellar_density_controls.py`,
+`stellar_variability.py`, `stellar_variability_checks.py`,
+`stellar_variability_validate.py`, `stellar_variability_controls.py`.
+
+### An unrelated machine problem found while running this
+
+A **runaway process from an earlier Claude session** (task `bkbpqnywm`, 8 days
+old, orphaned to launchd) was crash-looping: a heredoc-run script using
+`multiprocessing` spawn, whose children each tried to re-import `__main__` from
+`code/<stdin>` and died instantly, forever. It had burned **36 CPU-hours** and
+written a **28 GB** log while only 12 GiB was free, and it was holding this
+round's workers to ~19% CPU. Killed; disk available went 15 GiB -> 43 GiB and
+the resample rate roughly quadrupled. Not the project's scheduler -- checked
+before touching it. The general lesson for this repo: `python3 - <<EOF` and
+`multiprocessing` must not be combined, because spawn cannot re-import `<stdin>`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
