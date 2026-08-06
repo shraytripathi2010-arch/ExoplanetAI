@@ -1,0 +1,23 @@
+{
+  "warm_start_n_iter_source": 50,
+  "warm_start_n_iter_target": 80,
+  "n_predictors_total": 80,
+  "calibration_preserves_warm_start": false,
+  "clone_strips_fit": true,
+  "tree_node_fields": [
+    "value",
+    "count",
+    "feature_idx",
+    "num_threshold",
+    "missing_go_to_left",
+    "left",
+    "right",
+    "gain",
+    "depth",
+    "is_leaf",
+    "bin_threshold",
+    "is_categorical",
+    "bitset_idx"
+  ],
+  "has_learnable_representation": false
+}

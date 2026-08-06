@@ -5211,6 +5211,163 @@ the 26-vs-31 headline comparison gave CI [+0.0019, +0.0164] around +0.0091,
 a **half-width of ~0.0072**. **~0.0097 has NOT materially shifted** and remains
 the working threshold.
 
+## TRANSFER LEARNING / DOMAIN-ADVERSARIAL TRAINING -- CLOSED AT THE ARCHITECTURAL GATE
+
+Proposed to make Kepler/K2 usable after direct mixing failed (Kepler-family
+domain AUC ~0.97; K2 **0.9973**, the highest ever measured here). Closed
+without any data work, because both techniques presuppose an architecture this
+project does not have. **Nothing built. Production untouched at 0.9300 / 31
+features / md5 `1f0b7cb8`.** Mechanisms were RUN, not reasoned about --
+`domain_adaptation_feasibility.py`.
+
+### First: the proposal's own fallback is the investigation just closed
+
+The brief offers "inject FPs into real TESS light curves" as a fallback. That
+is exactly the synthetic-injection path closed in the section above, at its
+Part 0 gate, permanently: already done with real hosts and empirically
+resampled parameters, domain AUC 0.9654 originally and 0.9692 on
+re-measurement, separable at 0.9500 on shape alone and 0.9382 on detection
+alone, with 7 of 31 features uncomputable in principle. Same conclusion, not a
+new path. Not reopened.
+
+### Production architecture, verified live
+
+    CalibratedClassifierCV(
+        Pipeline([SimpleImputer(median), HistGradientBoostingClassifier]),
+        cv=5, method="sigmoid")
+
+Tree-based. CatBoost, LightGBM and XGBoost were all tested earlier and closed;
+none is a neural network either.
+
+### Claim 1 -- "pre-train on Kepler, fine-tune with a smaller learning rate"
+
+Warm start is **mechanically real**: fitting on source gave `n_iter_ = 50`,
+then raising `max_iter` to 80 and fitting on target gave `n_iter_ = 80`, i.e.
+the 50 source trees were kept and 30 target trees appended.
+
+But it is **not fine-tuning, and the difference is not cosmetic**:
+
+* Boosting **appends; it never revisits.** The 50 source trees are immutable
+  once built. Nothing adjusts them.
+* `learning_rate` is **shrinkage on the contribution of the NEXT tree**. There
+  is no learning rate on tree-structure decisions and no gradient-based
+  adjustment of what was already learned, so "fine-tune with a smaller
+  learning rate" has no referent.
+* Neural fine-tuning nudges EVERY existing weight by a damped gradient; the
+  pre-trained state is an *initialisation that gets refined*. GBM warm start
+  leaves the source model as **frozen bias** that the new trees must fit
+  residuals around.
+
+Under domain shift that asymmetry runs the wrong way. At domain AUC 0.9973 the
+frozen Kepler/K2 trees encode mission-specific thresholds, and the TESS trees
+would spend capacity *undoing* them rather than inheriting anything useful.
+
+### Claim 2 -- and the wrapper discards it anyway
+
+Handing a warm-started, already-fitted estimator to production's recipe:
+
+    inner estimator IS the warm-started object?  False
+    clone(base) is fitted?                       False   <- clone() strips fit
+
+`CalibratedClassifierCV` **clones its estimator and refits from scratch inside
+each CV fold**. Any pre-training is discarded before a single calibrated
+prediction exists. So even the weak analog cannot reach production without
+abandoning the calibration wrapper -- and calibration is what delivers the ECE
+this project tracks (0.0417 -> 0.0365 at the last deployment).
+
+### Claim 3 -- domain-adversarial training has no attachment point
+
+A fitted HGB is a list of trees; one tree is a numpy structured array whose
+node fields are exactly:
+
+    value, count, feature_idx, num_threshold, missing_go_to_left,
+    left, right, gain, depth, is_leaf, bin_threshold, is_categorical, bitset_idx
+
+`feature_idx` is an **index into the RAW input**. There is no weight matrix, no
+embedding, no hidden layer, and no differentiable path from a loss back to a
+"representation" -- because **there is no learned representation**. Probing for
+learnable parameters (`coefs_`/`layers`/`embedding_`) returns `False`.
+
+DANN works by inserting a gradient-reversal layer between a learnable feature
+extractor and a domain classifier, so the extractor is pushed toward
+domain-invariant features. A tree ensemble has no extractor to reverse
+gradients through. The literature states the general form of this constraint
+directly: adversarial approaches "assume the use of differentiable learning
+models, hence cannot be applied to Gradient Boosted Decision Trees."
+
+**One distinction worth recording, because it invites misreading.** A paper
+titled *"Adversarial Training of Gradient-Boosted Decision Trees"*
+(CIKM 2019) does exist. It concerns **adversarial ROBUSTNESS** -- resistance to
+evasion attacks on inputs -- which is a different problem from domain-adversarial
+ADAPTATION. It does not provide DANN-style representation alignment, and citing
+it as evidence that "adversarial training works for GBDTs" would be wrong.
+
+### What tree-compatible domain adaptation actually looks like -- and it was already run
+
+The honest answer is not "no domain adaptation exists for trees." It is that
+the tree-compatible family is **instance reweighting**, not representation
+alignment: importance weighting by estimated density ratio, rejection sampling
+on p(source), TrAdaBoost-style example reweighting. These operate on the data,
+not on an internal representation, so they work with any learner.
+
+**This project has already run that family**, on the synthetic case:
+
+| correction | rows used | delta | 95% CI |
+|---|---|---|---|
+| rejection, p(syn) < 0.5 | 182 / 2,517 (7.2%) | -0.0002 | [-0.0068, +0.0066] |
+| importance weighting | eff. n 315 | -0.0013 | [-0.0110, +0.0088] |
+
+It neither helped nor cleared. And note what reweighting does at domain AUC
+0.9973: the overlap region is nearly empty by construction, so the effective
+sample size collapses toward zero. Reweighting cannot manufacture overlap that
+does not exist -- it can only downweight toward the few points that already
+overlap, which for K2 is close to none.
+
+### Would a neural architecture rescue it? Two unsolved problems, not one
+
+Applying either technique as intended requires a learnable representation,
+i.e. switching to a neural model. This project's own CNN attempt:
+
+| model | test AUC |
+|---|---|
+| CNN, real data only (5,378 examples) | **0.6964** |
+| CNN, real + 4,000 synthetic | 0.6807 |
+| CNN alone within the stacked ensemble | 0.7044 |
+| **deployed tree model** | **0.9300** |
+
+That is ~0.23 AUC short, on a dataset the CNN write-up already judged roughly
+an order of magnitude too small for the architecture. Building a neural model
+*in order to* enable domain adaptation means simultaneously solving (a) making
+a competitive neural model on insufficient data, which already failed, and
+(b) the domain adaptation itself, which has never been demonstrated to rescue a
+0.997-separable pair. Starting a 0.696 architecture to fix a 0.930 model is the
+wrong direction regardless of what is bolted onto it.
+
+### What "success" would even mean -- and why it is unreachable here
+
+The primary gate would be a REDUCTION in domain AUC. But domain AUC is a
+property of the DATA REPRESENTATION. For a tree model the representation is the
+31 raw production features, fixed. Nothing in a tree pipeline can change them,
+so nothing can move the number -- the quantity the gate measures is not
+addressable by the technique. For a neural model the representation is learned
+and CAN be pushed toward invariance, which is precisely why DANN is a neural
+technique and why the gate is only meaningful there.
+
+### RECOMMENDATION: close. Do not build.
+
+| technique | applicable to this architecture? |
+|---|---|
+| transfer learning (pre-train / fine-tune) | **no** -- warm start appends immutable trees, has no learning rate on prior structure, and is discarded by the calibration wrapper (verified `False`) |
+| domain-adversarial training | **no** -- no learnable representation exists to regularize; literature states it requires differentiable models |
+| instance reweighting (the real tree-compatible analog) | yes, but **already run**, non-clearing, and collapses to ~zero effective sample size at 0.9973 |
+
+Revisit only if BOTH change: a neural architecture that is independently
+competitive with 0.9300 on this data volume, AND evidence that adversarial
+alignment rescues a domain pair separable at ~0.99. Neither is close.
+
+Script: `domain_adaptation_feasibility.py`; results
+`domain_adaptation_feasibility.json`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
