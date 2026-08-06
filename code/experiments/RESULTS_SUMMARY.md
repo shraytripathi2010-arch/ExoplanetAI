@@ -4370,6 +4370,150 @@ smuggled in under this one. **Not started; awaiting direction.**
 Scripts: `multisector_feasibility.py`; data `multisector_availability.json`
 (live MAST sample), `multisector_feasibility.json`.
 
+## PIPELINE-WIDE multi-sector stacking -- STAGE 0 COST ESTIMATE. Awaiting decision.
+
+Follow-on from the finding above. Nothing downloaded, nothing reprocessed,
+production untouched at **0.9208 / 26 features** (md5 `0c996a41…`,
+`transit_shape_ratio` still present -- the retirement task has not run).
+
+### A correction to my own sector numbers, and a prior measurement I should have found first
+
+The trap_vshape section reported "median 3, mean 4.6" sectors. That sampled only
+the *recoverable excluded* subset -- a biased slice. Re-sampled properly,
+stratified 60 planets / 40 false positives across the whole training set
+(96/100 resolved): **median 4, mean 6.1, 86% with >= 2 sectors.**
+
+And this project had already measured it at full scale. The medium-lift
+multi-sector depth-consistency work records **97.8% of stars have >1 sector,
+median 7**, over 5,137 stars, along with two cost figures that bear directly
+here: download of all sectors **~4.5 h for 5,137 stars**, and per-sector TLS
+**~118 h -- explicitly rejected as the wrong tool.** That section also already
+answered a Stage 2 question: `n_sectors` alone scores **AUC 0.479**
+(Mann-Whitney p=0.459), so observation history does not predict the label.
+
+### THE COST DRIVER IS NOT SECTOR COUNT -- IT IS TIME SPAN
+
+TLS cost is set by the period grid, which scales with the first-to-last
+baseline, not the number of points. Two of this project's own measurements pin
+the scaling almost exactly linear:
+
+| dataset | baseline | points/star | TLS s/star |
+|---|---|---|---|
+| TESS, single sector | 27.4 d | 16,395 | **58.2** (measured, `elapsed_s`, n=488) |
+| K2 pilot | 82 d | 3,645 | **174** (measured, n=71) |
+| ratio | 3.04x | 0.22x | **2.99x** |
+
+3.04x baseline gives 2.99x time on 4.5x FEWER points. **Cost tracks baseline;
+point count is second-order.**
+
+Sectors for one star are not contiguous -- they are scattered across the primary
+and extended missions. Measured spans from the same 96-star sample:
+
+| percentile | span | vs 27.4 d |
+|---|---|---|
+| p25 | 219 d | 8.0x |
+| **p50** | **808 d (2.2 yr)** | **29.5x** |
+| p75 | 1,891 d (5.2 yr) | 69x |
+| p90 | 2,603 d (7.1 yr) | 95x |
+
+**The median star's stacked baseline is 2.2 years and the p90 is 7.1 years --
+longer than the 4-year Kepler baseline that already forced this project to add
+a binning cap.**
+
+### COST
+
+| item | estimate | basis |
+|---|---|---|
+| download, all sectors, 8,211 stars | **~7 h** | project's measured 4.5 h / 5,137 stars |
+| storage if retained | **~200 GB** | ~5 extra sectors x 8,211 x ~5 MB |
+| **disk free right now** | **12 GiB (98% full)** | `df` |
+| TLS re-search @ median 29.5x | **~27 days** | 8,211 x 1,717 s / 6 workers |
+| TLS re-search @ p25 8x (optimistic) | **~7 days** | 8,211 x 466 s / 6 workers |
+
+**Download is cheap. The TLS re-search is a multi-week job, and storage is a
+hard blocker unless download-measure-delete is used** (the pattern this project
+already applied for exactly this reason).
+
+### WHAT STACKING CAN AND CANNOT REACH -- the deflating part
+
+From the deployed model's own permutation importance, the top 5 features carry
+73% of total positive importance:
+
+| feature | importance | affected by stacking? |
+|---|---|---|
+| `st_rad` | **+0.0540** | **NO** -- stellar catalog |
+| `st_teff` | **+0.0369** | **NO** -- stellar catalog |
+| `chi2red_min` | +0.0353 | yes, but needs full TLS |
+| `SDE` | +0.0122 | yes, but needs full TLS |
+| `FAP` | +0.0085 | yes, but needs full TLS |
+
+**The two single largest contributors (+0.0909 combined, more than the other
+three together) are catalog stellar parameters that no amount of photometry
+changes.** Crowding is likewise catalog-derived and unaffected.
+
+That splits the work into two very unequal halves:
+
+* **Cheap path (~10 h total):** fold at the ALREADY-KNOWN period/T0 -- no
+  search needed, the trick this project used to avoid the 118 h -- and
+  recompute the fold-derived features: `odd_even_mismatch`,
+  `secondary_eclipse_depth`, `depth_consistency_std`, the `depth_mean_*`
+  family, `trap_vshape`. **But these are largely the low-importance features**;
+  `depth_mean` is measured at **-0.0013**.
+* **Expensive path (7-27 days):** `chi2red_min`, `SDE`, `FAP`, `period`,
+  `duration`, `transit_count` all come from the TLS *search* and cannot be had
+  without re-running it at 2.2-year baselines.
+
+The importance sits on the expensive side of that line.
+
+### THREE PIPELINE ASSUMPTIONS THAT WOULD BREAK -- found by reading the code, not assumed
+
+1. **Cadence mixing re-runs the K2 units bug.** `MAX_FLATTEN_WINDOW = 401` is
+   specified in POINTS (`02_preprocess.py:33`, `06_download_unknown.py:213`).
+   One star's sectors span 20-s, 2-min and FFI cadences across mission phases,
+   so concatenating them and applying a fixed 401-point window gives a
+   different physical window per chunk -- exactly the failure that made K2
+   stars detrend over 8.2 days while TESS got 13.4 hours.
+2. **Detrending must happen per sector, before stacking.** With a median
+   808-day span built from ~27-day sectors, a Savitzky-Golay pass over the
+   concatenated array smooths straight across month-to-year gaps. The existing
+   code sorts by time and flattens the whole array; `02_preprocess.py:185`
+   already flags stitched multi-sector input as a corruption risk for exactly
+   this reason.
+3. **The binning cap may actively harm the shape features.**
+   `MAX_POINTS_BEFORE_BINNING = 30000` -> `TARGET_POINTS_AFTER_BINNING = 15000`.
+   Six stacked sectors give ~100k points, binned back to ~15k -- about what one
+   sector already delivers (16,395). Total SNR should be preserved (each bin
+   averages more raw points) but the bins get coarser in TIME, and `trap_vshape`
+   measures ingress *duration*. This needs verifying, not assuming.
+
+### RECOMMENDATION: NO-GO on Stage 2 as specified. A narrowed Stage 1 is defensible.
+
+**Do not authorise the full re-download and reprocess.** It is a multi-week
+compute job, it needs ~200 GB against 12 GiB free, and the model's two largest
+features are untouchable by it.
+
+If you want to proceed, the pilot I would actually run is narrower than the
+brief's Stage 1 and aimed at the one question that decides everything else:
+
+> **Does `chi2red_min` / `SDE` / `FAP` improve materially at a 2.2-year
+> baseline?** That is where the importance is. If those three do not move, the
+> expensive path is dead and only the low-importance cheap path remains.
+
+Scoped at ~120 stars that is roughly a **10-12 h overnight run** (TLS dominates
+at ~28 min/star median, 6 workers), and it would also settle the three break
+risks above on real data. I have not started it.
+
+A cheaper alternative worth considering first: run the **cheap path only** on
+the full set (~10 h, no TLS, fold at known ephemeris) and measure whether the
+fold-derived features move the model at all. If they do not -- and their
+importances suggest they will not -- that closes the question at a tenth of the
+cost, without ever paying for the TLS re-search.
+
+**Awaiting your decision. Nothing downloaded.**
+
+Scripts: `multisector_feasibility.py`; data `multisector_span_sample.json`
+(96-star stratified live MAST sample with per-star sector IDs).
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
