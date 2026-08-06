@@ -5368,6 +5368,137 @@ alignment rescues a domain pair separable at ~0.99. Neither is close.
 Script: `domain_adaptation_feasibility.py`; results
 `domain_adaptation_feasibility.json`.
 
+## PER-EXAMPLE WEIGHTING: continuous SNR/width, and focal-style -- BOTH NEGATIVE
+
+Two genuinely new weighting mechanisms, both tested to completion. Neither
+promoted; production stays at 0.9300 / 31 features / md5 `1f0b7cb8`. The focal
+arm is the **largest single negative** measured in this family.
+
+### Part 0: what was already closed, and why these are still new
+
+| prior experiment | mechanism | result |
+|---|---|---|
+| small-lift class weighting | per-CLASS constant: `balanced` vs none vs sqrt-inverse-frequency | `balanced` best; alternatives **-0.0022** and **-0.0021**, neither clearing |
+| giant-star arm B | per-SUBPOPULATION constant: giants x3 | **-0.0001** (sd 0.0002), 0/12 overall AND 0/12 on the giant subpopulation |
+
+Both are **static, pre-assigned** weights. The two angles here differ:
+
+* **SNR/width weighting** is still static but **continuous in a feature value**
+  rather than a per-group constant, and points the OPPOSITE way from arm B --
+  the giant write-up records giants at **snr 1.76x** dwarfs, so "upweight
+  giants" was upweighting the HIGH-SNR corner, while this upweights LOW SNR.
+  Partial overlap in family, opposite in direction and functional form.
+* **Focal-style weighting is dynamic**: the weight depends on the model's own
+  current error, not on any observable fixed in advance. A repo-wide grep for
+  "focal" returns **nothing** -- untouched.
+
+### The routing trap, re-verified for sklearn 1.9.0 before designing anything
+
+This project was bitten once already: `sample_weight` passed to a
+`CalibratedClassifierCV` never reached the trees, and that arm was silently
+identical to the unweighted one. Re-tested live:
+
+| call form | Spearman(unweighted, weighted) | reached the trees? |
+|---|---|---|
+| bare `Pipeline`, `clf__sample_weight` | **0.873** | yes |
+| `CalibratedClassifierCV(...).fit(sample_weight=)` | **0.997** | no -- sklearn warns *"sample weights will only be used for the calibration itself"* |
+
+**A first version of this check got the verdict wrong** and is recorded because
+the error is instructive: it judged by mean |prediction change|, which was
+*larger* for the calibrated form (0.72 vs 0.06) and looked like success. That
+change is the sigmoid CALIBRATOR being refit on reweighted data -- it moves
+probabilities but **cannot move ranking**. Only the rank correlation separates
+"the trees changed" from "the probability mapping changed", and AUC delta was
+exactly +0.0000 either way. Every arm below therefore fits the BARE pipeline,
+including the baseline, so all arms are like-for-like.
+
+Consequence, stated rather than buried: these arms are **uncalibrated**, so
+their Brier/ECE are comparable to each other but **not** to production's
+0.0832 / 0.0365. `class_weight="balanced"` is retained as deployed; sklearn
+multiplies sample_weight on top of it.
+
+### The hypothesis, stated before measuring, and it cut both ways
+
+Upweighting low-SNR rows concentrates capacity where classification is hard and
+where marginal candidate decisions actually get made. The opposite risk was
+named as equally plausible up front: low-SNR rows have the **noisiest feature
+vectors**, so upweighting them may amplify label-independent noise and blur
+splits the high-SNR rows currently define cleanly.
+
+### Results: 12 bootstraps, bare pipeline, frozen test set
+
+Baseline (bare, unweighted) AUC 0.9223 (sd 0.0035); low-SNR subpopulation AUC
+0.9145 (n=271, `snr <= 4.15`, bottom test quartile).
+
+| arm | mean d | sd | pos | clears | >=MDE | d 2-min | **d LOW-SNR** | clears low |
+|---|---|---|---|---|---|---|---|---|
+| snr_mild `(snr/med)^-0.25` | +0.0003 | 0.0022 | 6/12 | 1/12 | 0/12 | +0.0003 | +0.0001 | 0/12 |
+| snr_mod `^-0.5` | -0.0003 | 0.0024 | 5/12 | 0/12 | 0/12 | -0.0002 | -0.0017 | 0/12 |
+| snr_agg `^-1.0` | -0.0011 | 0.0028 | 3/12 | 0/12 | 0/12 | -0.0014 | +0.0017 | 0/12 |
+| width_mod `(dur/med)^-0.5` | -0.0002 | 0.0027 | 5/12 | 0/12 | 0/12 | -0.0001 | -0.0020 | 0/12 |
+| **focal** `(1-p_true)^2` | **-0.0116** | 0.0072 | **0/12** | 0/12 | 0/12 | -0.0104 | **-0.0166** | 0/12 |
+
+**The static arms are a flat null with a mild dose-response toward harm:**
++0.0003 -> -0.0003 -> -0.0011 as inverse-SNR strength rises. The
+noise-amplification risk named in advance is the one that materialised, mildly.
+Decisively, **no arm helps the subpopulation it targets** -- 0/12 clearing on
+the low-SNR delta for every single arm, including the aggressive one.
+
+### The focal arm fails hardest exactly where it aims
+
+-0.0116 overall, **0/12 resamples even positive**, and **-0.0166 on the
+low-SNR subpopulation** -- it hurts the hard cases it upweights more than it
+hurts the aggregate. That is mechanistically interpretable rather than
+mysterious: `(1-p_true)^gamma` upweights whatever the model currently gets
+wrong, and in this dataset the most-wrong rows are disproportionately
+genuinely ambiguous or mislabelled, not merely hard. The modulating factor
+cannot distinguish "hard" from "wrong label", which is the documented failure
+mode of focal loss under label noise. Its ECE is actually the best of the group
+(0.0692) -- it is confidently uninformative, not miscalibrated.
+
+### True focal loss is not implementable in HGB, and the alternative is a closed door
+
+Verified directly: `HistGradientBoostingClassifier`'s `loss` parameter accepts
+only `{'log_loss'}` -- no callable objective. True focal loss reweights INSIDE
+the objective every boosting round; what was tested is a one-step out-of-fold
+approximation, and is labelled as such rather than as focal loss.
+
+Implementing the real thing requires a custom objective, i.e. XGBoost or
+LightGBM -- a **model-family change**. That is not worth doing here:
+
+* CatBoost, LightGBM and XGBoost were each tested individually in the earlier
+  bake-off and **none cleared alone**; the averaging ensemble did not either.
+* The approximation of the technique, in the model that is deployed, came back
+  at **-0.0116 with 0/12 positive** -- not marginal, and pointing away.
+* So it would mean adopting a model family that already failed, in order to
+  implement a technique whose approximation just failed decisively.
+
+This is the same shape as the domain-adaptation closure: the technique requires
+first solving a larger problem this project has already tested and closed. The
+honest caveat is recorded too -- a one-step approximation is not proof that
+per-round focal loss would fail. But the direction, the magnitude, the fact
+that it damages its own target population most, and the architecture cost make
+it a poor use of the next effort.
+
+### RECOMMENDATION
+
+| approach | verdict |
+|---|---|
+| continuous inverse-SNR weighting (3 strengths) | **do not promote** -- flat null, mild dose-response toward harm, 0/12 on its own target subpopulation |
+| inverse-width weighting | **do not promote** -- same |
+| focal-style dynamic reweighting | **do not promote** -- -0.0116, 0/12 positive, worst on the cases it targets |
+| true focal loss via XGBoost/LightGBM | **not recommended** -- requires a model family already tested and closed |
+
+This is now the **fourth** null in the reweighting family: per-class, per-
+subpopulation, continuous-per-example, and dynamic-per-example. All four
+reweight the SAME rows carrying the SAME information; none adds any. Consistent
+with the pattern behind both deployed wins, which added new information
+(external catalog; a different representation of the data) rather than
+redistributing attention over what was already there.
+
+Scripts: `weighting_routing_check.py`, `weighting_experiments.py`; results
+`weighting_experiments_results.json`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
