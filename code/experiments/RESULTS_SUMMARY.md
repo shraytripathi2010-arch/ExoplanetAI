@@ -4514,6 +4514,122 @@ cost, without ever paying for the TLS re-search.
 Scripts: `multisector_feasibility.py`; data `multisector_span_sample.json`
 (96-star stratified live MAST sample with per-star sector IDs).
 
+## CHEAP-PATH multi-sector stacking -- CLOSED AT THE STAGE A GATE. There is no cheap path.
+
+Ran the ~10 h cheap path proposed at the end of Stage 0: fold at the STORED
+ephemeris across all sectors, no TLS re-search, recompute only fold-derived
+features. **Stopped at Stage A. Stage B and C not run** -- not because the gain
+was small, but because the method is structurally invalid, for a reason that
+also explains why the expensive path cannot be avoided.
+
+Production untouched: **0.9208 / 26 features**, md5 `0c996a41…`,
+`transit_shape_ratio` still present.
+
+### Disk: 12 GiB free respected, nowhere near the 200 GB Stage 2 estimate
+
+Download-measure-delete, one sector at a time. **Peak on-disk footprint 12.5 MB
+per star**, scratch cache verified empty mid-run and after. Free space was
+12 GiB before, during and after (`df` checked at each point). 25 stars, ~10 min.
+
+### Break-risk checks -- two confirmed real, one benign, and a FOURTH found
+
+| risk | outcome |
+|---|---|
+| 1. `MAX_FLATTEN_WINDOW` in POINTS | **REAL, hit 10/25 stars (40%)** |
+| 2. detrending across gaps | avoided by construction (per-sector flatten) |
+| 3. disk | safe, 12.5 MB peak |
+| **4. mixed time systems** | **REAL, not predicted, silently corrupting** |
+
+**Risk 1 confirmed live.** 10 of 25 stars mix 120-s and 20-s cadence across
+their own sectors. A fixed 401-point window would have detrended the 120-s
+sectors over 13.4 h and the 20-s sectors over 2.2 h -- the K2 units bug again,
+inside a single star. Deriving the window from each sector's measured cadence
+gives 403 and 2413 points respectively, both 13.4 h, and the per-sector values
+are recorded so the fix is auditable.
+
+**Risk 4, found only by running real data.** MAST returns products for ONE star
+in TWO time systems: most in BTJD (~1930-2664) but some in full BJD
+(~2458929). `TIC_373729723` has both. Concatenating put its sectors **2.45
+million days apart** (span 2,457,735 d = 6,700 yr), which folds to meaningless
+phase with no error raised. Fixed by normalising any array with median time
+> 2.4e6; span then reads a sane 759 d median, 2,819 d max. Stage A was re-run
+from scratch after the fix and all numbers below are post-fix.
+
+### Stacking DOES work mechanically -- and that makes the result unambiguous
+
+| quantity | single -> multi (median ratio) | expected |
+|---|---|---|
+| `n_in_transit` | **x6.14** | more sectors, more points |
+| `depth_se` (precision) | **x0.46** | sqrt(6.14) = 2.48x better -> 0.40 |
+
+Precision improves almost exactly as sqrt(N) predicts. The plumbing is correct.
+
+### THE FINDING: the stored ephemeris cannot phase-fold a multi-year baseline
+
+| feature | median ratio multi/single |
+|---|---|
+| **`depth_mean`** | **0.28** |
+| `depth_mean_odd` | 0.33 |
+| `depth_mean_even` | 0.44 |
+| `secondary_eclipse_depth` | 0.24 |
+| `odd_even_mismatch` | 0.88 |
+| `trap_vshape` | 0.99 |
+
+The measured transit **depth collapses to 28% of its single-sector value**.
+That is not noise averaging down -- it is the transit being smeared out of
+phase.
+
+Cause, tested rather than asserted. The stored period comes from a TLS fit to
+ONE 27-day sector. Folding a 759-day median span at that period accumulates a
+timing error of `span x sigma_P / P`, expressed below in transit durations:
+
+| accumulated drift | n | median depth ratio |
+|---|---|---|
+| < 10 durations | 6 | **0.77** |
+| 10 - 50 | 3 | 0.15 |
+| 50 - 150 | 7 | 0.13 |
+| > 150 | 5 | **0.02** |
+
+A clean monotone dose-response, and **95% of stars drift by more than one full
+transit duration** (median 68 durations). Correlations all run the right way:
+depth ratio vs log drift −0.321, vs log span −0.478, vs n_sectors −0.270.
+
+**The quantitative statement:** holding drift under one transit duration over
+the stacked span needs a median `sigma_P` of **1.75e-04 d**. The stored value
+is **9.88e-03 d** -- **~56x too imprecise.**
+
+### WHY THIS CLOSES THE WHOLE QUESTION, not just this variant
+
+The cheap path was defined as "avoid the expensive TLS re-search by reusing the
+known ephemeris". **That is circular.** A period good enough to fold N sectors
+coherently can only be obtained by searching over those N sectors -- which is
+the expensive path. The cheap path does not sit alongside the expensive one as
+a budget alternative; it *depends on the expensive one's output* and cannot be
+run first.
+
+So the options collapse to one:
+
+* **Cheap path:** structurally invalid. Produces worse features than the
+  single-sector baseline it was meant to improve (depth at 28%, secondary at
+  24%). Not a small gain -- a regression.
+* **Expensive path:** 7-27 days of TLS re-search, ~200 GB against 12 GiB free,
+  and even then it can only touch `chi2red_min`/`SDE`/`FAP` while the model's
+  two largest features (`st_rad` +0.0540, `st_teff` +0.0369) are catalog-derived
+  and untouchable.
+
+**RECOMMENDATION: do not promote, do not proceed.** Multi-sector stacking is
+closed for this pipeline at the cheap tier on correctness grounds and at the
+expensive tier on the Stage 0 cost/benefit grounds. Nothing was deployed.
+
+**One thing worth keeping.** The two bugs found here are real and would have
+silently corrupted any future multi-sector work in this repo: the
+points-vs-time flatten window under mixed cadence, and the BTJD/BJD mixing
+within a single star's products. Both fixes live in
+`multisector_cheap_path.py` with the diagnostics that caught them.
+
+Scripts: `multisector_cheap_path.py`; data `multisector_cheap_stageA.csv`
+(per-star single vs stacked values, sector cadences, windows, spans).
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
