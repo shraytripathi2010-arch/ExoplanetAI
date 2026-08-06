@@ -1,0 +1,68 @@
+{
+  "cluster": 1,
+  "n": 532,
+  "planet_pct": 83.45864661654136,
+  "top_feature_ratios": [
+    {
+      "feature": "transit_shape_ratio",
+      "cl_median": -0.07164469136590634,
+      "rest_median": 0.04093580788771835,
+      "ratio": -1.7501716727423215
+    },
+    {
+      "feature": "empty_transit_count",
+      "cl_median": 0.0,
+      "rest_median": 1.0,
+      "ratio": 0.0
+    },
+    {
+      "feature": "FAP",
+      "cl_median": 0.019207683,
+      "rest_median": 8.0032e-05,
+      "ratio": 240.000037485006
+    },
+    {
+      "feature": "period_uncertainty",
+      "cl_median": 0.0405561734218768,
+      "rest_median": 0.0091747071697593,
+      "ratio": 4.420432464106732
+    },
+    {
+      "feature": "transit_count",
+      "cl_median": 4.0,
+      "rest_median": 12.0,
+      "ratio": 0.3333333333333333
+    },
+    {
+      "feature": "period",
+      "cl_median": 6.380994106707805,
+      "rest_median": 2.445987840778993,
+      "ratio": 2.608759536873086
+    },
+    {
+      "feature": "chi2red_min",
+      "cl_median": 4.0476659721696785e-06,
+      "rest_median": 1.0335133890988745e-05,
+      "ratio": 0.39164136767486474
+    },
+    {
+      "feature": "distinct_transit_count",
+      "cl_median": 4.0,
+      "rest_median": 10.0,
+      "ratio": 0.4
+    },
+    {
+      "feature": "crowd_flux_ratio_max",
+      "cl_median": 0.046099932322885104,
+      "rest_median": 0.0799760590942137,
+      "ratio": 0.576421654742681
+    },
+    {
+      "feature": "var_ls_power",
+      "cl_median": 0.05461868999389215,
+      "rest_median": 0.0333708188047478,
+      "ratio": 1.6367201030776424
+    }
+  ],
+  "n_positives": 444
+}

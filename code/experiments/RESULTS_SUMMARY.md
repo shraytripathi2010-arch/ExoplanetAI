@@ -5605,6 +5605,157 @@ Scripts: `gbm_ensemble.py`, `gbm_ensemble_control.py`; data
 `gbm_ensemble_results.json`, `gbm_ensemble_control_results.json`,
 `gbm_ensemble.log`.
 
+## SOM / UNSUPERVISED CLUSTER DIAGNOSTIC -- exploratory pass, ONE REAL LEAD
+
+**Diagnostic only. Nothing built, nothing trained, nothing promoted.** Read-only
+over `training.csv`, both candidate pools and the deployed model. Production
+untouched at 0.9300 / 31 features / md5 `1f0b7cb8`.
+
+### What RAVEN actually does with SOMs (and why this pass deliberately differs)
+
+Confirmed from the paper: RAVEN's SOM is "trained to distinguish between Planets
+and FPs based on **transit shape**", and its output is a **metric fed into** the
+downstream XGBoost/GP classifiers, following Armstrong et al. (2017). That is a
+feature generator, i.e. a training-pipeline change -- explicitly out of scope
+here. This pass clusters primarily on the **full 31 production features**,
+because the question is "what is the classifier missing" and the classifier
+operates in that space; a shape-only view is reported as a secondary check.
+
+SOM implemented in ~40 lines of numpy (minisom/somoclu/sklearn_som all absent),
+6x6 grid, node weights agglomerated to 8 superclusters.
+
+### A method failure caught and fixed before it became a "finding"
+
+The first run used `RobustScaler` and produced a **degenerate partition**:
+5,426 of 5,486 rows in one cluster, the rest 1-26 row outlier nodes. It also
+made the validity check *appear to pass* -- "the giant-enriched cluster IS the
+worst-calibrated: True" -- which was vacuous, since only one cluster had enough
+rows to compute anything. These features are heavy-tailed, so a linear scaler
+leaves extremes that drag individual nodes out while everything else collapses.
+Switched to a rank-based `QuantileTransformer` and added an explicit degeneracy
+guard. After the fix the largest cluster holds **18.7%**.
+
+### PART 1 -- VALIDITY CHECK: PARTIAL FAILURE, and that caps confidence
+
+The naive check would be near-tautological: `st_rad` is one of the clustered
+features, so "a cluster with big stars" proves nothing. The real test is whether
+the known giant signature is recovered -- **elevated ECE at ordinary AUC**
+(giants 0.9013/0.0867 vs dwarfs 0.9017/0.0204).
+
+| | cluster | giant% | AUC | ECE |
+|---|---|---|---|---|
+| most giant-enriched | 0 | 35.3 | 0.9460 | 0.0625 |
+| worst-calibrated | 1 | 23.1 | 0.8280 | 0.0934 |
+
+**They are not the same cluster.** Giants spread across the partition (37.5,
+19.7, 5.9, 30.4, 21.1, 34.6, 0, 6.3 %) rather than isolating. So the method
+**did not recover the one structural feature already known to exist.** By this
+task's own standard -- "if the method can't recover a known structural feature,
+don't trust it to find unknown ones" -- everything below is a **lead requiring
+independent confirmation, not a finding.**
+
+### PART 2 -- cluster structure (frozen test subset, model out-of-sample)
+
+| cluster | n(test) | planet% | giant% | AUC | ECE | err@0.5 | n(full) |
+|---|---|---|---|---|---|---|---|
+| 0 | 218 | 80.3 | 35.3 | 0.9460 | 0.0625 | 7.8 | 961 |
+| **1** | **108** | **76.9** | **23.1** | **0.8280** | **0.0934** | **18.5** | **532** |
+| 2 | 202 | 92.6 | 4.0 | 0.9191 | 0.0314 | 4.5 | 1024 |
+| 3 | 138 | 63.8 | 25.4 | 0.8857 | 0.0836 | 18.8 | 727 |
+| 4 | 140 | 80.7 | 19.3 | 0.9400 | 0.0641 | 9.3 | 754 |
+| 5 | 165 | 61.8 | 32.1 | 0.9264 | 0.0917 | 15.2 | 839 |
+| 6 | 16 | 100.0 | 0.0 | -- | -- | -- | 112 |
+| 7 | 111 | 92.8 | 3.6 | 0.9660 | 0.0397 | 3.6 | 537 |
+
+AUC ranges **0.8280 to 0.9660** -- real, wide structure. No negative-dominated
+cluster (<25% planet) exists at all, so Part 2.2(b)'s "overlooked planet type
+hiding among negatives" returns **nothing**.
+
+### THE LEAD: cluster 1, and it is probably a LABEL problem, not a model problem
+
+Cluster 1 is worst on both ranking (0.8280 vs median 0.9264) and calibration
+(0.0934), and it is **not** explained by giants (23.1%, mid-range). Its feature
+profile against the rest of the population is coherent:
+
+| feature | cluster 1 | rest | ratio |
+|---|---|---|---|
+| **FAP** | 0.0192 | 8.0e-05 | **240x** |
+| **transit_count** | 4 | 12 | **0.33x** |
+| distinct_transit_count | 4 | 10 | 0.40x |
+| **period** | 6.38 d | 2.45 d | 2.61x |
+| period_uncertainty | 0.0406 | 0.0092 | 4.42x |
+| empty_transit_count | 0 | 1 | -- |
+
+Long period, few transits, weak detection significance -- internally consistent
+(longer period -> fewer transits in a 27-day sector -> weaker detection).
+
+**But the host names point somewhere more specific.** Cluster 1 contains 444
+confirmed positives, and the sample includes `51_Peg`, `11_UMi`, `24_Sex`,
+`4_UMa`, `BD+20_2457`, `BD+03_2562` -- largely **radial-velocity discoveries
+whose hosts are not known to transit**. 51 Peg is the canonical non-transiting
+RV hot Jupiter.
+
+That suggests cluster 1 is substantially a group of rows labelled positive
+because *the host has a known planet*, while the TESS photometry contains **no
+detectable transit at all** -- which is exactly why FAP is 240x higher and
+transit counts a third of normal. If so, the model scores worst there because it
+is being asked to learn a mapping that the data cannot support, not because of a
+modelling deficiency.
+
+**This is stated as a hypothesis, not a result.** It was not verified: no
+external check was run on whether these specific hosts transit. That
+verification is the obvious next step and is cheap.
+
+### PART 2.3 -- candidate pools: a real coverage gap, and it converges
+
+| pool | n scorable | median quantization error | beyond training p95 |
+|---|---|---|---|
+| training reference | 5,486 | 3.93 | 5% by construction |
+| pool A | 254 | 5.42 | **25.2%** (5x expected) |
+| pool B (widesector) | 54 | 7.39 | **63.0%** (12.6x expected) |
+
+Occupancy shows where they land:
+
+| cluster | training% | pool A% | pool B% |
+|---|---|---|---|
+| **1** | 9.7 | **33.1** | **25.9** |
+| **4** | 13.7 | **40.9** | 16.7 |
+| 0 | 17.5 | 1.6 | 9.3 |
+| 7 | 9.8 | 1.6 | 7.4 |
+
+**The convergence is the interesting part.** Cluster 1 is simultaneously the
+worst-performing region on labelled data (AUC 0.8280) and **3.4x
+over-represented** among real pool-A candidates (33.1% vs 9.7%). The region
+where the model is weakest is disproportionately where real candidates actually
+live. Pool B's 63% beyond-p95 figure rests on only 54 candidates and should be
+treated as indicative.
+
+### Secondary: shape-only SOM (RAVEN-faithful)
+
+Same qualitative picture, no additional structure: AUC 0.7719-0.9642 across
+clusters, worst cluster again a small weak-detection group. Shape-space says
+nothing the full space did not.
+
+### HONEST OVERALL READ
+
+**Partially informative, with the validity check failed.** The method found real
+structure (AUC 0.83-0.97 across clusters) and a real distributional gap between
+training and the pools, but it did **not** recover the known giant/calibration
+structure, so its ability to find genuinely new structure is unproven.
+
+**The single most promising follow-up, scoped precisely:** take the 444
+confirmed positives in cluster 1 -- characterised by FAP ~240x population
+median, transit_count ~4 vs ~12, period ~6.4 d vs ~2.4 d -- and check what
+fraction are **non-transiting RV discoveries** rather than transiting planets.
+If a meaningful fraction are, they are label noise for a transit classifier, and
+the questions that follow are whether excluding or down-weighting them improves
+the model, and whether the pool over-representation of that same region means
+production is being asked to score many candidates from a region its training
+labels do not really describe. Nothing was acted on here.
+
+Script: `som_cluster_diagnostic.py`; results `som_cluster_diagnostic.json`,
+`som_cluster1_profile.json`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
