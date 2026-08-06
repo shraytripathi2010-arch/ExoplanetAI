@@ -5756,6 +5756,139 @@ labels do not really describe. Nothing was acted on here.
 Script: `som_cluster_diagnostic.py`; results `som_cluster_diagnostic.json`,
 `som_cluster1_profile.json`.
 
+## CLUSTER 1 / NON-TRANSITING RV HYPOTHESIS -- PARTIALLY CONFIRMED, THEN REFUTED WHERE IT MATTERED
+
+Verification of the lead raised by the SOM diagnostic. **Read-only: nothing
+modified -- not `training.csv`, not the frozen split, not the model.**
+Production untouched at 0.9300 / 31 features / md5 `1f0b7cb8`.
+
+Threshold declared BEFORE looking, per the task: "meaningful" = **>30% of
+cluster 1's positives non-transiting**.
+
+### Reproducing the partition
+
+The diagnostic never persisted per-star cluster labels, only the count. Every
+step is seeded, so the pipeline was re-run and **verified to reproduce cluster 1
+exactly: n=532, 444 positives** -- the numbers already on record. The script
+aborts otherwise, so nothing here rests on a different partition.
+
+### PART 1 -- discovery method (NASA Exoplanet Archive `pscomppars`, 6,336 planets)
+
+**444/444 cluster-1 positives matched the archive (100%).**
+
+| method set | hosts |
+|---|---|
+| Transit | 284 |
+| **Radial Velocity** | **119** |
+| Imaging | 17 |
+| Radial Velocity \| Transit | 12 |
+| Transit \| TTV | 5 |
+| Microlensing | 2 |
+| other | 5 |
+
+**68.2% of cluster 1 was discovered by transit.** The cluster is not
+predominantly RV -- the recognisable RV names that prompted the hypothesis were
+a visible minority, not the bulk.
+
+### PART 2 -- does the host actually transit? (`tran_flag`)
+
+| | n | % of matched |
+|---|---|---|
+| transits (tran_flag=1 on >=1 planet) | 305 | 68.7% |
+| **does NOT transit (all tran_flag=0)** | **139** | **31.3%** |
+
+**31.3% vs a declared threshold of 30% -- a marginal pass, not a decisive one,
+and it is reported as marginal.**
+
+Geometry check, done properly. A first version of this printed a FIXED caption
+("far from 90 deg => cannot transit") beside every row, which was wrong for
+HD 100777 at 90.0 deg and HD 111232 at 87.9 deg. Recomputed as |i - 90|:
+
+| |i - 90| | n | reading |
+|---|---|---|
+| > 15 deg | 24 | geometrically cannot transit for realistic a/R* |
+| 5 - 15 deg | 3 | very unlikely |
+| < 5 deg | 8 | possible; tran_flag=0 means searched-and-absent, not geometry |
+
+Median offset 40 deg. **But inclination is available for only 35 of the 139**, so
+this supports the geometric reading for a subset, not for all.
+
+### PART 3 -- THE PART THAT REFUTES THE HYPOTHESIS'S POINT
+
+The hypothesis was not merely "some cluster-1 positives don't transit". It was
+that these rows are **label noise teaching the model an unlearnable pattern**,
+and that this explains cluster 1's poor AUC (0.8280). That claim fails:
+
+| | value |
+|---|---|
+| non-transiting positives in the frozen test set | **25** |
+| their median predicted probability | **0.9622** |
+| all test positives, median predicted probability | 0.9715 |
+| fraction scored below 0.5 | **4.0%** |
+| test AUC, all 1,098 rows | **0.9300** |
+| test AUC excluding those 25 rows (1,073) | **0.9301** |
+| difference | **+0.0001** |
+
+**The model scores these rows like ordinary positives, not like noise.** If they
+were unlearnable label noise the model would score them low and they would drag
+the metric down; instead they sit within 0.01 of the normal positive median, and
+removing them moves test AUC by one ten-thousandth.
+
+So: the compositional claim is marginally true, and the causal claim is false.
+**Cluster 1's 0.8280 AUC is NOT explained by non-transiting contamination, and
+its cause remains unexplained.**
+
+### Test-set integrity: no issue, stated precisely
+
+25 rows, 2.28% of the frozen test set, worth **+0.0001** AUC if excluded. Every
+AUC this project has reported is unaffected at the reported precision. If
+anything the direction is mildly pessimistic rather than inflated. No action
+needed and none taken.
+
+### Scale, for the record
+
+| quantity | value |
+|---|---|
+| non-transiting rows | 139 |
+| fraction of the positive class (4,334) | **3.21%** |
+| fraction of all training rows (5,486) | 2.53% |
+| of those, in the frozen test set | 25 |
+
+### What a "fix" would involve -- and why it is NOT recommended
+
+A future task could flag `tran_flag=0` hosts and exclude or down-weight them.
+The evidence says do not bother:
+
+* the measured benefit is **+0.0001** on the test set -- three orders of
+  magnitude below the ~0.0097 detection threshold;
+* it would delete **139 positives (3.21% of the class)** for that;
+* the tension the task asked to state honestly does not even arise here. The
+  "bad labels vs less data" trade-off matters when the labels are actually
+  hurting. These are not: the model already fits them, and they cost the metric
+  nothing. Removing them is pure data loss.
+
+### The one thing genuinely worth flagging, as a hypothesis
+
+The model confidently assigns **0.96 median probability to signals that, by
+definition, are not transits** -- a non-transiting planet cannot produce a
+transit, so whatever TLS locked onto in those light curves is something else
+(stellar variability, a systematic, or a spurious period). It has evidently
+learned that this class of feature vector means "planet", generalising from the
+~114 such rows in the training split to the 25 held out.
+
+That is benign for labelled data but is exactly the behaviour that would
+manufacture false positives on unknown candidates -- and cluster 1 is **3.4x
+over-represented in the real candidate pool** (33.1% of pool A vs 9.7% of
+training). Whether that actually produces bad candidates is untested and is
+stated as a hypothesis, not a finding. It would be a separate investigation:
+take pool candidates falling in cluster 1, and check whether their existing
+vetting evidence (centroid, crowding, VSX/SIMBAD variability) flags them at a
+higher rate than the pool baseline.
+
+Scripts: `cluster1_rv_verification.py`; data `cluster1_rv_verification.json`,
+`cluster1_rv_verification.csv`, `cluster1_test_impact.json`,
+`nasa_pscomppars_cache.csv`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,

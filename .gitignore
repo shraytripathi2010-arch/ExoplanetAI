@@ -80,3 +80,6 @@ data/training_dataset/training_backup_before_crowding_backfill.csv
 # already holds. The ROLLBACK copy in models/versions/ IS tracked.
 models/best_model_*_staged.joblib
 *.pre_variability.bak
+
+# NASA archive snapshot, re-fetchable and large; not source.
+code/experiments/nasa_pscomppars_cache.csv

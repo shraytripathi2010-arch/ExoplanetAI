@@ -1,0 +1,11 @@
+{
+  "n_nt_test": 25,
+  "median_prob_nt": 0.9622044482474976,
+  "frac_below_0.5": 0.04,
+  "auc_all": 0.9300019473029855,
+  "auc_excluding": 0.9300521331400191,
+  "delta": 5.0185837033644987e-05,
+  "incl_gt15deg_off": 24,
+  "incl_lt5deg_off": 8,
+  "incl_available": 35
+}

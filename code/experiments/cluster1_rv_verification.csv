@@ -1,0 +1,445 @@
+host,in_frozen_test,matched,methods,n_planets,any_transit,min_incl,min_imppar
+11_UMi,True,True,Radial Velocity,1,0,,
+1RXS_J160929.1-210524,False,True,Imaging,1,0,,
+24_Sex,False,True,Radial Velocity,2,0,,
+2MASS_J11550485-7919108,False,True,Imaging,1,0,,
+4_UMa,False,True,Radial Velocity,1,0,,
+51_Peg,True,True,Radial Velocity,1,0,49.8,
+AB_Aur,True,True,Imaging,1,0,42.6,
+AB_Pic,True,True,Imaging,1,0,,
+AU_Mic,False,True,Radial Velocity|Transit|Transit Timing Variations,4,1,88.39,0.259
+BD+03_2562,False,True,Radial Velocity,1,0,,
+BD+20_2457,False,True,Radial Velocity,2,0,,
+BD+48_738,True,True,Radial Velocity,1,0,,
+BD+49_828,False,True,Radial Velocity,1,0,,
+BD+60_1417,False,True,Imaging,1,0,,
+CD_Cet,False,True,Radial Velocity,1,0,87.48,
+CoRoT-13,False,True,Transit,1,1,88.02,0.374
+CoRoT-19,True,True,Transit,1,1,88.0,0.24
+DMPP-1,False,True,Radial Velocity,4,0,,
+EPIC_246851721,False,True,Transit,1,1,86.21,0.647
+FU_Tau,False,True,Imaging,1,0,,
+GJ_2126,False,True,Radial Velocity,1,0,,
+GJ_229,False,True,Radial Velocity,2,0,,
+GJ_3021,False,True,Radial Velocity,1,0,,
+GJ_3082,False,True,Radial Velocity,1,0,,
+GJ_3222,True,True,Radial Velocity,1,0,,
+GJ_3293,False,True,Radial Velocity,4,0,,
+GJ_3378,False,True,Radial Velocity,1,0,,
+GJ_338_B,False,True,Radial Velocity,1,0,,
+GJ_341,False,True,Transit,1,1,89.24,
+GJ_393,False,True,Radial Velocity,1,0,,
+GJ_536,False,True,Radial Velocity,2,0,,
+GJ_649,False,True,Radial Velocity,1,0,,
+GJ_682,False,True,Radial Velocity,2,0,,
+GJ_685,False,True,Radial Velocity,1,0,,
+GJ_687,False,True,Radial Velocity,2,0,,
+GJ_720_A,True,True,Radial Velocity,1,0,,
+GJ_876,False,True,Radial Velocity,4,0,59.0,
+GQ_Lup,False,True,Imaging,1,0,,
+G_196-3,False,True,Imaging,1,0,,
+G_261-6,True,True,Radial Velocity,1,0,,
+Gaia-5,False,True,Astrometry,1,0,129.7,
+Gl_410,False,True,Radial Velocity,1,0,,
+HD_100777,False,True,Radial Velocity,1,0,90.0,
+HD_102195,False,True,Radial Velocity,1,0,,
+HD_106252,False,True,Radial Velocity,1,0,46.0,
+HD_108236,False,True,Transit,5,1,87.59,0.423
+HD_109286,False,True,Radial Velocity,1,0,,
+HD_111232,False,True,Radial Velocity,2,0,87.902,
+HD_112640,False,True,Radial Velocity,1,0,,
+HD_113996,False,True,Radial Velocity,1,0,,
+HD_11505,False,True,Radial Velocity,1,0,87.505,
+HD_12484,False,True,Radial Velocity,1,0,,
+HD_125271,False,True,Radial Velocity,1,0,93.088,
+HD_128311,False,True,Radial Velocity,2,0,30.0,
+HD_129445,True,True,Radial Velocity,1,0,52.0,
+HD_13189,False,True,Radial Velocity,1,0,,
+HD_136352,False,True,Radial Velocity,3,1,88.49,0.41
+HD_147379,True,True,Radial Velocity,1,0,,
+HD_150010,False,True,Radial Velocity,1,0,,
+HD_150706,False,True,Radial Velocity,1,0,70.0,
+HD_152843,True,True,Transit,2,1,89.21,0.2
+HD_161178,False,True,Radial Velocity,1,0,,
+HD_162020,False,True,Radial Velocity,1,0,,
+HD_164922,False,True,Radial Velocity,4,0,,
+HD_16760,False,True,Radial Velocity,1,0,43.3,
+HD_174205,True,True,Radial Velocity,1,0,,
+HD_175167,False,True,Radial Velocity,1,0,60.0,
+HD_176986,False,True,Radial Velocity,3,0,0.2419,
+HD_177565,False,True,Radial Velocity,1,0,,
+HD_189567,False,True,Radial Velocity,2,0,,
+HD_190007,False,True,Radial Velocity,1,0,,
+HD_190647,False,True,Radial Velocity,1,0,,
+HD_192263,False,True,Radial Velocity,1,0,,
+HD_196050,False,True,Radial Velocity,1,0,42.0,
+HD_199509,False,True,Radial Velocity,1,0,,
+HD_19994,False,True,Radial Velocity,1,0,,
+HD_2039,False,True,Radial Velocity,1,0,,
+HD_20782,False,True,Radial Velocity,1,0,,
+HD_211970,False,True,Radial Velocity,1,0,,
+HD_212301,True,True,Radial Velocity,1,0,,
+HD_214823,False,True,Radial Velocity,1,0,99.51,
+HD_215497,True,True,Radial Velocity,2,0,0.2301,
+HD_216520,False,True,Radial Velocity,2,0,,
+HD_216536,True,True,Radial Velocity,1,0,,
+HD_221287,False,True,Radial Velocity,1,0,,
+HD_222237,False,True,Radial Velocity,1,0,49.9,
+HD_222582,True,True,Radial Velocity,1,0,,
+HD_22946,False,True,Transit,3,1,88.3,0.21
+HD_25723,False,True,Radial Velocity,1,0,,
+HD_27969,False,True,Radial Velocity,1,0,,
+HD_28192,False,True,Radial Velocity,1,0,,
+HD_284149_A,False,True,Imaging,1,0,,
+HD_28471,True,True,Radial Velocity,3,0,,
+HD_285968,False,True,Radial Velocity,1,0,,
+HD_30562,False,True,Radial Velocity,1,0,65.0,
+HD_32963,False,True,Radial Velocity,1,0,19.3,
+HD_330075,False,True,Radial Velocity,1,0,,
+HD_3651,False,True,Radial Velocity,1,0,,
+HD_38283,False,True,Radial Velocity,1,0,,
+HD_40979,False,True,Radial Velocity,1,0,,
+HD_4113,False,True,Radial Velocity,1,0,,
+HD_4308,False,True,Radial Velocity,1,0,,
+HD_43197,False,True,Radial Velocity,2,0,11.42,
+HD_46375,False,True,Radial Velocity,1,0,,
+HD_47536,False,True,Radial Velocity,1,0,,
+HD_5278,False,True,Radial Velocity|Transit,2,1,89.27,0.27
+HD_60292,False,True,Radial Velocity,1,0,,
+HD_62364,False,True,Radial Velocity,2,0,38.789,
+HD_64114,True,True,Radial Velocity,1,0,,
+HD_70573,False,True,Radial Velocity,1,0,,
+HD_7199,False,True,Radial Velocity,1,0,1.496,
+HD_75289,False,True,Radial Velocity,1,0,,
+HD_79498,False,True,Radial Velocity,1,0,,
+HD_80606,False,True,Radial Velocity,1,1,89.24,0.75
+HD_80869,False,True,Radial Velocity,1,0,98.559,
+HD_82943,False,True,Radial Velocity,2,0,90.0,
+HD_86065,False,True,Radial Velocity,1,0,29.821,
+HD_86264,True,True,Radial Velocity,1,0,93.591,
+HD_86950,False,True,Radial Velocity,1,0,,
+HD_89744,False,True,Radial Velocity,1,0,,
+HD_89839,False,True,Radial Velocity,1,0,49.5,
+HD_93083,False,True,Radial Velocity,2,0,,
+HD_95127,True,True,Radial Velocity,1,0,,
+HD_95872,True,True,Radial Velocity,1,0,,
+HD_96127,True,True,Radial Velocity,1,0,89.9,
+HD_99283,False,True,Radial Velocity,1,0,,
+HD_99492,False,True,Radial Velocity,2,0,,
+HIP_35173,False,True,Radial Velocity,1,0,,
+HIP_9618,False,True,Transit,2,1,,0.2477
+HIP_97166,False,True,Radial Velocity|Transit,2,1,,0.327997
+HR_858,False,True,Transit,3,1,85.98,0.587
+ITG_15_A,False,True,Imaging,1,0,,
+K2-129,False,True,Transit,1,1,89.21,
+K2-164,True,True,Transit,1,1,87.88981,0.14
+K2-167,False,True,Transit,1,1,86.8,0.55
+K2-18,False,True,Radial Velocity|Transit,2,1,89.5785,0.601
+K2-180,False,True,Transit,1,1,89.15,0.33
+K2-188,True,True,Transit,2,1,83.92815,0.37
+K2-214,True,True,Transit,1,1,88.14511,0.39
+K2-230,False,True,Transit,1,1,85.98986,0.39
+K2-27,False,True,Transit,1,1,88.87126,0.3
+K2-277,False,True,Transit,1,1,86.83,0.53
+K2-284,False,True,Transit,1,1,89.0,0.28
+K2-291,False,True,Transit,1,1,85.26,0.646
+K2-323,False,True,Transit,1,1,89.88,0.14
+K2-343,False,True,Transit,2,1,,0.36
+K2-347,False,True,Transit,1,1,,0.21
+K2-35,True,True,Transit,2,1,88.58,0.56
+K2-358,True,True,Transit,1,1,,0.35
+K2-406,False,True,Transit,1,1,,0.544
+K2-46,True,True,Transit,1,1,88.64866,0.13
+K2-63,False,True,Transit,2,1,,0.24
+K2-77,False,True,Transit,1,1,88.33,0.55
+K2-9,False,True,Transit,1,1,87.983,0.9261
+K2-91,False,True,Transit,1,1,88.62,
+KELT-24,False,True,Transit,1,1,89.67,0.061
+KIC_8121913,False,True,Orbital Brightness Modulation,1,0,,
+KIC_9663113,False,True,Transit,2,1,88.27,0.7495
+KMT-2021-BLG-2294L,False,True,Microlensing,1,0,,
+KOI-3680,False,True,Transit,1,1,89.892,0.15
+KOI-984,False,True,Transit|Transit Timing Variations,2,1,88.93,0.83
+Kepler-1000,False,True,Transit,1,1,89.5,0.489
+Kepler-104,False,True,Transit,3,1,87.76,0.45
+Kepler-1056,False,True,Transit,1,1,88.87,0.664
+Kepler-111,False,True,Transit,2,1,86.96,0.01
+Kepler-1124,False,True,Transit,1,1,89.45,0.295
+Kepler-1127,False,True,Transit,1,1,88.72,0.308
+Kepler-113,False,True,Transit,2,1,86.54,0.08
+Kepler-1162,False,True,Transit,2,1,89.51,0.371
+Kepler-1165,False,True,Transit,2,1,89.46,0.1291
+Kepler-1173,False,True,Transit,1,1,80.42,0.6139
+Kepler-1232,True,True,Transit,1,1,89.95,0.036
+Kepler-1241,False,True,Transit,1,1,87.94,0.78
+Kepler-1246,False,True,Transit,1,1,84.06,0.8264
+Kepler-1254,True,True,Transit,3,1,88.16,0.1954
+Kepler-1275,False,True,Transit,1,1,89.07,0.217
+Kepler-1281,False,True,Transit,1,1,89.17,0.195
+Kepler-1284,False,True,Transit,1,1,82.63,0.019
+Kepler-1301,True,True,Transit,1,1,89.56,0.262
+Kepler-1308,False,True,Transit,1,1,83.39,0.0361
+Kepler-1323,False,True,Transit,1,1,88.59,0.102
+Kepler-1335,False,True,Transit,1,1,89.33,0.232
+Kepler-1340,True,True,Transit,1,1,80.48,0.0038
+Kepler-1353,False,True,Transit,1,1,89.01,0.709
+Kepler-1363,False,True,Transit,1,1,89.85,0.03
+Kepler-1381,False,True,Transit,1,1,89.74,0.1228
+Kepler-1408,False,True,Transit,1,1,85.24,0.403
+Kepler-1418,False,True,Transit,1,1,89.8,0.176
+Kepler-1425,True,True,Transit,1,1,87.74,0.522
+Kepler-1429,False,True,Transit,1,1,88.57,0.3
+Kepler-1430,False,True,Transit,1,1,89.71,0.03
+Kepler-1441,False,True,Transit,1,1,89.39,0.0264
+Kepler-1444,False,True,Transit,1,1,88.55,0.6281
+Kepler-1459,False,True,Transit,1,1,87.89,0.1345
+Kepler-1473,False,True,Transit,1,1,80.92,0.2427
+Kepler-1487,False,True,Transit,2,1,89.44,0.043
+Kepler-1502,True,True,Transit,1,1,88.65,0.671
+Kepler-1509,False,True,Transit,1,1,89.55,0.232
+Kepler-1516,True,True,Transit,1,1,87.55,0.204
+Kepler-1524,True,True,Transit,1,1,89.54,0.0474
+Kepler-1528,True,True,Transit,1,1,89.76,0.028
+Kepler-1559,False,True,Transit,1,1,81.16,0.3415
+Kepler-1571,True,True,Transit,1,1,89.47,0.129
+Kepler-1587,True,True,Transit,1,1,88.33,0.397
+Kepler-1589,False,True,Transit,1,1,71.48,0.224
+Kepler-1590,True,True,Transit,1,1,89.17,0.234
+Kepler-1591,True,True,Transit,1,1,86.83,0.1372
+Kepler-161,True,True,Transit,2,1,88.42,0.02
+Kepler-1632,False,True,Transit,1,1,89.99,0.217
+Kepler-1645,False,True,Transit,1,1,89.81,0.081
+Kepler-1656,True,True,Radial Velocity|Transit,2,1,89.31,0.083
+Kepler-1661,False,True,Transit,1,1,89.46,
+Kepler-1675,True,True,Transit,1,1,89.98,0.81
+Kepler-1677,False,True,Transit,1,1,86.73,0.195
+Kepler-1678,False,True,Transit,1,1,89.99,0.0235
+Kepler-1700,False,True,Transit,1,1,89.02,0.944
+Kepler-1714,True,True,Transit,1,1,88.49,0.742
+Kepler-1738,False,True,Transit,1,1,85.69,0.0562
+Kepler-1741,False,True,Transit,1,1,89.77,0.093
+Kepler-176,False,True,Transit,4,1,86.69,0.07
+Kepler-1770,False,True,Transit,1,1,88.95,0.0299
+Kepler-1780,False,True,Transit,1,1,89.96,0.149
+Kepler-1782,False,True,Transit,1,1,87.61,0.9274
+Kepler-1787,False,True,Transit,1,1,89.99,0.936
+Kepler-1788,False,True,Transit,1,1,86.54,0.0237
+Kepler-18,False,True,Transit,3,1,84.92,0.593
+Kepler-1807,False,True,Transit,1,1,89.58,0.987
+Kepler-1838,False,True,Transit,1,1,86.45,0.891
+Kepler-1853,False,True,Transit,1,1,86.81,0.2675
+Kepler-187,False,True,Transit,2,1,84.67,0.09
+Kepler-1874,False,True,Transit,1,1,88.76,0.927
+Kepler-1896,True,True,Transit,1,1,89.67,0.2951
+Kepler-1914,False,True,Transit,1,1,89.98,0.173
+Kepler-1921,False,True,Transit,2,1,89.53,0.001
+Kepler-1925,False,True,Transit,1,1,89.68,0.159
+Kepler-193,True,True,Transit,2,1,89.4,0.06
+Kepler-1930,False,True,Transit,1,1,89.01,0.3879
+Kepler-1952,False,True,Transit,1,1,80.02,0.1219
+Kepler-1958,False,True,Transit,1,1,89.96,0.035
+Kepler-1964,True,True,Transit,1,1,75.89,1.1473
+Kepler-1987,False,True,Transit,4,1,88.57,0.025
+Kepler-1990,False,True,Transit,2,1,86.61,0.045
+Kepler-1998,False,True,Transit,1,1,88.93,0.238
+Kepler-205,False,True,Transit,2,1,85.06,0.81
+Kepler-212,False,True,Transit,2,1,86.65,0.15
+Kepler-216,False,True,Transit,2,1,88.11,0.09
+Kepler-221,False,True,Transit,4,1,85.58,0.04
+Kepler-235,True,True,Transit,4,1,89.16,0.11
+Kepler-25,False,True,Radial Velocity|Transit,3,1,92.764,0.54
+Kepler-264,False,True,Transit,2,1,89.96,0.44
+Kepler-274,False,True,Transit,2,1,88.53,0.14
+Kepler-28,True,True,Transit,2,1,89.51,0.008
+Kepler-284,False,True,Transit,2,1,88.51,0.24
+Kepler-295,False,True,Transit,3,1,77.82,0.02
+Kepler-30,False,True,Transit,3,1,89.8406,0.38
+Kepler-303,False,True,Transit,2,1,88.38,0.45
+Kepler-305,True,True,Transit,4,1,83.45,0.806
+Kepler-313,False,True,Transit,2,1,88.5,0.02
+Kepler-324,False,True,Transit,4,1,88.5,0.319
+Kepler-326,False,True,Transit,3,1,88.43,0.22
+Kepler-329,False,True,Transit,2,1,88.86,0.64
+Kepler-338,True,True,Transit|Transit Timing Variations,4,1,87.49,0.03
+Kepler-340,False,True,Transit,2,1,89.38,0.12
+Kepler-342,False,True,Transit,4,1,58.94,0.01
+Kepler-345,False,True,Transit,2,1,86.89,0.15
+Kepler-352,False,True,Transit,3,1,88.19,0.12
+Kepler-370,False,True,Transit,2,1,88.73,0.35
+Kepler-377,False,True,Transit,2,1,88.36,0.06
+Kepler-396,False,True,Transit,2,1,89.34,0.48
+Kepler-401,False,True,Transit,3,1,85.84,0.0687
+Kepler-402,False,True,Transit,4,1,84.71,0.06
+Kepler-411,False,True,Transit|Transit Timing Variations,4,1,87.4,0.574
+Kepler-417,False,True,Transit Timing Variations,2,1,89.96,0.42
+Kepler-42,False,True,Transit,3,1,81.11,0.52
+Kepler-424,False,True,Radial Velocity|Transit,2,1,84.68,0.934
+Kepler-427,False,True,Transit,1,1,89.5,0.09
+Kepler-445,False,True,Transit,3,1,89.61,0.0
+Kepler-453,False,True,Transit,1,1,89.4429,
+Kepler-465,False,True,Transit,1,1,89.94,0.754
+Kepler-472,False,True,Transit,1,1,83.75,0.596
+Kepler-475,False,True,Transit,1,1,84.85,0.8
+Kepler-481,False,True,Transit,1,1,87.02,0.05
+Kepler-483,True,True,Transit,1,1,88.1,0.708
+Kepler-49,False,True,Transit,4,1,88.68,0.06
+Kepler-495,False,True,Transit,2,1,89.75,0.046
+Kepler-496,False,True,Transit,1,1,88.99,0.0993
+Kepler-523,False,True,Transit,1,1,89.66,0.129
+Kepler-532,False,True,Transit,1,1,88.26,0.5981
+Kepler-557,False,True,Transit,1,1,82.05,0.601
+Kepler-560,False,True,Transit,1,1,89.606,0.506
+Kepler-603,False,True,Transit,3,1,88.14,0.8731
+Kepler-62,False,True,Transit,5,1,89.2,0.06
+Kepler-635,False,True,Transit,1,1,89.46,0.8
+Kepler-643,False,True,Transit,1,1,88.91,0.8108
+Kepler-65,False,True,Radial Velocity|Transit,4,1,92.2,0.16
+Kepler-652,False,True,Transit,1,1,89.94,0.0601
+Kepler-666,True,True,Transit,1,1,88.0,0.834
+Kepler-676,True,True,Transit,1,1,88.62,0.798
+Kepler-681,False,True,Transit,1,1,89.28,0.1304
+Kepler-682,True,True,Transit,1,1,88.17,0.5409
+Kepler-687,False,True,Transit,1,1,89.62,0.79
+Kepler-696,False,True,Transit,1,1,87.52,0.689
+Kepler-701,False,True,Transit,1,1,89.93,0.029
+Kepler-713,True,True,Transit,1,1,87.54,0.0062
+Kepler-720,False,True,Transit,1,1,89.71,0.0078
+Kepler-729,False,True,Transit,1,1,89.76,0.0645
+Kepler-731,True,True,Transit,1,1,87.96,0.0007
+Kepler-743,False,True,Transit,1,1,89.59,0.2924
+Kepler-763,False,True,Transit,3,1,87.27,0.08
+Kepler-768,False,True,Transit,1,1,88.44,0.0917
+Kepler-782,False,True,Transit,1,1,89.98,0.8756
+Kepler-791,False,True,Transit,1,1,80.57,0.863
+Kepler-794,False,True,Transit,1,1,89.97,0.67
+Kepler-798,False,True,Transit,1,1,89.93,0.694
+Kepler-82,False,True,Transit|Transit Timing Variations,5,1,86.3,0.0
+Kepler-826,False,True,Transit,1,1,87.03,0.54
+Kepler-830,False,True,Transit,1,1,87.54,0.852
+Kepler-835,False,True,Transit,1,1,81.99,0.4568
+Kepler-839,False,True,Transit,1,1,87.34,0.9052
+Kepler-845,False,True,Transit,1,1,76.15,0.29
+Kepler-85,False,True,Transit,4,1,87.39,0.0
+Kepler-852,False,True,Transit,1,1,89.42,0.895
+Kepler-855,False,True,Transit,1,1,89.78,0.001
+Kepler-865,False,True,Transit,2,1,89.11,0.027
+Kepler-870,False,True,Transit,1,1,89.81,0.847
+Kepler-872,False,True,Transit,1,1,84.69,0.1264
+Kepler-875,False,True,Transit,1,1,86.79,0.0166
+Kepler-880,True,True,Transit,2,1,81.59,0.609
+Kepler-891,False,True,Transit,1,1,89.93,0.0533
+Kepler-898,False,True,Transit,1,1,87.35,0.642
+Kepler-901,False,True,Transit,1,1,86.49,0.027
+Kepler-915,False,True,Transit,1,1,76.0,0.69
+Kepler-96,False,True,Transit,1,1,87.94,0.54
+Kepler-970,False,True,Transit,1,1,88.74,0.7
+Kepler-972,True,True,Transit,1,1,81.05,0.956
+Kepler-974,False,True,Transit,2,1,72.0,0.8237
+Kepler-977,False,True,Transit,1,1,89.99,0.01
+Kepler-979,False,True,Transit,1,1,88.23,0.5932
+Kepler-990,True,True,Transit,2,1,82.87,0.1093
+LHS_1140,False,True,Transit,2,1,89.8,0.09
+L_363-38,False,True,Radial Velocity,1,0,,
+LkCa_15,False,True,Imaging,2,0,50.0,
+NGC_2682_Sand_978,False,True,Radial Velocity,1,0,,
+OGLE-2011-BLG-0251L,False,True,Microlensing,1,0,,
+PDS_70,False,True,Imaging,2,0,130.5,
+ROXs_12,False,True,Imaging,1,0,,
+Ross_458,True,True,Imaging,1,0,,
+SR_12_AB,True,True,Imaging,1,0,,
+TIC_139270665,False,True,Radial Velocity|Transit,2,1,89.76,0.16
+TIC_150070085,False,True,Transit,1,1,88.51,0.53
+TIC_18942729,False,True,Transit,1,1,85.23412,0.500918
+TIC_206466666,False,True,Transit,1,1,88.67499,0.556057
+TIC_24750448,True,True,Transit,2,1,87.65911,0.478051
+TIC_260969020,False,True,Transit,1,1,88.75946,0.542556
+TIC_390586021,False,True,Transit,1,1,88.01119,0.340547
+TIC_65612701,False,True,Transit,1,1,88.26641,0.357172
+TIC_77319217,False,True,Transit,1,1,87.65397,0.498286
+TIC_88785435,False,True,Transit,1,1,88.97,
+TOI-1036,False,True,Transit,1,1,88.176,0.284019
+TOI-1052,False,True,Radial Velocity|Transit,2,1,87.53,0.808
+TOI-1062,False,True,Radial Velocity|Transit,2,1,85.913,0.861
+TOI-1064,False,True,Transit,2,1,87.709,0.728
+TOI-1244,False,True,Transit,1,1,88.74831,0.454823
+TOI-1246,True,True,Transit,4,1,87.9,0.363994
+TOI-1249,False,True,Transit,1,1,,0.635473
+TOI-1301,False,True,Transit,1,1,88.12711,0.54994
+TOI-139,False,True,Transit,1,1,89.32,0.395
+TOI-1739,True,True,Transit,1,1,89.27,0.41
+TOI-1752,False,True,Transit,2,1,86.75,0.375
+TOI-1753,False,True,Transit,1,1,,0.270951
+TOI-1758,True,True,Transit,1,1,,0.51475
+TOI-1768,False,True,Transit,1,1,,
+TOI-178,True,True,Transit,6,1,88.4,0.336
+TOI-1782,False,True,Transit,2,1,87.93861,0.49522
+TOI-1801,False,True,Transit,1,1,89.507,0.265
+TOI-1803,False,True,Transit,2,1,88.48,0.34
+TOI-2048,False,True,Transit,1,1,89.41,0.33
+TOI-2088,False,True,Transit,1,1,,0.359163
+TOI-2094,False,True,Transit,1,1,89.387,0.818
+TOI-2096,True,True,Transit,2,1,89.24,0.28
+TOI-2136,True,True,Transit,1,1,89.4,0.35
+TOI-220,False,True,Transit,1,1,87.88,0.836
+TOI-2211,False,True,Transit,1,1,87.169,0.505094
+TOI-2227,False,True,Transit,1,1,87.52822,0.466098
+TOI-2260,False,True,Transit,1,1,,0.77
+TOI-244,False,True,Transit,1,1,88.32,0.61
+TOI-2447,False,True,Transit,1,1,,0.277
+TOI-2453,False,True,Transit,1,1,87.95086,0.681271
+TOI-2459,False,True,Transit,1,1,89.59,0.321
+TOI-251,True,True,Transit,1,1,87.52,0.607
+TOI-260,False,True,Transit,1,1,88.84,0.679
+TOI-2768,False,True,Transit,1,1,87.78,0.34
+TOI-286,False,True,Transit,2,1,87.52,0.32
+TOI-3353,False,True,Transit,1,1,,
+TOI-375,False,True,Radial Velocity|Transit,3,1,,0.1767
+TOI-4029,False,True,Transit,1,1,87.20391,0.51211
+TOI-4308,False,True,Transit,1,1,89.07,0.384
+TOI-4364,True,True,Transit,1,1,88.68,
+TOI-4377,True,True,Transit,1,1,80.3,0.605
+TOI-4551,False,True,Transit,1,1,86.9,0.31
+TOI-469,False,True,Radial Velocity|Transit,3,1,86.3,0.273
+TOI-470,False,True,Transit,1,1,89.527,0.253
+TOI-4930,True,True,Transit,1,1,86.47959,0.63622
+TOI-4994,True,True,Transit,1,1,89.56,0.18
+TOI-5110,False,True,Transit,1,1,85.2,0.43
+TOI-512,False,True,Transit,1,1,88.92,0.3
+TOI-5126,False,True,Transit,2,1,88.79,0.24
+TOI-5174,False,True,Transit,1,1,,
+TOI-5335,False,True,Transit,1,1,86.1238,0.625349
+TOI-5599,False,True,Transit,1,1,87.23046,0.421654
+TOI-561,True,True,Transit,4,1,87.0,0.14
+TOI-5624,False,True,Transit|Transit Timing Variations,5,1,89.405,0.114
+TOI-5726,False,True,Transit,1,1,,
+TOI-5728,True,True,Transit,1,1,89.83,0.117
+TOI-5734,False,True,Transit,1,1,89.88,0.04
+TOI-5786,False,True,Transit,1,1,88.9,0.33
+TOI-5817,True,True,Transit,1,1,88.72,0.41
+TOI-5938,False,True,Transit,1,1,88.85,0.19
+TOI-6054,False,True,Transit,2,1,88.59,0.24
+TOI-6109,False,True,Transit,2,1,85.6909,0.8057
+TOI-6699,False,True,Transit,1,1,87.96658,0.50951
+TOI-6707,False,True,Transit,1,1,87.16688,0.396029
+TOI-677,False,True,Transit,1,1,85.77,0.709
+TOI-712,False,True,Transit,3,1,88.22,0.28
+TOI-7155,False,True,Transit,1,1,86.87115,0.618573
+TOI-776,True,True,Transit,2,1,89.41,0.26
+TOI-815,False,True,Transit,2,1,89.107,0.279
+TOI-904,False,True,Transit,2,1,88.19,0.373
+TOI-913,False,True,Transit,1,1,89.1,0.387
+TOI-942,False,True,Transit,2,1,89.16,0.05
+TYC_4282-00605-1,False,True,Radial Velocity,1,0,,
+USco1621_A,False,True,Imaging,1,0,,
+V0391_Peg,False,True,Pulsation Timing Variations,1,0,,
+WASP-161,False,True,Transit,1,1,89.01,0.14
+WASP-189,False,True,Transit,1,1,84.03,0.478
+WISPIT_1,True,True,Imaging,2,0,,
+WTS-1,True,True,Transit,1,1,85.5,0.69
+bet_Cnc,False,True,Radial Velocity,1,0,,
+eps_Eri,True,True,Radial Velocity,1,0,40.0,
+eps_Ind_A,False,True,Radial Velocity,1,0,102.18,
+eps_Tau,False,True,Radial Velocity,1,0,,
+omi_CrB,False,True,Radial Velocity,1,0,,
+tau_Gem,False,True,Radial Velocity,1,0,,
+ups_Leo,False,True,Radial Velocity,1,0,,
