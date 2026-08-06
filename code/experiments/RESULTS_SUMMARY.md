@@ -3750,6 +3750,26 @@ Scripts: `timeseries_stats.py`, `timeseries_stats_validate.py`; data
 `timeseries_stats_features.csv`; results
 `timeseries_stats_validate_results.json`.
 
+### One stated limitation, and a re-request confirming closure (2026-08-06)
+
+The spatial confound check here was a **correlation** against |galactic b|
+(|r| <= 0.073 for all three), not a held-in control ARM of the kind used for
+`trap_vshape` (arm E). That is the weaker of the two forms. It is moot in this
+case and only in this case: a spatial control arm exists to disqualify an
+apparent WIN as a sky-position artifact, and no arm here produced a win to
+disqualify -- all three deltas are negative. Were any of these three ever
+revisited and found positive, the control arm would have to be run before the
+result could be believed.
+
+This investigation was re-requested on 2026-08-06 with the same scope
+(variance ratio + residual ACF, skew/kurt excluded as already closed). No
+recomputation was performed: the existing run already satisfies every element
+of that scope -- single-sector only, pipeline's own in/out phase
+classification, class-rate gate before modelling, pool availability checked up
+front, 12 resamples, both populations. Production reconfirmed live and
+unchanged at 0.9208 / 26 features / md5 `0c996a41a76cc765895d3013830a536b`,
+`transit_shape_ratio` still present.
+
 ## NON-KEPLER SURVEYS -- CLOSED AT THE PART 1 GATE. No download performed.
 
 K2, CoRoT, WASP, HATNet/HATSouth, KELT, NGTS and TRAPPIST assessed as training
