@@ -5499,6 +5499,112 @@ redistributing attention over what was already there.
 Scripts: `weighting_routing_check.py`, `weighting_experiments.py`; results
 `weighting_experiments_results.json`.
 
+## GBM AVERAGING ENSEMBLE -- the result that was run but never written up
+
+Recovered from `gbm_ensemble_results.json` (written 2026-08-04 00:12) and
+`gbm_ensemble.log`. It was run, it produced real numbers, and it never reached
+this file. Recorded here so it stops living only as a stray JSON. **Nothing was
+re-run.**
+
+### What was actually tested
+
+HGB (production config) + CatBoost + LightGBM + XGBoost, **simple probability
+averaging** (not weighted, not stacked). The three non-HGB models were tuned
+once on the train split via `RandomizedSearchCV` (n_iter=10, cv=3):
+
+| model | tuning CV AUC | selected |
+|---|---|---|
+| CatBoost | 0.9244 | lr 0.05, depth 8, l2_leaf_reg 9.0, 500 iters |
+| LightGBM | 0.9234 | lr 0.03, 31 leaves, 500 trees, min_child 40 |
+| XGBoost | 0.9242 | lr 0.03, max_depth 7, reg_lambda 5.0, 500 trees |
+
+Then **12 training-data bootstrap resamples**, all four models refit per
+resample, evaluated on the frozen test set and the 2-min subset.
+
+### The numbers
+
+| population | mean delta | sd | min | max | positive | clears |
+|---|---|---|---|---|---|---|
+| full clean test | **+0.0077** | 0.0026 | +0.0018 | +0.0112 | **12/12** | **8/12** |
+| 2-min-only test | **+0.0096** | 0.0032 | +0.0048 | +0.0140 | **12/12** | **9/12** |
+
+HGB baseline 0.8958 (sd 0.0038) -> ensemble 0.9034 (sd 0.0037). The file's own
+`clears_robustly` flag is **False**.
+
+Per-model mean AUC on the full test set across the 12 resamples:
+
+| model | mean AUC |
+|---|---|
+| HGB (production) | 0.8958 |
+| **CatBoost** | **0.9032** |
+| LightGBM | 0.8974 |
+| XGBoost | 0.8962 |
+
+### The decisive internal reading: this is not an ensembling result
+
+**CatBoost alone scored 0.9032. The four-model ensemble scored 0.9034.**
+Averaging LightGBM and XGBoost -- both within ~0.002 of HGB -- on top of
+CatBoost contributed about **+0.0002**. So the ensemble's +0.0077 is very
+nearly the CatBoost-minus-HGB gap (+0.0074) with the averaging adding nothing
+meaningful.
+
+That matters because **CatBoost vs HGB is already an investigated, closed
+question.** A single-fit CatBoost cleared at +0.0085 [+0.0004, +0.0171] -- the
+first arm in 23 experiments to clear on both populations -- and was therefore
+stress-tested rather than believed. Across ten seeds with matched-seed HGB
+baselines it collapsed to **+0.0013 (sd 0.0024), 0/10 seeds clearing**, with
+worse calibration (Brier 0.0943 vs 0.0896, ECE 0.0397 vs 0.0264). Not promoted.
+
+So the ensemble result is a re-expression of a finding that already failed
+replication, not independent evidence.
+
+### It did not clear its own bar even in its own era
+
++0.0077 on the full test set sits **below the ~0.0097 MDE** that a 1,098-star
+test set can certify, and it cleared only 8/12 resamples. By the promotion rule
+in force then and now (`ci_lo > 0` robustly), this was already a non-promotion
+at the time it was run.
+
+### BASELINE COMPARABILITY: NOT COMPARABLE to current production
+
+This is the load-bearing caveat and the old numbers must not be read as current:
+
+| | at time of run (2026-08-04) | now |
+|---|---|---|
+| production features | **24** | **31** |
+| production headline AUC | 0.9031 | **0.9300** |
+| HGB resampled baseline in this run | **0.8958** | ~0.9223 bare / 0.9300 deployed |
+| frozen split | 4,387 train / 1,098 test, "1 star not in manifest" | 4,386 / 1,100, "2 post-manifest stars" |
+
+Confirmed from git history of `05_train_models.py`: crowding (24 -> 26,
+0.9031 -> 0.9208) landed 2026-08-05 and variability (26 -> 31, 0.9208 ->
+0.9300) landed 2026-08-06 -- **both after** this run. The split itself has also
+drifted slightly as new labelled stars arrived.
+
+### RECOMMENDATION: on the record as a non-promotion; a fresh run is optional and low-prior
+
+Strictly, +0.0077 with 8/12 clearing is a **near-miss positive**, not a
+decisive negative, so it is exactly the kind of result that could move in
+either direction once seven more features are present. Taken literally, saying
+anything about 0.9300 would require re-running the whole thing on the current
+31-feature baseline (re-tune three GBMs, ~15 min, plus 12 resamples x 4 models
+-- roughly an hour or more).
+
+But the prior on that run is poor, for a reason independent of baseline drift:
+the gain is CatBoost's, and CatBoost's advantage already failed replication at
+0/10 seeds. Crowding and variability also added genuinely new information,
+which if anything narrows whatever edge a different GBM family had on the
+older, thinner feature set.
+
+**Not re-run, and not recommended without a deliberate decision to spend the
+compute.** Recorded as: tested, positive, never cleared robustly, explained by
+an already-closed CatBoost finding, and measured against a baseline two
+deployments out of date.
+
+Scripts: `gbm_ensemble.py`, `gbm_ensemble_control.py`; data
+`gbm_ensemble_results.json`, `gbm_ensemble_control_results.json`,
+`gbm_ensemble.log`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
