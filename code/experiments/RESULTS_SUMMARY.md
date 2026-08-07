@@ -6004,6 +6004,122 @@ unsupervised partition that was never shown able to recover known structure.
 Scripts: `som_cluster_diagnostic.py`, `cluster1_rv_verification.py`,
 `cluster1_pool_evidence.py`; data `cluster1_pool_evidence.json`.
 
+## CATBOOST SEED-ENSEMBLE on the 31-feature baseline -- POSITIVE BUT UNPROVABLE. Not promoted.
+
+Fresh run against the CURRENT baseline. Both prior CatBoost results were on the
+24-feature/0.9031 model, two deployments stale. **Production untouched at
+0.9300 / 31 features / md5 `1f0b7cb8`.**
+
+The original stress test's open caveat is now closed: it used "fixed mid-range
+CatBoost hyperparameters" because the search-selected config was lost in a
+crash. Those parameters were **recovered from `gbm_ensemble_results.json`**
+(lr 0.05, depth 8, l2_leaf_reg 9.0, 500 iterations) and used throughout here.
+
+### Part 1 -- single-fit CatBoost, both arms on production's exact recipe
+
+| model | AUC | 2-min | Brier | ECE |
+|---|---|---|---|---|
+| HGB (production recipe) | **0.9300** | 0.9210 | 0.0768 | 0.0316 |
+| CatBoost | **0.9342** | 0.9269 | 0.0771 | **0.0385** |
+
+Paired bootstrap **+0.0042, 95% CI [-0.0013, +0.0100] -- does NOT clear**
+(2-min +0.0059, CI [-0.0006, +0.0121], also not clearing). The HGB arm
+reproduced 0.9300 exactly, confirming the recipe matches deployment.
+
+**The edge has roughly halved.** On 24 features a single CatBoost fit gave
++0.0085 and DID clear. With crowding and variability present it is +0.0042 and
+does not -- consistent with those two features having absorbed part of what
+CatBoost was exploiting, which is what was predicted when the stale ensemble
+result was retrieved.
+
+### Level 1 -- seed stability (40 members, same training split)
+
+| N | ensemble AUC | 2-min | delta | 95% CI | clears |
+|---|---|---|---|---|---|
+| 10 | 0.9288 | 0.9203 | -0.0013 | [-0.0076, +0.0051] | no |
+| 20 | 0.9286 | 0.9199 | -0.0015 | [-0.0078, +0.0049] | no |
+| 40 | 0.9288 | 0.9202 | -0.0012 | [-0.0075, +0.0050] | no |
+
+Individual member AUC: **mean 0.9279, sd 0.0012**, min 0.9251, max 0.9309.
+
+**Two findings that matter more than the table.**
+
+1. **There is almost no seed variance left to average away.** Member sd is
+   0.0012, and averaging 40 members moves the mean member only 0.9279 ->
+   0.9288. `CalibratedClassifierCV`'s internal fold-averaging already absorbs
+   most of the seed noise that destroyed the original result -- so the premise
+   that seed-ensembling would stabilise a hidden advantage is largely
+   pre-empted by the wrapper production already uses.
+2. **The seed-42 single fit (0.9342) sits ABOVE the maximum of all 40 members
+   (0.9309).** That is the original lucky-seed pattern reappearing.
+
+### Level 2 -- data-draw robustness, the actual bar (12 bootstraps, N=20)
+
+| arm | mean d | sd | min | max | positive | clears | >=MDE | d 2-min | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **CatBoost seed-ensemble** | **+0.0042** | 0.0018 | +0.0012 | +0.0082 | **12/12** | **2/12** | **0/12** | +0.0049 | 0.0854 | 0.0459 |
+| production baseline | -- | -- | -- | -- | -- | -- | -- | -- | **0.0832** | **0.0365** |
+
+Baseline 0.9228 -> ensemble 0.9270.
+
+**Seed-ensembling genuinely fixed the instability.** The original result was
+0/10 seeds clearing at +0.0013 (sd 0.0024); this is **12/12 bootstraps
+positive** at +0.0042 (sd 0.0018). The effect is now consistently measurable
+rather than seed-dependent.
+
+**And it is consistently too small to promote.** +0.0042 against a ~0.0097
+MDE: 2/12 clearing, **0/12 reaching MDE**. Calibration is also worse on both
+metrics -- Brier 0.0832 -> 0.0854, **ECE 0.0365 -> 0.0459 (+26%)** -- which
+reproduces the original CatBoost calibration finding exactly.
+
+### An honest wrinkle: the advantage appears under bootstrapping, not on full data
+
+Level 1 (full training split) put the ensemble at **-0.0013 vs baseline**;
+Level 2 (bootstrap samples) puts it at **+0.0042**. Bootstrap draws contain
+~63% unique rows, so both arms degrade -- baseline 0.9300 -> 0.9228 -- but
+CatBoost degrades less. The advantage is therefore partly a **robustness to
+reduced effective sample size**, and production trains on the full set, which
+is precisely the condition where the ensemble measured slightly *worse*.
+
+**A design limitation, stated plainly.** Ensemble members used cv=3 (a cost
+concession with precedent in `09_build_bootstrap_ensemble`) while the single
+fit used cv=5. cv changes AUC, not just calibration, because
+`CalibratedClassifierCV` averages its fold models. A single cv=5 fit (0.9342)
+beat the 40-member cv=3 ensemble (0.9288), which suggests **fold-averaging
+matters more for CatBoost than seed-averaging** and that the ensemble as tested
+is not CatBoost's best configuration. A cv=5 40-member version was not run
+(~1 hour more); it is unlikely to change the verdict, since the cv=5 single fit
+itself landed at +0.0042 with a CI crossing zero -- the same place.
+
+### Operational cost, measured
+
+| | production | N=20 seed-ensemble |
+|---|---|---|
+| artifact size | 18.3 MB | **127.0 MB (7.0x)** |
+| inference, 1,098 rows | 142 ms | **261 ms (1.8x)** |
+| fits per retrain | 5 | **60 (20 members x 3 folds)** |
+| wall-clock, this validation | -- | ~2 h for 12 bootstraps |
+
+### RECOMMENDATION: positive-but-unprovable. DO NOT PROMOTE.
+
+The effect is real and now reliably measurable -- 12/12 bootstraps positive at
++0.0042, a genuine improvement on the 0/10 that closed the original
+investigation. But it sits at **less than half the ~0.0097 the 1,098-star test
+set can certify**, reaching MDE on 0/12 resamples, while costing 7x storage,
+1.8x inference, 12x the retrain fits, and **degrading calibration by 26% on
+ECE** -- a metric this project explicitly tracks and improved at the last
+deployment.
+
+Promoting would trade a measurable-but-uncertifiable ranking gain for a
+certain calibration loss and a large operational cost. This lands in the same
+place as the learning-curve and noise-floor audits: **at this label supply the
+classifier cannot be improved provably**, and CatBoost is the clearest example
+of a real effect that the test set simply cannot resolve.
+
+Scripts: `catboost_singlefit_31.py`, `catboost_seed_ensemble.py`; results
+`catboost_singlefit_31_results.json`, `catboost_seed_ensemble_results.json`,
+`catboost_ensemble_cost.json`.
+
 ## Files
 
 All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
