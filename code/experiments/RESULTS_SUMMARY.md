@@ -6297,3 +6297,273 @@ The specific new information that would justify reopening: a way past the
 **36.4% Kepler yield wall** that delivers **>3,000 usable rows** (below that the
 predicted gain is under the MDE regardless of how the data is standardised or
 weighted), or a larger test set that lowers the ~0.0097 MDE.
+
+## "SYNTHETIC INJECTION" IS THREE DIFFERENT PROPOSALS. Three separate verdicts.
+
+Assessed as three mechanistically distinct things, because they are routinely
+bundled and should not be. **The closure of (1) does not close (3)** -- one
+modifies training data, the other never touches it.
+
+| # | proposal | verdict |
+|---|---|---|
+| 1 | inject synthetic transits/FPs to EXPAND TRAINING DATA | **CLOSED (third time). No compute spent.** |
+| 2 | VAE anomaly-detection framework | **NOT CLOSED, but do not build.** Needs explicit go-ahead. |
+| 3 | injection-recovery as a SENSITIVITY VALIDATION tool | **RUN. Results below.** Useful, ongoing. |
+
+Production verified live and untouched throughout: **0.9300 / 31 features /
+md5 `1f0b7cb8e78ab542374eaf78fc837a6f`**.
+
+### Proposal 1 -- training-data augmentation: same closure, third proposal
+
+Not materially different from what closed twice (v1 domain AUC 0.9654, harmful
+-0.0180 at full dose with a clean dose-response; v2/RAVEN closed at the
+feasibility gate). The brief's new element is "enrich rare-planet examples at
+LOW SNR". That does not touch any of the three mechanisms that killed it, and
+it makes one of them worse:
+
+1. **Separability is not an SNR-regime property.** Splitting the features by
+   how the signal was FOUND vs what it LOOKS like gave 0.9382 (detection only)
+   and 0.9500 (shape only) -- **independently** near-total. Retargeting the
+   injected SNR moves where rows sit in detection space; it creates no overlap
+   in shape space. There was no repairable subset before and re-aiming does not
+   create one.
+2. **`st_teff` is invariant to it.** SMD +0.44, single-feature domain AUC
+   0.7284 -- a *host-population* property. Injecting at different SNR does not
+   change WHICH stars are injected into. No injector setting touches this.
+3. **The 7 uncomputable features are invariant to it.** Crowding is a catalog
+   property of the real host; the 5 variability features are computed from the
+   RAW pre-flatten curve and injection happens post-flatten, so they cannot be
+   computed at all. Still 23% of the feature space, still including both
+   deployed wins, regardless of SNR target.
+
+**And the new framing is actively self-defeating, which is the one genuinely
+new argument here.** Measured recovery vs expected SNR: **4.5% below SNR 5**,
+27.3% at SNR 5-10. Aiming at low SNR means (a) very few usable rows survive,
+and (b) far worse, **the ones that survive are exactly those where noise
+fluctuated favourably.** That is a biased draw whose detection statistics are
+systematically inflated relative to a real low-SNR planet -- it *deepens* the
+very SDE/SDE_raw/snr shifts (SMD +0.78 / +0.76 / +0.47) that drive the
+separability. Part 3 below re-measures this wall on the deployed pipeline and
+confirms the regime is where recovery collapses.
+
+**No compute spent re-measuring domain AUC**, per the brief: the mechanism is
+unchanged, so the measurement would be too. Documented as proposed-and-rejected.
+**Do not propose a fourth time** absent a genuinely different generator (PASTIS
+or equivalent forward-modelling of the full pixel-level scenario), which is the
+same condition the v2 closure set.
+
+### Proposal 2 -- VAE anomaly detection: NOT closed, but do not build yet
+
+Deliberately not auto-closed just because it is neural. Two findings decide it.
+
+**Finding 1: this capability already exists in production, in feature space.**
+`06_download_unknown.py` deploys an **IsolationForest** multivariate OOD
+detector (`multivariate_ood_flag`, 200 estimators, contamination 0.02, with the
+flag threshold *calibrated against real training data rather than assumed*),
+plus a separate univariate in-distribution check. "Flag candidates outside the
+model's competence" is therefore **not a missing capability** -- a VAE would be
+a different *representation* (raw light curve rather than the 31 features) of
+something already deployed. That reframes the question from "should we add
+anomaly detection" to the much narrower "are there light-curve-space anomalies
+that feature-space OOD misses?", which is a real but far smaller question.
+
+**Finding 2: the data-scale objection is weaker than the CNN result suggests --
+but a different objection is fatal.**
+
+Honest assessment of the scale question the brief asked, both directions:
+
+* *In favour:* a VAE genuinely is less label-hungry. It needs no labels at all,
+  so it can train on the unlabelled candidate pool as well as the 5,486 labelled
+  stars. And reconstruction supplies thousands of regression targets per light
+  curve rather than one bit, which really does lower sample complexity relative
+  to binary classification. **The CNN's 0.6964 does not automatically transfer.**
+* *Against, and decisive:* **reconstruction error is dominated by whatever
+  carries the most variance, and in a TESS light curve that is instrumental
+  systematics and stellar variability -- not a 84-5,000 ppm transit.** This
+  project has direct evidence for exactly that: the single biggest recent win
+  was the 5 stellar-variability features (+0.0092 to production), promoted
+  *because* out-of-transit scatter and Lomb-Scargle structure vary strongly
+  star to star. A reconstruction-based detector would rediscover that
+  variability and call it anomaly. The transit is a rounding error in the loss.
+
+**Finding 3: the validation problem is unsolved, and the brief is right that it
+must be settled first.** There is no ground-truth set of "interesting
+anomalies" here. The only tractable proxy -- "does it flag known planets?" --
+is the classification task in disguise, which the deployed model already does
+at 0.9300.
+
+**VERDICT: real idea, wrong order of magnitude of effort for the expected
+payoff. Do not build. Requires explicit go-ahead.** Not closed, because the
+label-efficiency argument above is genuine and the CNN result does not settle it.
+
+**If it is ever approved, this is the bounded pilot -- criteria pre-registered
+BEFORE building, since this is not a classification-accuracy question:**
+
+* *Scope, ~1-2 days.* Data prep is nearly free: `phase_fold_views.py` and
+  `cnn_dataset.npz` (6.8 MB, local+global folded views) already exist from the
+  CNN work. Train a small 1D-conv VAE on those views; no new dependency.
+* *Success criterion 1 (does it see transits at all).* Reconstruction error
+  must separate injected-transit curves from no-transit curves at **AUC > 0.75**.
+  Directly checkable with the Part 3 tooling below. Below that it is not
+  detecting transits and nothing else matters.
+* *Success criterion 2 (is it additive).* Its flags must disagree with the
+  deployed `multivariate_ood_flag` on a material fraction of the candidate
+  pool. Full agreement means it is a slower reimplementation of a shipped model.
+* *Success criterion 3 (is it meaningful).* Among pool candidates, VAE-flagged
+  anomalies must be enriched in independently-vetted-bad candidates relative to
+  the pool baseline -- the same evidence cross-check design used for cluster 1.
+* *KILL CRITERION, pre-registered.* If reconstruction error correlates with
+  `var_oot_rms` at **|r| > 0.6**, it is a stellar-variability detector, not an
+  anomaly detector. Stop there and report; do not tune around it.
+
+### Proposal 3 -- injection-recovery as a SENSITIVITY TOOL: RUN. This one is useful.
+
+540 trials, 0 errors, 6.8 core-hours, median 28 s/trial. New script
+`injection_recovery_sensitivity.py`; raw
+`injection_recovery_sensitivity_results.csv`, summary `..._summary.json`.
+**No training data, split, model or production code touched.**
+
+Runs the FULL deployed chain -- inject -> production TLS invocation -> 31-feature
+vector -> deployed model -> score -- and reports detection and classification as
+SEPARATE stages. The existing `completeness_curve.py` stops at detection.
+
+**Why the synthetic-feature objection does not apply here.** The host is a REAL
+star, so the 31 features split cleanly: 22 TLS-derived features are recomputed
+from the injected curve, and the 9 host-derived ones (`st_rad`, `st_teff`,
+crowding x2, variability x5) are that real star's REAL measured values, read
+from `training.csv`. Nothing is invented. The "7 of 31 cannot be given honest
+synthetic values" blocker is specific to fabricating a training row; it does not
+bind when characterising sensitivity on a real host. Hosts are drawn from the
+**216 frozen TEST-split negative-class stars** with complete host features, so
+the classifier never trained on them.
+
+**Two deliberate design fixes over the old script**, both of which make these
+numbers MORE conservative and more honest:
+
+* *Duration from physics, not 5% of period.* `completeness_curve.py` fixes
+  duration at `0.05 * period`, which at P = 16 d implies a **19-hour** transit --
+  physically absurd, and it makes long periods look far easier than they are.
+  Here `a/R*` comes from Kepler's third law using the host's real M*/R*.
+* *A zero-depth control arm.* Without it the classification numbers are
+  uninterpretable. It turned out to be the most informative part of the run.
+
+#### Stage 1 -- TLS detection completeness by depth (n=60/depth, 95% binomial CI)
+
+| depth (ppm) | median implied Rp | detected | 95% CI |
+|---|---|---|---|
+| **84 (Earth / Sun-like)** | **1.36 R_e** | **0/60 = 0.000** | **[0.000, 0.060]** |
+| 150 | 1.96 R_e | 3/60 = 0.050 | [0.010, 0.139] |
+| 250 | 2.60 R_e | 6/60 = 0.100 | [0.038, 0.205] |
+| 400 | 3.28 R_e | 8/60 = 0.133 | [0.059, 0.246] |
+| 700 | 4.36 R_e | 23/60 = 0.383 | [0.261, 0.518] |
+| 1200 | 4.53 R_e | 28/60 = 0.467 | [0.337, 0.600] |
+| 2500 | 8.51 R_e | 44/60 = 0.733 | [0.603, 0.839] |
+| 5000 | 11.56 R_e | 40/60 = 0.667 | [0.533, 0.783] |
+
+**An Earth-size transit is not detected at all -- 0 of 60, upper CI 6%.** The
+50% detection point sits between 1,200 and 2,500 ppm, i.e. **a Neptune-to-
+Jupiter-size planet**. (The 2,500 > 5,000 inversion is noise; the CIs overlap
+heavily at n=60. Read the marginals, not individual cells, which are n=10.)
+
+Worse than a clean miss: at 84 ppm TLS still returns a **median SDE of 9.55**
+on a *spurious* signal (median recovered period 3.03 d, unrelated to the
+injected one), and the deployed model then scores **70% of those above the
+triage floor**. The pipeline does not report "nothing found" -- it confidently
+reports something else.
+
+#### Stage 1b -- the long-period wall is STRUCTURAL, not a sensitivity limit
+
+TLS's default `period_max` is ~half the baseline (it requires >=2 transits).
+Host baselines are single-sector TESS, median 24.9 d. Measured per trial:
+
+| injected P (d) | median transits | **injected P inside TLS's searched grid** | detected | of which EXACT period | alias-only |
+|---|---|---|---|---|---|
+| 1 | 25.0 | 1.000 | 0.425 | 0.225 | 0.200 |
+| 3 | 8.4 | 1.000 | 0.388 | 0.375 | 0.013 |
+| 6 | 4.3 | 1.000 | 0.388 | 0.325 | 0.062 |
+| 10 | 2.6 | 0.988 | 0.362 | 0.362 | 0.000 |
+| **14** | 1.8 | **0.062** | 0.212 | 0.062 | 0.150 |
+| **20** | 1.3 | **0.000** | 0.125 | **0.000** | 0.125 |
+
+Median searched `period_max` = **12.5 d**. Above it the signal is
+**unsearchable, not merely faint** -- no depth fixes this. The apparent
+detections at P = 14/20 are almost entirely **aliases** (14 half-period, 8
+third-period, 5 exact); at P = 20 the exact-period rate is **0.000**. So beyond
+~12.5 d the pipeline does not just miss the planet, it reports the **wrong
+period**. Aliasing is not confined to long periods either: at P = 1 d, only
+0.225 of 0.425 "detections" are the true period.
+
+#### Stage 2 -- and the control arm changes how to read all of it
+
+| population | n | median score | >= 0.30 triage floor |
+|---|---|---|---|
+| **zero-depth CONTROL (nothing injected)** | 60 | **0.503** | **70%** |
+| detected injections, <300 ppm | 9 | 0.490 | 67% |
+| detected injections, 300-1,500 ppm | 59 | 0.224 | **36%** |
+| detected injections, >=1,500 ppm | 84 | 0.482 | 79% |
+
+**Real negative-class stars with NO transit injected pass the triage floor 70%
+of the time.** Detected injections in the 300-1,500 ppm range score *below*
+that. So the Stage-2 percentages are **not** evidence the classifier recognises
+injected transits -- at the triage floor it barely separates them from nothing.
+
+**This is consistent with the deployed operating point, not a new defect.**
+Checked directly against the frozen test set: at threshold 0.30, **56.3% of
+real label-0 rows already score above it** (median label-0 score 0.353) in
+exchange for **99.3% recall**. The control's 70% [~57-81% at n=60] is the same
+number within sampling error. It is the deliberate, documented cost of an
+F2-optimal recall-weighted floor.
+
+What this run adds is a **measured** figure for a caveat `06_download_unknown.py`
+had only stated qualitatively ("precision figures are an upper bound and do NOT
+transfer to deployment; recall transfers, precision does not"). It now has a
+number, on held-out stars.
+
+The 300-1,500 ppm dip below control is interpretable rather than paradoxical: a
+marginal injection gives TLS weak, inconsistent statistics that the model
+correctly reads as unconvincing, whereas a control host is a **TOI false
+positive** whose strongest real signal is often genuinely sharp -- so TLS finds
+that instead and it scores well.
+
+#### End-to-end, and what it means
+
+| depth | detected AND >= 0.30 |
+|---|---|
+| 84 ppm | **0.000** |
+| 150-400 ppm | 0.050 - 0.067 |
+| 700-1,200 ppm | 0.133 - 0.150 |
+| 2,500-5,000 ppm | 0.500 - 0.600 |
+
+**End-to-end sensitivity is governed almost entirely by TLS detection**, since
+the classifier's floor passes most things that reach it. Improving the
+classifier does not move this curve; improving detection, or the baseline, does.
+
+#### Honest limits of this measurement
+
+* **These are BEST-CASE numbers.** An injected batman transit has no TTVs, no
+  spot crossings, no correlated residual from the host's own activity. The
+  domain-separability results (0.95-0.97 on shape AND detection features
+  independently) are direct evidence injected and real transits stay
+  distinguishable. **Recovering an injected Earth is not the same as recovering
+  a real one** -- the real system does no better than this, plausibly worse.
+* **Hosts are TOI false positives, not random field stars.** They are the
+  adversarially hard confusers, often variable. "70% of controls pass triage"
+  means 70% *of known TOI FPs*, not of the sky.
+* n = 10 per grid cell. Only the marginals (n = 60/80) carry weight.
+* Single-sector baselines only. Multi-sector hosts would push `period_max` out
+  proportionally -- which is exactly what the existing multi-sector
+  strengthening action does, and this quantifies why it matters.
+
+#### Verdict on Proposal 3
+
+**Keep it. This is a genuinely useful, repeatable characterisation tool** and
+the only one of the three proposals that should be run again -- after any
+detection-stage change, or on multi-sector data to confirm the `period_max`
+wall moves as predicted. It answers "what can this system actually find?", which
+none of the classifier-accuracy metrics address.
+
+Three concrete things it established that were not previously measured here:
+**(1)** Earth-size is a hard zero, 0/60, not merely hard; **(2)** there is a
+**structural ~12.5-day period ceiling** from TLS's default grid, above which
+detections are aliases at the wrong period; **(3)** the triage floor's
+false-positive cost now has a measured value on held-out real negatives.
