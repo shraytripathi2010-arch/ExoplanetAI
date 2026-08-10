@@ -6126,3 +6126,174 @@ All in `code/experiments/`: `injection.py`, `completeness_curve.py`,
 `phase_fold_views.py`, `build_cnn_dataset.py`, `train_cnn.py`,
 `gp_classifier.py`, `stacked_ensemble.py`, `uncertainty.py`, plus saved
 results (`*.json`, `completeness_curve_results.csv`, `cnn_dataset.npz`).
+
+## CROSS-MISSION (Kepler/K2 + TESS) TRAINING -- CLOSED AT PART 1. Nothing built.
+
+Prompted by a claim that **ExoMiner++** and a paper called **"PlanetNet-MMG"**
+reach ~0.973 AUC by fusing Kepler and TESS data. Closed at the deduplication
+gate: the proposal reduces to the **K2 pooling experiment already run**, whose
+pooled arm is *literally* ExoMiner++'s design. **Production untouched at
+0.9300 / 31 features / md5 `1f0b7cb8e78ab542374eaf78fc837a6f` (verified live).**
+
+### Part 0 -- citation verification: PlanetNet-MMG IS REAL. Its number is NOT verifiable.
+
+The brief flagged this as possibly hallucinated. **It is not.** It is a real,
+registered journal article:
+
+| field | value |
+|---|---|
+| title | *PlanetNet-MMG: A robust multi-modal graph-based deep learning model for exoplanet candidate classification* |
+| DOI | `10.1016/j.eswa.2026.132396` |
+| journal | Expert Systems with Applications, vol. **324**, art. 132396 |
+| published | 2026-04-18 (issue dated 2026-08) |
+| authors | Dubey, Behera, Rout, Umer, Jain, Andreu-Perez |
+
+Confirmed independently in **Crossref** and **OpenAlex**. Why general web
+search missed it: it is ~4 months old, **not on arXiv** (the only arXiv
+"PlanetNet" is an unrelated Saturn-mapping paper), and Elsevier-paywalled.
+
+**Two process notes worth recording, because both were nearly errors.**
+
+1. The web-search *summariser* twice asserted things its own returned links did
+   not support -- first glossing the acronym ("multi-modal graph") as if
+   reporting a finding, then emitting a specific ScienceDirect URL absent from
+   the result list. Both later proved *correct*, but they were unsupported at
+   the time. Crossref/OpenAlex, not the summariser, are what settled this.
+2. My first arXiv API calls returned empty and I nearly logged that as evidence
+   of absence. They were **HTTP 301s I wasn't following**. A false negative,
+   not a null result.
+
+**The ~0.973 figure remains UNVERIFIED and is not used as evidence anywhere
+below.** OpenAlex reports `is_oa: false`, `oa_status: closed`, no abstract, no
+repository fulltext; ScienceDirect returns 403. Whether the paper even *fuses
+Kepler with TESS* could not be established -- "multi-modal" in the title may
+refer to modalities (flux / centroid / stellar params), which is what
+ExoMiner++ and ExoNet mean by it, not to missions. **Nothing about this
+investigation's conclusion rests on it.**
+
+### Part 0 -- ExoMiner++: the premise was wrong. It does NOT transfer-learn.
+
+The brief stated ExoMiner++ "pretrains a deep neural network on Kepler, then
+transfer-learns to TESS." **Direct check of arXiv:2502.09790 says otherwise.**
+In the authors' own words:
+
+> "a simpler approach of combining Kepler and TESS data to create a larger
+> training set proved more effective"
+
+> "we incorporated Kepler data into the training set of all cross validation
+> iterations, ensuring that the validation and testing were performed only on
+> TESS data."
+
+That is **pooled multi-source training, not pretrain-then-fine-tune** -- and
+the phrase "proved more effective" implies the more complex alternative was
+tried and lost. So the one verifiable citation here is, if anything, **evidence
+against** the transfer-learning framing it was offered to support.
+
+This cuts both ways and the second half matters more:
+
+* It **weakens** the "architecturally inapplicable" objection. Pooling rows and
+  evaluating only on target is learner-agnostic; it needs no differentiable
+  representation and works fine for trees. The domain-adaptation closure does
+  **not** dispose of it.
+* It **strengthens** the duplication objection, fatally. Because pooling is
+  exactly what this project already ran.
+
+### Part 1 -- the proposal maps onto the K2 investigation, not the transfer-learning one
+
+ExoMiner++'s design placed against the K2 experiment's arms:
+
+| | ExoMiner++ | this project's K2 run |
+|---|---|---|
+| non-TESS rows into training | yes | **Arm B, yes** |
+| eval on target mission only | yes | **yes** -- "K2 rows in the test set are excluded from every evaluation" |
+| reweighting variant | -- | **Arm C**, K2 down-weighted 0.25 |
+
+**Same design.** Measured result, frozen 1,098-star test set:
+
+| arm | test AUC | delta [95% CI] |
+|---|---|---|
+| A. baseline (TESS only) | 0.8986 | -- |
+| B. pooled (TESS + K2) | 0.9016 | +0.0030 [-0.0024, +0.0086] |
+| C. K2 down-weighted 0.25 | 0.9030 | +0.0044 [-0.0013, +0.0105] |
+
+Neither clears `ci_lo > 0`. Domain AUC **0.9973**, still the highest ever
+measured here.
+
+**Verdict on the two sub-questions the brief asked:**
+
+* *"Incorporate Kepler/K2 data and labels into training"* -> **already tested.
+  Inert.** This is the K2 pooling experiment, re-proposed.
+* *"A transfer-learning step"* -> **already closed**, architecturally, and
+  additionally **not what ExoMiner++ does**. Two independent reasons.
+
+### Would better feature standardisation change it? No -- and the reason isn't separability.
+
+This is the one genuinely new element, so it gets a real answer rather than a
+dismissal. The mechanism is superficially plausible: 4 of K2's top-5
+separability drivers are detection statistics that scale with baseline and
+cadence (`FAP` -1.24 SD, `SDE_raw` +0.91, `SDE` +0.86, `distinct_transit_count`
++0.77), exactly what per-mission standardisation would target. Three reasons it
+still fails:
+
+1. **There is no harm to remove.** K2 pooling was *inert, not harmful* -- and
+   the K2 write-up already corrected this project's own overreading of domain
+   AUC: separability predicts "no reliable gain", not "damage." Lowering domain
+   AUC removes a penalty that was never charged.
+2. **Separability isn't concentrated anywhere removable.** Measured on the
+   synthetic case: deleting *all* detection features still leaves 0.9500;
+   deleting *all* shape features still leaves 0.9382. There is no subset to fix.
+3. **The binding constraint is row count, and it is arithmetic.** 56 K2 rows on
+   4,387 is +1.3%. No amount of feature alignment changes that.
+
+### The decisive number: even a FULL Kepler pull cannot clear this test set
+
+Using this project's own fitted learning curve (`A=1.0, B=0.5129, c=0.1930`;
+refit here and reproducing the logged extrapolation exactly -- n=9,564 ->
+0.91252 vs 0.91252 logged, required_n(0.91)=8,256 vs 8,256 logged):
+
+| added rows | total n | predicted AUC | gain | vs MDE 0.0097 |
+|---|---|---|---|---|
+| 56 (the K2 pilot) | 4,550 | 0.8990 | +0.0002 | below |
+| 1,000 | 5,494 | 0.9026 | +0.0038 | below |
+| **1,700** (full Kepler pull, ~5.8 days compute) | 6,194 | 0.9049 | **+0.0061** | **below** |
+| 3,000 | 7,494 | 0.9083 | +0.0095 | below |
+| 4,494 (doubling) | 8,988 | 0.9115 | +0.0127 | clears |
+
+The Kepler pilot's **36.4% yield wall** (confirmed not a fixable bug) caps a
+realistic full pull at **~1,700 usable rows**, predicting **+0.0061 -- below
+this test set's ~0.0097 detection threshold.** Roughly a *doubling* is needed
+to clear.
+
+**And that row is an over-estimate twice over**: the learning curve describes
+*same-distribution* data, which Kepler at domain AUC ~0.97 is not, and its
+asymptote is unidentifiable. The honest reading: a full Kepler pull is
+**unmeasurable on this test set even under assumptions known to be too
+generous.** That is a stronger and more quantitative statement than the
+original Kepler closure, which rested on cost and yield rather than on a
+ceiling proof.
+
+### Why ExoMiner++'s result doesn't transfer, in one line
+
+ExoMiner++ pools **tens of thousands** of Kepler TCEs into a deep multi-branch
+CNN. This project can reach ~1,700 rows into a tree model whose test set cannot
+resolve +0.0061. The mechanism is real; the **scale** that makes it pay is not
+available here.
+
+### Verdict
+
+**CLOSED at Part 1. Part 2 not entered** -- its precondition (a technique that
+is neither re-mixing nor neural) is not met. Nothing built, nothing downloaded,
+no training data / split / model / pipeline touched.
+
+| proposal element | maps onto | status |
+|---|---|---|
+| mix Kepler/K2 into training, eval on TESS | K2 pooling, Arms B/C | closed -- inert, no arm clears |
+| + better feature standardisation | -- | assessed above; cannot help an inert result |
+| transfer-learning step | domain-adaptation closure | closed -- and not ExoMiner++'s method |
+| PlanetNet-MMG's ~0.973 | -- | real paper, **unverifiable number**, not used |
+
+**Do not propose cross-mission training a third time without new information.**
+The specific new information that would justify reopening: a way past the
+**36.4% Kepler yield wall** that delivers **>3,000 usable rows** (below that the
+predicted gain is under the MDE regardless of how the data is standardised or
+weighted), or a larger test set that lowers the ~0.0097 MDE.
