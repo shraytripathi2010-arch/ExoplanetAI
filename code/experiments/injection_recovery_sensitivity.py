@@ -157,8 +157,18 @@ def _init():
     _G["m06"] = m06
     _G["inj"] = inj
     _G["pool"] = pool
+    _G["lc_dir"] = inj.PROCESSED_NEGATIVE_DIR
     _G["model"] = joblib.load(MODEL)
     return _G
+
+
+def _load_curve(G, host):
+    """Reads a processed light curve from whichever directory this run's pool
+    draws from. Kept separate from injection.load_real_lightcurve so the
+    longer-baseline variant can point at a different pool without copying
+    any of the injection/TLS/scoring logic."""
+    d = pd.read_csv(os.path.join(G["lc_dir"], host + ".csv"))
+    return d["time"].to_numpy(), d["flux"].to_numpy(), d["flux_err"].to_numpy()
 
 
 def _tls_features(t_arr, f_arr, e_arr, r_star, m_star, m06):
@@ -176,7 +186,13 @@ def _tls_features(t_arr, f_arr, e_arr, r_star, m_star, m06):
         M_star=m_star, M_star_min=min(0.1, m_star * 0.5), M_star_max=max(1.0, m_star * 1.5),
     )
 
-    phase, flux = r.folded_phase, r.folded_y
+    # TLS can return scalars here when it fits no transit at all ("No transit
+    # were fit"), which happens on badly-normalised input. Coerce to arrays so
+    # a no-fit produces NaN features rather than an AttributeError.
+    phase = np.atleast_1d(np.asarray(r.folded_phase, dtype=float))
+    flux = np.atleast_1d(np.asarray(r.folded_y, dtype=float))
+    if phase.size < 10 or phase.size != flux.size:
+        phase = np.array([np.nan]); flux = np.array([np.nan])
     sec_mask = (phase > 0.45) & (phase < 0.55)
     secondary_depth = float(1.0 - np.median(flux[sec_mask])) if sec_mask.sum() > 5 else np.nan
 
@@ -230,11 +246,11 @@ def run_one(args):
     row = pool.iloc[int(rng.integers(0, len(pool)))]
     host = str(row["host"])
     r_star = float(row["st_rad"]) if np.isfinite(row["st_rad"]) and row["st_rad"] > 0 else 1.0
-    m_star = float(row.get("m_star_used", np.nan))
+    m_star = float(row.get("m_star_used", row.get("st_mass", np.nan)))
     if not (np.isfinite(m_star) and m_star > 0):
         m_star = 1.0
 
-    t_arr, f_arr, e_arr = inj.load_real_lightcurve(host + ".csv")
+    t_arr, f_arr, e_arr = _load_curve(G, host)
     baseline = float(t_arr.max() - t_arr.min())
 
     out = {

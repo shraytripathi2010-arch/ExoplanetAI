@@ -6567,3 +6567,159 @@ Three concrete things it established that were not previously measured here:
 **structural ~12.5-day period ceiling** from TLS's default grid, above which
 detections are aliases at the wrong period; **(3)** the triage floor's
 false-positive cost now has a measured value on held-out real negatives.
+
+## PERIOD CEILING vs BASELINE -- PREDICTION CONFIRMED. The ceiling is real and it moves.
+
+Direct follow-up to the injection-recovery sensitivity run above, which found a
+**structural ~12.5 d period ceiling** on single-sector TESS. Question: does
+TLS's `period_max` bound extend proportionally on a longer contiguous baseline?
+**Yes, exactly as predicted.** 700 trials, **0 errors**, 29.4 core-hours.
+Scripts `injection_recovery_widesector.py` (a thin reuse of
+`injection_recovery_sensitivity.py` -- same injector, same production TLS call,
+same 22-TLS/9-host feature split, same deployed model, same control arm; only
+the host pool and period grid differ), pool `widesector_host_pool.csv`, raw
+`injection_recovery_widesector_results.csv`.
+
+**Production untouched: 0.9300 / 31 features / md5 `1f0b7cb8e78ab542374eaf78fc837a6f`,
+verified before and after.**
+
+### THIS IS NOT THE CLOSED MULTI-SECTOR STACKING INVESTIGATION
+
+Recorded explicitly so a future reader does not conflate them:
+
+| | closed multi-sector stacking | **this run** |
+|---|---|---|
+| operation | **FOLD** a transit at a STORED ephemeris across sector gaps | **CONCATENATE** sectors into one time array; TLS does its own blind period search |
+| failure mode | phase error accumulates as `span x sigma_P / P` in transit durations | n/a -- **no stored ephemeris is used at all** |
+| quantity tested | can a known signal be coherently stacked? | what is `period_max`, a function of `max(t) - min(t)` alone? |
+
+The closed result was a data-quality problem about ephemeris precision. This is
+a property of TLS's period grid. They are independent, and this run does not
+reopen that closure.
+
+### The sample: 76.3 d contiguous TESS, measured not assumed
+
+`data/processed_unknown_widesector/` -- 3 consecutive sectors already
+concatenated by `06_download_unknown.download_one_star`'s multi-sector branch
+(`pd.concat` + sort-by-time). Three filters, each measured:
+
+1. **Continuous**: 70-85 d span AND max internal gap < 5 d. Excludes stars
+   whose span crosses a year-long gap between non-consecutive sectors, which
+   would hand TLS an enormous period grid over almost no data. Result: span
+   **76.0 d median, max gap 2.17 d, 6 gaps > 0.5 d** (TESS downlinks + sector
+   breaks), **86% duty cycle**.
+2. **Flux-clean**: median flux within 1% of 1.0, robust sigma in (0, 0.05),
+   <1% of points beyond 10 sigma. **~36% of this pool fails this** (raw std up
+   to ~2,000) where the single-sector negative pool does not -- a pre-existing
+   data-quality tail in the wide-sector pool, recorded here as an incidental
+   finding. Excluded so baseline length is the ONLY difference from the prior run.
+3. All 9 host features finite.
+
+**133 hosts** survive all three (vs 216 single-sector).
+
+### The analytical prediction, stated before the grid ran
+
+TLS's default `period_max` = `(max(t) - min(t)) / 2` (it requires >= 2 transits):
+
+| | baseline | predicted `period_max` | **measured** |
+|---|---|---|---|
+| single sector | 25.3 d | 12.7 d | **12.66 d** |
+| wide sector | 76.3 d | **38.2 d** | **38.15 d** |
+
+Confirmed at the grid level on one real curve *before* launching: a 76.2 d host
+searched 0.532 -> **38.105 d** vs 76.2/2 = 38.1. The grid moves. Whether
+DETECTION follows is a separate question -- a period can sit inside the grid and
+still be undetectable for want of transits or SNR -- which is what the 700
+trials test.
+
+### THE ANSWER: side by side, same grid, exact-period detection
+
+| P (d) | \|  single-sector: in-range / detected / **EXACT** | \|  wide-sector: in-range / detected / **EXACT** |
+|---|---|---|
+| 1 | 1.000 / 0.425 / **0.225** | 1.000 / 0.475 / **0.338** |
+| 3 | 1.000 / 0.388 / **0.375** | 1.000 / 0.475 / **0.463** |
+| 6 | 1.000 / 0.388 / **0.325** | 1.000 / 0.312 / **0.287** |
+| 10 | 0.988 / 0.362 / **0.362** | 1.000 / 0.412 / **0.325** |
+| **14** | 0.062 / 0.212 / **0.062** | 1.000 / 0.338 / **0.263** |
+| **20** | 0.000 / 0.125 / **0.000** | 1.000 / 0.200 / **0.200** |
+| **30** | *unsearchable* | 1.000 / 0.225 / **0.212** |
+| **40** | *unsearchable* | **0.000** / 0.100 / **0.000** |
+
+With 95% binomial CIs at the decisive points (n=80 each):
+
+| P | single-sector EXACT | wide-sector EXACT |
+|---|---|---|
+| 14 | 5/80 = 0.062 [0.021, 0.140] | **21/80 = 0.263 [0.170, 0.373]** |
+| **20** | **0/80 = 0.000 [0.000, 0.045]** | **16/80 = 0.200 [0.119, 0.304]** |
+| **30** | not searchable at all | **17/80 = 0.212 [0.129, 0.318]** |
+| **40** | not searchable at all | **0/80 = 0.000 [0.000, 0.045]** |
+
+**P = 20 d goes from a hard zero to 0.200, with non-overlapping CIs.** P = 14
+roughly quadruples, also non-overlapping. P = 30 -- entirely unsearchable
+before -- lands at 0.212, statistically indistinguishable from P = 20. And
+**P = 40 is the new hard zero**, `in_range` 0.000, with detections that are
+100% aliases: exactly the signature P = 20 showed on single-sector data. The
+alias tell reproduces at the new boundary.
+
+**The ceiling is real, structural, and moves proportionally with baseline. Both
+the old and the new ceiling behave identically at their respective boundaries.**
+
+### Two things that did NOT change much, reported plainly
+
+**Depth.** 84 ppm went 0/60 -> **2/80 (0.025)**. Directionally consistent with
+more transits to stack, but this is not a meaningful rescue, and per the brief
+it was included for consistency rather than as the question. Note the implied
+planet is not even the same size: these hosts are larger (**median st_rad 1.90
+vs 1.48**), so 84 ppm here means **1.81 R_e** vs 1.36 R_e before. The
+Earth-size floor stands.
+
+**The classifier stage still contributes nothing at the triage floor -- and here
+it is starker.** The zero-depth control on this pool scores **95.0% above 0.30**
+(median score 0.796), against 70.0% (median 0.503) single-sector. So the
+Stage-2 "classified | detected" table, which is ~1.00 nearly everywhere, is
+**not** discrimination -- the model passes essentially everything in this
+population. Two causes, both real: a different host population (unknown-pool
+stars, larger radii) and a 3x longer baseline giving more transits, higher SDE,
+and therefore higher scores across the board. **End-to-end sensitivity remains
+governed almost entirely by TLS detection**, which is the same conclusion the
+single-sector run reached, arrived at from a different direction.
+
+### Limits of this comparison
+
+* **The period axis is clean; the depth and classification axes are not.** Host
+  population differs (unknown-pool vs TOI false positives; st_rad 1.90 vs 1.48).
+  `period_max` is a pure function of `max(t) - min(t)`, so the period result is
+  unaffected; absolute depth rates and all Stage-2 numbers are population-shifted
+  and should not be read as a like-for-like depth comparison.
+* Still best-case: injected batman transits have no TTVs, no spot crossings.
+* n = 10 per cell; only the marginals (n = 80) carry weight.
+* At P = 30-40 there are only **2.5 and 1.9 transits** in the baseline -- right
+  at TLS's 2-transit floor, so detection there is inherently marginal even when
+  searchable.
+
+### Does this change the operational case for longer baselines? YES -- and it is a COVERAGE argument, not an accuracy one
+
+**The detection-ceiling argument stands on its own, independent of AUC.** With
+single-sector data the pipeline is *structurally incapable* of finding anything
+beyond ~12.5 d. That is not a threshold to tune or a model to improve: the
+search never looks there. No classifier improvement can recover a signal that
+was never searched for, which is why this argument is orthogonal to the closed
+question of whether longer baselines move AUC.
+
+Concretely, 12.5 d -> 38.2 d is the difference between searching only very
+short-period planets and covering the M-dwarf habitable-zone range. Tripling
+the baseline triples the ceiling, exactly and predictably.
+
+**Stated honestly, the gain is coverage, not sensitivity.** At periods already
+searchable (P <= 10) the improvement is modest and within noise (0.425 -> 0.475
+at P = 1). The real prize is the newly-searchable 12.5-38 d band, where
+single-sector detection was **identically zero**. And it does not touch the
+depth floor: Earth-size remains ~0.025.
+
+**Recommendation: treat multi-sector coverage as a detection-reach lever, and
+prioritise it on that basis alone.** The existing per-candidate multi-sector
+strengthening action is the right mechanism and this quantifies what it buys.
+The natural next extension, if ever wanted, is 6-13 consecutive sectors
+(~160-350 d, `period_max` ~80-175 d) -- but note the 2-transit floor means
+usable detection will fall off well before the nominal ceiling, as the P = 30-40
+rows here already show.
