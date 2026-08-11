@@ -1,0 +1,13 @@
+{
+  "n_train": 924,
+  "latent": 8,
+  "sc1_auc_real": 0.6806495538889905,
+  "sc1_auc_injected": 0.6264956709956709,
+  "auc_floor": 0.75,
+  "kill_pearson": 0.8302305753775137,
+  "kill_spearman": 0.8290478932498864,
+  "kill_threshold": 0.6,
+  "kill_fired": true,
+  "sc1_pass": false,
+  "verdict": "KILL"
+}

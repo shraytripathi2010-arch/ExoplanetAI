@@ -6948,3 +6948,85 @@ covered, and none of this touches the model.
 
 Storage cost for the sample: 1.9 GB raw + 472 MB processed for 45 stars at 8
 sectors.
+
+## VAE ANOMALY DETECTION -- PILOT RUN. KILL CRITERION FIRED. Closed.
+
+Proposal 2 from the three-way synthetic-injection split was deferred pending
+explicit go-ahead. Go-ahead given; **Phase 1 built and run against the criteria
+pre-registered in this file BEFORE any code was written**, so the verdict could
+not be moved after seeing the numbers. Script `vae_anomaly_pilot.py`, results
+`vae_anomaly_pilot_results.json` / `..._scores.csv`.
+**Production untouched: 0.9300 / 31 features / md5 `1f0b7cb8e78ab542374eaf78fc837a6f`.**
+
+### Setup
+
+Small two-branch 1D-conv VAE (latent 8) on the global (201) + local (61)
+phase-folded views already built for the CNN work. Trained **unsupervised on
+924 real TRAIN-split label-0 curves** -- TOI false positives, i.e. things that
+looked transit-like and were not. It never saw a label-1 curve or a test-split
+host. Early-stopped on a held-out 138-curve validation slice.
+
+**The VAE trained fine.** Validation reconstruction fell 2.036 -> 0.0399 and
+plateaued. This is not a training failure -- it converged and learned to
+reconstruct well. It simply learned the wrong thing.
+
+### Results against the pre-registered criteria
+
+| criterion | threshold | measured | verdict |
+|---|---|---|---|
+| **SC1** real transit vs no-transit (TEST split, n=852/231) | AUC > 0.75 | **0.6806** | **FAIL** |
+| **SC1** injected transit vs no-transit (n=4000/231) | AUC > 0.75 | **0.6265** | **FAIL** |
+| **KILL** \|corr(recon error, `var_oot_rms`)\| (n=5,357) | > 0.60 | **Pearson +0.830, Spearman +0.829** (p ~ 0) | **FIRED** |
+
+**SC2 and SC3 were not run**, by design: they require phase-folded views for the
+unknown candidate pool, which do not exist and cost real work to build. Not
+building them once the kill fired is the entire purpose of having a kill
+criterion.
+
+### The mechanism predicted at proposal time is exactly what happened
+
+When this was deferred, the stated reason was:
+
+> reconstruction error is dominated by whatever carries the most variance, and
+> in a TESS light curve that is instrumental systematics and stellar
+> variability -- not a 84-5,000 ppm transit ... A reconstruction-based detector
+> would rediscover that variability and call it anomaly.
+
+Measured correlation between reconstruction error and `var_oot_rms`: **+0.83**.
+The VAE is a stellar-variability meter. It reproduces, unsupervised and at
+much greater cost, information the deployed model already has as an explicit
+feature -- `var_oot_rms` is one of the five variability features promoted in
+August 2026 and part of the current 31.
+
+Note the ordering of the two failures: SC1 alone (AUC 0.68) might have invited
+tuning -- a bigger latent, more epochs, a different beta. The kill criterion is
+what makes that pointless. At r = 0.83 the model is not an
+undertrained transit detector; it is a well-trained detector **of the wrong
+quantity**. Tuning a variability meter produces a better variability meter.
+
+### Limitation that would have applied even on a pass
+
+The views are folded **at the known period**, produced by `phase_fold_views.py`
+for the CNN. That presupposes TLS already found the signal, so this VAE sits
+DOWNSTREAM of detection -- it is not the independent "flag light curves that
+look like nothing in training" detector the original proposal imagined. It is
+the cheap version the pre-registered scope specified, precisely because the
+folded views already existed. A genuine version would run on unfolded data and
+be a substantially larger build. **This is recorded because it would have
+capped how far a PASSING result could have been read, and it does not rescue
+the failing one** -- folding at the known period makes the transit MORE visible,
+so this was the generous case and it still failed.
+
+### VERDICT: CLOSED
+
+Not deferred, not "needs more tuning" -- **closed on a pre-registered kill
+criterion that fired at 0.83 against a 0.60 threshold.** Do not re-propose
+reconstruction-based anomaly detection on photometry for this project without
+a mechanism that decouples reconstruction error from stellar variability. The
+capability the proposal was reaching for -- flagging candidates outside the
+model's competence -- **already ships**, as the IsolationForest
+`multivariate_ood_flag` in `06_download_unknown.py`.
+
+Total cost: one script, ~4 minutes of training. The bounded-pilot-with-kill
+design worked exactly as intended -- it spent minutes to close a question that
+had been estimated at 1-2 days.
