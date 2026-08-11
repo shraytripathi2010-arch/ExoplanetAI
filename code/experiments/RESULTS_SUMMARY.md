@@ -6723,3 +6723,80 @@ The natural next extension, if ever wanted, is 6-13 consecutive sectors
 (~160-350 d, `period_max` ~80-175 d) -- but note the 2-transit floor means
 usable detection will fall off well before the nominal ceiling, as the P = 30-40
 rows here already show.
+
+### Follow-up: is the baseline comparison confounded by CADENCE? NO -- hypothesis refuted
+
+A concern was raised (by me) that the single-sector vs 3-sector comparison above
+was not a pure baseline comparison, because production's `bin_lightcurve`
+targets a FIXED 15,000 points, so effective cadence degrades with baseline:
+
+    1 sector  ~15,700 pts  bin factor  1  ->   2 min   (60 samples in a 2 h transit)
+    3 sectors ~46,700 pts  bin factor  4  ->   8 min   (15 samples)
+    6 sectors ~96,000 pts  bin factor  7  ->  14 min   ( 8.6 samples)
+    13 sectors ~208,000 pts bin factor 14 ->  28 min   ( 4.0 samples)
+
+**Tested directly, and the concern does not hold.** Paired design on
+single-sector hosts (which sit below production's 30,000-point threshold and so
+already get native 2 min): re-run the identical seeds with bin factor 4 forced,
+giving 8 min -- exactly what production does to a 3-sector curve. Seeds fix the
+host draw, t0 and impact parameter, so every trial is an exact paired twin and
+**only cadence differs**. 160 trials, 153 matched pairs, 5.6 min.
+
+| depth (ppm) | 2-min | 8-min | delta |
+|---|---|---|---|
+| 700 | 0.395 | 0.421 | +0.026 |
+| 1200 | 0.425 | 0.425 | 0.000 |
+| 2500 | 0.658 | 0.684 | +0.026 |
+| 5000 | 0.757 | 0.784 | +0.027 |
+| **pooled (n=153)** | **0.556** | **0.575** | **+0.020** |
+
+Only **5 discordant pairs of 153** (8-min-only wins 4, 2-min-only wins 1),
+**McNemar exact p = 0.375**. Median SDE 10.98 -> 11.25.
+
+**Coarser cadence does not hurt exact-period detection over 2 -> 8 min; if
+anything it marginally helps** (binning lowers per-point noise, and TLS fits a
+duration grid rather than relying on dense in-transit sampling). So the
+single-sector vs wide-sector result above **stands as reported** -- it is not a
+disguised cadence effect.
+
+**Limit, stated so it is not over-extended:** only 2 -> 8 min was tested. At 13
+sectors production would impose ~28 min, where a 2 h transit is 4 samples; this
+result does not license extrapolating there. (Moot in practice -- see the
+availability finding below.)
+
+**One method note worth recording.** The obvious version of this test -- take
+76 d curves and DISABLE binning to recover 2-min cadence -- was attempted and
+**abandoned as unaffordable**: at native cadence TLS's period grid over 76 d is
+enormous, and the run went 10 trials in 23 min then 10 more in 193 min,
+projecting past 7 hours. Killed. Running the comparison in the cheap direction
+(ADD binning to a short curve rather than REMOVE it from a long one) answers
+the identical question at single-sector cost. Script
+`injection_recovery_cadence_arm.py`; the abandoned one is
+`injection_recovery_binning_arm.py`, kept for the record.
+
+### Availability finding: 13 consecutive sectors essentially does not exist
+
+Probed MAST live for SPOC 120 s targets near the south ecliptic pole (the best
+case for continuous coverage), and counted the **longest CONSECUTIVE run** per
+target -- total sector count is misleading, since TESS revisits the CVZ each
+year and a 60-sector star may have only ~13 in a row separated by year-long
+gaps (a gap that would hand TLS a huge period grid over sparse data, the same
+pathology filtered out of the K2 pool earlier).
+
+Of **827** targets with 2-min SPOC data:
+
+| longest consecutive run | targets |
+|---|---|
+| >= 6 | **333** |
+| >= 8 | **135** |
+| >= 10 | 3 |
+| >= 12 | 3 |
+| >= 13 | **1** |
+
+**So a 13-sector (~350 d) sample is not obtainable; 6-8 sectors (~160-215 d,
+predicted `period_max` ~80-107 d) is the realistic ceiling.**
+
+*(An earlier version of this probe reported "max 4 consecutive" for every
+target. That was a bug: the sector regex `s(\d{4})` matched the YEAR in
+`tess2018206045859-...` rather than the sector in `-s0001-`. Corrected to
+`-s(\d{4})-`. The 4-sector figure was an artifact and is void.)*

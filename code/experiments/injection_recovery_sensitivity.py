@@ -99,6 +99,9 @@ HOST_FEATURES = ["st_rad", "st_teff", "crowd_flux_ratio_max", "crowd_nearest_arc
 
 PERIOD_MATCH_TOLERANCE = 0.01
 
+# None = use production's bin_lightcurve. 1 = no binning (native cadence).
+BIN_FACTOR_OVERRIDE = None
+
 
 def _load(name, fname):
     spec = importlib.util.spec_from_file_location(name, os.path.join(CODE_DIR, fname))
@@ -176,7 +179,21 @@ def _tls_features(t_arr, f_arr, e_arr, r_star, m_star, m06):
     post-processing) and returns the 22 TLS-derived features."""
     from transitleastsquares import transitleastsquares
 
-    t_b, f_b, e_b = m06.bin_lightcurve(t_arr, f_arr, e_arr)
+    # BIN_FACTOR_OVERRIDE=1 skips production's binning entirely, keeping native
+    # 2-min cadence. Production's bin_lightcurve targets a FIXED 15,000 points,
+    # so effective cadence degrades linearly with baseline (2 min at 1 sector,
+    # 8 min at 3, ~28 min at 13). That couples cadence to baseline and would
+    # otherwise confound any baseline comparison. Default None = production.
+    if BIN_FACTOR_OVERRIDE is None:
+        t_b, f_b, e_b = m06.bin_lightcurve(t_arr, f_arr, e_arr)
+    elif BIN_FACTOR_OVERRIDE == 1:
+        t_b, f_b, e_b = t_arr, f_arr, e_arr
+    else:
+        k = int(BIN_FACTOR_OVERRIDE)
+        nb = len(t_arr) // k
+        t_b = t_arr[:nb * k].reshape(nb, k).mean(axis=1)
+        f_b = f_arr[:nb * k].reshape(nb, k).mean(axis=1)
+        e_b = np.sqrt((e_arr[:nb * k].reshape(nb, k) ** 2).sum(axis=1)) / k
     r_star = r_star if (r_star and np.isfinite(r_star) and r_star > 0) else 1.0
     m_star = m_star if (m_star and np.isfinite(m_star) and m_star > 0) else 1.0
     model = transitleastsquares(t_b, f_b, e_b)
