@@ -6800,3 +6800,151 @@ predicted `period_max` ~80-107 d) is the realistic ceiling.**
 target. That was a bug: the sector regex `s(\d{4})` matched the YEAR in
 `tess2018206045859-...` rather than the sector in `-s0001-`. Corrected to
 `-s(\d{4})-`. The 4-sector figure was an artifact and is void.)*
+
+## 8-SECTOR EXTENSION: the ceiling law holds a THIRD time -- and one earlier claim of mine was WRONG
+
+Third point on the period-ceiling curve, on a real 216-day contiguous TESS
+baseline. 320 trials, **0 errors**, 27.3 core-hours. Scripts
+`eightsector_build_pool.py` (select/download/preprocess/features) and
+`eightsector_run.py` (grid, a thin reuse of `injection_recovery_sensitivity.py`).
+**Production untouched: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`, verified before and after.**
+
+### The sample, and why 8 and not 13
+
+45 CVZ stars downloaded at 8 consecutive sectors each (7.9 min, 1.9 GB, 45/45
+success). Filters -- continuity (gap < 10 d, duty > 0.7), flux-clean, all 9 host
+features -- leave **39 hosts**:
+
+| | 1 sector | 3 sectors | **8 sectors** |
+|---|---|---|---|
+| baseline | 25.3 d | 76.3 d | **216.5 d** |
+| max gap | -- | 2.2 d | 6.2 d |
+| duty cycle | -- | 0.86 | **0.83** |
+| st_rad median | 1.48 | 1.90 | **1.36** |
+| effective cadence (production binning) | 2 min | 8 min | **18 min** |
+
+`st_rad` 1.36 makes this a **closer population match to the single-sector pool
+(1.48) than the wide-sector pool was (1.90)** -- the depth-axis confound flagged
+in the previous section is smaller here.
+
+13 sectors was ruled out on measurement, not preference: only 1 of 827 CVZ
+targets has a run that long (see the availability table above).
+
+Sectors are concatenated time-ordered and TLS runs its own blind period search.
+**No folding at a stored ephemeris** -- the closed stacking investigation is
+still not reopened.
+
+### THE LAW: predicted = measured, three times, to two decimals
+
+    period_max = (max(t) - min(t)) / 2
+
+| baseline | predicted | **measured** |
+|---|---|---|
+| 25.3 d | 12.66 | **12.66** |
+| 76.3 d | 38.16 | **38.15** |
+| **216.5 d** | **108.23** | **108.22** |
+
+And each baseline's hard zero sits exactly at its own ceiling: exact-period
+detection is **0.000** at P=20 (1 sector), P=40 (3 sectors), P=120 (8 sectors) --
+and `in_tls_range` is 0.000 in every one of those cells. Three independent
+confirmations of the same structural bound.
+
+### Exact-period detection, all three runs
+
+| P (d) | 1 sector | 3 sectors | 8 sectors |
+|---|---|---|---|
+| 3 | 0.375 | 0.463 | **0.700** |
+| 10 | 0.362 | 0.325 | **0.650** |
+| 20 | **0.000** | 0.200 | **0.625** |
+| 40 | -- | **0.000** | 0.550 |
+| 60 | -- | -- | 0.550 |
+| 90 | -- | -- | **0.475** |
+| 120 | -- | -- | **0.000** |
+
+### CORRECTION: "the gain is coverage, not sensitivity" was WRONG
+
+The previous section concluded, from the 3-sector data, that longer baselines
+buy **coverage** of newly-searchable periods but little sensitivity where the
+search already reached. **At 8 sectors that is clearly false.** At periods
+searchable by ALL THREE baselines:
+
+| P | 1 sector | 8 sectors | Fisher exact |
+|---|---|---|---|
+| 3 d | 30/80 = 0.375 | 28/40 = **0.700** | **p = 0.0010** |
+| 10 d | 29/80 = 0.362 | 26/40 = **0.650** | **p = 0.0036** |
+
+Detection nearly **doubles** at already-searchable periods, significantly. The
+earlier claim was drawn from the 3-sector run, where the same gain was small
+and within noise -- it did not generalise, and stating it as a general
+conclusion was an over-reach. **Longer baselines buy BOTH coverage and
+sensitivity.**
+
+### The falloff shape -- gradual, NOT a collapse at the 2-transit floor
+
+Within the 8-sector run, depth >= 1200 ppm, in-range only:
+
+| injected P | median transits | exact detection |
+|---|---|---|
+| 3 d | 72.2 | 0.900 |
+| 10 d | 21.7 | 0.867 |
+| 20 d | 10.8 | 0.833 |
+| 40 d | 5.4 | 0.733 |
+| 60 d | 3.6 | 0.700 |
+| **90 d** | **2.4** | **0.633** |
+
+Clean and monotonic, but **gentle**: a 30x reduction in transit count costs only
+~30% relative detection, and at **2.4 transits -- essentially TLS's 2-transit
+floor -- detection is still 0.633.** The earlier expectation that "usable
+detection will fall off well before the nominal ceiling" is **only weakly
+supported**: the ceiling itself is the hard wall; approach to it is a soft slope.
+
+### Transit count is NOT the governing variable -- baseline is
+
+Pooling all three runs by transit count flattens out entirely (0.556-0.733,
+overlapping CIs), because at MATCHED transit count the longer baseline still
+wins:
+
+| transits | 1 sector | 3 sectors | 8 sectors |
+|---|---|---|---|
+| 1.5-3 | 0.727 | 0.467 | 0.633 |
+| 3-5 | 0.567 | 0.400 | 0.700 |
+| 5-9 | 0.733 | 0.633 | 0.733 |
+| 9-15 | -- | 0.633 | 0.833 |
+| 15-30 | 0.400 | 0.767 | **0.867** |
+| 30-200 | -- | 0.467 | **0.900** |
+
+This explains why the earlier attempt to read a falloff law out of two baselines
+produced a flat, unreadable picture: **transit count was the wrong x-axis.**
+Baseline carries information transit count does not -- total photons collected,
+more out-of-transit data for the noise estimate, better detrending leverage.
+
+### Unchanged: the Earth-size floor, and the useless classification stage
+
+* **84 ppm: 3/70 = 0.043** even at 216 days (vs 0/60 and 2/80). Still a floor.
+  Longer baselines do not rescue Earth-size.
+* **Control arm 97.5%** of zero-depth trials pass the 0.30 triage floor (70% /
+  95% / 97.5% across the three runs). The Stage-2 table is ~1.00 nearly
+  everywhere and is **not** discrimination. End-to-end sensitivity remains
+  governed almost entirely by TLS detection, for the third time.
+
+### Caveat carried forward
+
+Production's binning gives this sample ~18 min effective cadence. The paired
+cadence arm tested only 2 -> 8 min (no harm, McNemar p = 0.375); 18 min is
+beyond what was measured. Since detection IMPROVED at 8 sectors anyway, any
+residual cadence penalty is evidently smaller than the baseline gain -- but it
+is not separately measured.
+
+### Operational conclusion, revised
+
+**Multi-sector coverage is a stronger lever than the previous section
+concluded.** It buys (a) search reach that scales exactly and predictably as
+baseline/2, and (b) a genuine, significant sensitivity gain at periods already
+searchable -- roughly a doubling of exact-period detection from 1 to 8 sectors.
+Both are independent of the closed question of whether longer baselines move
+classifier AUC; no classifier change can recover a period the search never
+covered, and none of this touches the model.
+
+Storage cost for the sample: 1.9 GB raw + 472 MB processed for 45 stars at 8
+sectors.

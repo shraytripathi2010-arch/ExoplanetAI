@@ -83,3 +83,5 @@ models/best_model_*_staged.joblib
 
 # NASA archive snapshot, re-fetchable and large; not source.
 code/experiments/nasa_pscomppars_cache.csv
+data/raw_8sector/
+data/processed_8sector/
