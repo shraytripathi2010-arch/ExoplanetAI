@@ -7515,3 +7515,149 @@ the model. The bug is documented; the fix is not worth applying.
 reason pending its own investigation -- with the added caution that it too may
 be load-bearing despite being wrong, and its permutation importance was NOT
 measured here.
+
+## CETRA (arXiv:2503.20875) FEASIBILITY -- ASSESSED FRESH. NOT PURSUED. Definitive entry.
+
+**Status check first: no prior CETRA record existed.** Zero mentions in this
+file, no scripts, no git history. Assessed here for the first time, so this
+entry is the record. **Production untouched: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`.** Detection-stage assessment only.
+
+### PART 0 -- HARD GATE: no NVIDIA GPU on this machine
+
+    nvidia-smi          NOT PRESENT
+    nvcc                absent
+    torch.cuda          False        (torch 2.13.0)
+    platform            Apple M1, arm64 -- Metal only, MPS True
+
+CETRA requires an NVIDIA GPU with the CUDA toolkit and `nvcc` on PATH (stated
+by both the paper and the repo). **Part 2 is hardware-blocked here.**
+
+**Cloud GPU is cheap and is NOT the barrier.** Current on-demand rates: T4-class
+~$0.30-0.60/hr, Vast.ai spot ~$0.35/hr, RTX 4090 ~$0.34-0.69/hr. A few hours of
+evaluation is **$1-3**; a full day **$8-15**. The barrier is whether the
+expected payoff justifies the setup, not the money.
+
+### Input/output compatibility: drop-in on INPUT, NOT on OUTPUT
+
+CETRA takes three 1D arrays -- `times`, `fluxes`, `flux_errors` -- which matches
+this project's processed CSVs exactly. **No input redesign needed.**
+
+Output is the problem. CETRA returns period, duration, depth, depth variance,
+t0, SNR and likelihood ratios: roughly **6 of the 22 TLS-derived production
+features**. The other **16 have no CETRA equivalent** -- including **`SDE`,
+`SDE_raw` and `FAP`**. `FAP` ranks **5th of 31** in permutation importance on
+the frozen test set. Replacing TLS would forfeit a top-5 feature and require
+redesigning feature extraction.
+
+### PART 1 -- do CETRA's claims address THIS project's measured bottlenecks?
+
+#### The period ceiling: CETRA INHERITS IT. It does not solve it.
+
+The decisive question was whether `period_max` is a property of the DATA or the
+ALGORITHM. The paper answers directly:
+
+> "the periodic search is only a function of light curve length, since this
+> increases the highest checked period (**assuming a requirement of 2 or more
+> visible transits**)"
+
+**Same >=2-transit requirement, therefore the same `period_max` = baseline/2.**
+GPU speed does not touch it -- it is an information constraint, not a compute
+one. This project measured that ceiling at 12.66 / 38.15 / 108.22 d across three
+baselines, matching baseline/2 to two decimals. **CETRA would reproduce those
+same numbers.**
+
+**But there IS a genuinely new capability, and it sidesteps the ceiling:**
+
+> "A preliminary search in linear space also enables a search in these results
+> for **single transits (a.k.a. monotransits)**, which are early indicators of
+> the presence of long period planets"
+> ... "cetra can do this in **under a second**"
+
+TLS has no mono-transit mode. This project therefore has **no capability at all**
+to flag a long-period planet from a single event. CETRA would not determine the
+period, but it would surface the candidate -- which is exactly the gap the
+period-ceiling work identified. **This is the most interesting finding here.**
+
+#### The Earth-size floor: the headline ratio is real, the absolute gain is tiny
+
+The "20% more low-SNR transits" figure is measured on an **Earth-analogue
+subset**: 1,165 of 20,000 synthetic curves, **75-125 ppm depth** (which brackets
+this project's 84 ppm test point), 2-3 observed transits, 173-day baseline,
+600 s cadence. Absolute recoveries from the paper's Table 1:
+
+| noise | CETRA | TLS | ratio | **absolute gain** |
+|---|---|---|---|---|
+| 34 ppm/hr | 97.2% | 95.5% | 1.02x | +1.7 pp |
+| 160 ppm/hr | **8.1%** | **3.5%** | 2.3x | **+4.6 pp** |
+| 800 ppm/hr | 0.7% | 0.3% | 2.3x | **+0.4 pp (8 vs 3 of 1,165)** |
+
+**The improvement is largest where TLS already partly works and collapses where
+TLS is near zero.** At the hardest noise level the impressive-sounding ratio is
+five extra detections out of 1,165. A better algorithm helps in the marginal
+regime, not the impossible one.
+
+**Mapping to this project's own numbers.** Measured Earth-size (84 ppm) recovery
+here: **0/60 at 25 d baseline, 3/70 = 4.3% at 216 d.** That 4.3% sits right
+alongside CETRA's TLS figure of 3.5% at 160 ppm/hr -- good agreement, and it
+suggests this project's data sits in that noise regime. Applying CETRA's 2.3x
+there projects roughly **4.3% -> ~10%**. Real, but still far below anything
+useful for Earth-size detection, and **0% -> ~0% on single-sector data**.
+
+**Caveat on the comparison:** CETRA's tests are SYNTHETIC light curves with a
+173-day baseline; this project's floor was measured on REAL TESS photometry of
+TOI false positives (often variable) at 25-216 days. The regimes overlap but are
+not identical, and the projection above is an extrapolation, not a measurement.
+
+#### Replacement or complement? COMPLEMENT.
+
+Given 16 of 22 TLS features have no CETRA equivalent and `FAP` is top-5 by
+permutation importance, CETRA is not a realistic drop-in replacement. Its
+defensible framing is a **fast first-pass or mono-transit companion**, with TLS
+retained for feature extraction.
+
+### PART 2 -- NOT RUN. Hardware-blocked, and not justified by Part 1.
+
+### PART 3 -- BROADER SCAN: three scoped leads, none acted on
+
+**LEAD A (largest, cheapest, needs no CETRA): most of this project's data is
+still searched at a 12.3-day ceiling.**
+
+| pool | n | median baseline | implied `period_max` | single-sector |
+|---|---|---|---|---|
+| training negatives | 1,253 | 25.4 d | **12.7 d** | 99.9% |
+| candidate pool (single-sector) | 2,465 | 24.6 d | **12.3 d** | 96.9% |
+| candidate pool (wide-sector) | 271 | 76.0 d | 38.0 d | 0.7% |
+
+**96.9% of the candidate pool is being searched with a ~12.3-day period
+ceiling**, while the multi-sector concatenation that lifts it is already built,
+already validated at three baselines, and needs no new dependency. The
+8-sector work also measured that longer baselines nearly **double** detection at
+periods already searchable (P=3: 0.375 -> 0.700, Fisher p=0.0010). This is a
+larger and far cheaper win than anything CETRA offers. Scoped, not started.
+
+**LEAD B (~5 minutes): `transit_shape_ratio` permutation importance is still
+unmeasured.** The retirement harness already exists. `secondary_eclipse_depth`
+turned out to rank 9/31 despite being demonstrably broken, so the same check is
+the prerequisite before anyone considers fixing or retiring
+`transit_shape_ratio`. Cheap and decisive.
+
+**LEAD C: mono-transit detection is absent from this pipeline entirely.** CETRA
+supplies it, but the capability is not intrinsically GPU-bound -- a CPU
+implementation is possible, just slower. Worth separating the *capability* from
+the *tool* if long-period reach is ever prioritised.
+
+### RECOMMENDATION: do not pursue CETRA now.
+
+| question | answer |
+|---|---|
+| Does it solve the period ceiling? | **No** -- explicitly inherits the >=2-transit constraint |
+| Does it solve the Earth-size floor? | **No** -- ~4.3% -> ~10% projected; +0.4 pp where TLS is near zero |
+| Is it a drop-in replacement? | **No** -- 16 of 22 features missing, incl. top-5 `FAP` |
+| Is cost the barrier? | **No** -- $1-3 for a few GPU hours |
+| Is there anything genuinely new? | **Yes, one thing: mono-transit search** |
+
+**Revisit only if** (a) mono-transit capability becomes a priority, or (b) an
+NVIDIA GPU becomes routinely available AND Lead A has already been exhausted.
+Lead A addresses this project's biggest measured detection limitation directly,
+with validated in-house tooling and no new dependency -- it should come first.
