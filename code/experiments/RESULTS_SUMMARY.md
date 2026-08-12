@@ -7384,3 +7384,134 @@ friends, so the swap perturbs a well-fit model without adding anything.
   either. Same 12-bootstrap harness, ~15 min. Not run -- it is a different
   question from the one asked, and expanding scope unilaterally is what the
   brief asked me not to do.
+
+## PHASE-BUG FOLLOW-UPS: `transit_shape_ratio` has the SAME bug; and RETIRING the secondary column is ALSO worse
+
+Two cheap diagnostics following the phase-convention bug investigation.
+**Production untouched: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`. Nothing promoted, nothing changed.**
+
+### PART 1 -- `transit_shape_ratio` DOES have the phase-convention bug. Confirmed empirically.
+
+Same verification device as before: inject a clean, deep (12,000 ppm),
+low-impact **U-shaped** transit -- a case where edge/center is well-defined --
+and read what the deployed windows actually land on in TLS's real fold.
+
+| region | n | median depth |
+|---|---|---|
+| production's `primary_mask` = `(phase<0.02) \| (phase>0.98)` | 781 | **-0.000274** |
+| where the transit ACTUALLY is, `\|phase-0.5\|<0.02` | 744 | **0.010267** |
+
+The deployed mask samples flux **slightly ABOVE the baseline** -- it is pure
+out-of-transit noise, 37x shallower than the real transit and of the wrong sign.
+
+Computing the edge/center statistic at both locations:
+
+| | center depth | edge depth | **ratio** |
+|---|---|---|---|
+| **AS DEPLOYED** (windows at phase 0) | 0.000521 | **-0.000557** | **-1.0684** |
+| at the CORRECT location (phase 0.5) | 0.013178 | 0.011052 | **0.8387** |
+
+A negative ratio is physically impossible for a real transit. The correct
+computation gives 0.84 -- edge slightly shallower than center, exactly what a
+U-shaped transit should produce.
+
+**Corroborated at scale on the deployed column itself** (5,486 training stars):
+
+    coverage 3,826/5,486 = 69.7%     AUC 0.4333
+    **48.5% of values are NEGATIVE**  (1,855 of 3,826)
+    percentiles [5,25,50,75,95] = [-3.855, -0.636, 0.035, 0.761, 4.520]
+
+Half the deployed values are negative and the spread runs -3.9 to +4.5 around a
+median of 0.035. That is a noise-over-noise ratio, not a shape measurement.
+
+#### Same root cause, or distinct? BOTH -- and they compound
+
+* **Phase-convention bug (DOMINANT, newly confirmed here).** The windows are
+  centred on phase 0 while TLS puts the transit at 0.5, so the statistic is
+  computed on baseline. This alone accounts for the negative values and is
+  decisive.
+* **Window-geometry issue (previously diagnosed, still real, secondary).** The
+  center (`<0.005`) and edge (`0.005-0.015`) windows are fixed in phase and
+  never scale to duration. In this test the injected transit spans +/-0.0178 in
+  phase, so both windows happen to sit inside it; for a shorter-duration transit
+  they would straddle the ingress. **This only starts to matter once the phase
+  is fixed** -- currently it is masked by the larger error.
+
+So the earlier diagnosis was correct but incomplete, in the same way the
+`secondary_eclipse_depth` brief was: the window is the wrong WIDTH *and* in the
+wrong PLACE, and the placement error dominates.
+
+#### No fix proposed or tested, per the brief
+
+Reporting the correct-phase single-feature AUC on real data would require
+recomputing the feature for all 5,486 training stars, i.e. a full TLS re-run
+(~38 s/star, ~8 h at 7 workers). That is new infrastructure, not the existing
+harness, so per the brief's Part 1.5 and the `trap_vshape` precedent this stops
+at diagnosis. **What is established:** the deployed values are noise ratios,
+and the same statistic computed correctly is physically sensible.
+
+### PART 2 -- three-way comparison for `secondary_eclipse_depth`: KEEP wins
+
+12 training bootstraps, production recipe, frozen split. Uses **SEED 20260812,
+identical to the swap run**, so all three arms are PAIRED on the same draws --
+verified, not assumed: the keep arm reproduced the prior run's mean AUC to
+**0.00e+00** (0.9212137 both times).
+
+| arm | features | mean d vs keep | sd | 95% CI | pos | >=MDE |
+|---|---|---|---|---|---|---|
+| **(a) KEEP AS-IS** (buggy formula) | 31 | **0.0000** (reference) | -- | -- | -- | -- |
+| (b) FIX AND SWAP (corrected formula) | 31 | -0.0024 | 0.0014 | [-0.0046, -0.0002] | 1/12 | 0/12 |
+| **(c) RETIRE** (column removed) | 30 | **-0.0025** | 0.0011 | **[-0.0044, -0.0010]** | **0/12** | 0/12 |
+
+Calibration moves the same way: Brier 0.0840 -> 0.0859 and ECE 0.0353 -> 0.0382
+on retirement (both worse), against 0.0853 / 0.0356 on the swap.
+
+**Both alternatives are small, statistically clean regressions of nearly
+identical size.** Neither CI touches zero.
+
+(Absolute AUCs here are ~0.921 rather than production's 0.9300 because these are
+bootstrap-resampled training sets with reduced effective n -- consistent with
+every resampled run in this log.)
+
+#### The surprise: the model relies on this column heavily
+
+Permutation importance of `secondary_eclipse_depth` as deployed, frozen test,
+10 repeats:
+
+    importance +0.00680 +/- 0.00136     RANK 9 of 31
+
+**Top third of the feature set** -- above `FAP`, and far above `depth_mean`
+(+0.0003), `rp_rs` (+0.0007) and `distinct_transit_count` (+0.0009).
+
+That directly contradicts its single-feature AUC of 0.4935 (chance), and it
+explains why BOTH alternatives hurt by the same ~0.0025: the model is genuinely
+using this column, so replacing its values or deleting it destroys something
+real.
+
+**What it is probably encoding.** It is a median over a 10%-wide phase slab
+centred on the primary. That value is dominated by the local out-of-transit
+baseline, modulated by how much of the slab the transit fills -- so it behaves
+as a **composite duty-cycle and local-noise proxy**, not as a secondary-eclipse
+measurement at all. Useless alone (AUC 0.4935), useful in combination (rank
+9/31). This is the mirror image of the pattern recorded four times in this log:
+there, features informative alone added nothing to the model; here, a feature
+uninformative alone is load-bearing within it.
+
+### RECOMMENDATION: KEEP AS-IS. Production stays at 31 features, current formula.
+
+| option | verdict |
+|---|---|
+| keep the buggy formula | **BEST measured.** Reference. |
+| fix the phase convention | -0.0024, CI below zero. Do not. |
+| retire the column | -0.0025, CI below zero, 0/12 positive. Do not. |
+
+The honest summary is uncomfortable but well-measured: **a feature that is
+demonstrably computing the wrong quantity is nonetheless the best of the three
+available options**, because the accidental quantity it computes is useful to
+the model. The bug is documented; the fix is not worth applying.
+
+`transit_shape_ratio` carries the same bug and is left alone for the same
+reason pending its own investigation -- with the added caution that it too may
+be load-bearing despite being wrong, and its permutation importance was NOT
+measured here.
