@@ -7768,3 +7768,134 @@ comparison base, and no amount of validation downstream repairs a
 class-correlated processing artifact upstream.
 
 **Awaiting explicit direction. Nothing has been reprocessed or wired.**
+
+### CLOSEOUT: OOD impact of pools-only multi-sector reprocessing -- SAFE. Rollout recommended.
+
+Last open question from the multi-sector rollout. Measurement only; **nothing
+modified. Production untouched: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`.**
+
+The deployed IsolationForest detector was run as-is against both pools. Note it
+operates on **24 features** (built 2026-07-11, predating the crowding and
+variability promotions), threshold -0.5341, contamination target 0.02.
+
+#### 1. Flag rates
+
+| population | n | flagged | rate |
+|---|---|---|---|
+| training (single-sector, its own calibration set) | 5,486 | 109 | **2.0%** |
+| candidate pool, single-sector | 488 | 92 | **18.9%** |
+| candidate pool, **MULTI-SECTOR** | 69 | 20 | **29.0%** |
+
+The training figure reproduces the stored calibration baseline (2.00%) exactly --
+a sanity check that the detector was loaded and applied correctly.
+
+Multi-sector vs single-sector pool: **29.0% vs 18.9%, Fisher p = 0.0549,
+OR 1.76.** Elevated, marginally significant, n=69.
+
+**Context that matters more than the delta:** the pool is ALREADY at 18.9%
+against training's 2.0% -- a ~9x elevation that has nothing to do with
+multi-sector processing. Reprocessing adds ~10 points on top of a large
+pre-existing gap.
+
+#### 2. Selective, NOT systematic
+
+**71% of multi-sector candidates pass the OOD check.** Nothing resembling the
+near-100% systematic over-firing that would have made the detector useless on
+this population.
+
+And the flag is not tracking the processing artifact. Spearman rho of OOD score
+against each feature, across both pools (n=557):
+
+| processing-SHIFTED features | rho | | other features | rho |
+|---|---|---|---|---|
+| `SDE` | -0.242 | | **`depth`** | **+0.801** |
+| `SDE_raw` | -0.223 | | **`rp_rs`** | **-0.801** |
+| `snr` | +0.065 | | `period` | +0.285 |
+| `transit_count` | -0.330 | | `duration` | +0.128 |
+| `distinct_transit_count` | -0.312 | | `odd_even_mismatch` | +0.154 |
+
+**The OOD score is dominated by `depth`/`rp_rs` (|rho| = 0.80) -- genuine
+astrophysical unusualness -- while the features that multi-sector processing
+actually shifts correlate at only 0.06-0.33.** (`depth` and `rp_rs` mirror each
+other because `rp_rs` = sqrt(depth).) The detector is flagging unusual
+candidates, not re-detecting "this was processed differently."
+
+#### 3. Practical impact: the flag SUPPRESSES, it is not a caveat
+
+Checked in code rather than assumed. `split_and_rerank`:
+
+    keep = ranked_df["in_distribution"] & ~ranked_df["below_triage_floor"]
+
+with `in_distribution = in_distribution_univariate & ~multivariate_ood_flag`.
+Flagged candidates are routed to a separate `out_dist` table and **held out of
+the in-distribution shortlist, which the code comments identify as "the thing
+that feeds characterization and human review."** So an OOD flag is a real
+demotion, not an informational note. That raises the stakes on question 4 --
+which makes the next result the important one.
+
+#### 4. THE CRUX: the anticipated tension does not apply -- it INVERTS
+
+The brief flagged the risk that OOD handling would suppress exactly the novel
+long-period candidates the rollout exists to find. Measured directly, splitting
+the multi-sector pool at the 12.5 d single-sector ceiling:
+
+| multi-sector candidates | n | OOD flagged |
+|---|---|---|
+| P <= 12.5 d (single-sector could also find these) | 33 | **42.4%** |
+| **P > 12.5 d (NEWLY reachable)** | 36 | **16.7%** |
+
+**Fisher p = 0.0323, odds ratio 0.27** -- the newly-reachable long-period
+candidates are about **4x LESS** likely to be flagged. OOD score medians
+-0.4159 vs -0.5182, MWU p = 0.0006.
+
+And the yield is the point of the exercise:
+
+| pool | candidates with P > 12.5 d |
+|---|---|
+| single-sector | 11 / 488 = **2.3%** |
+| multi-sector | 36 / 69 = **52.2%** |
+
+A **23x enrichment** in long-period candidates, and they are the ones the OOD
+detector likes best.
+
+#### RECOMMENDATION: proceed with the pools-only rollout as-is. No OOD fix needed.
+
+| question | answer |
+|---|---|
+| Does OOD over-fire systematically on multi-sector? | **No** -- 29.0% vs 18.9%, 71% pass |
+| Is it re-detecting the processing shift? | **No** -- driven by depth/rp_rs (0.80), not SDE/transit_count (0.06-0.33) |
+| Does a flag actually suppress? | **Yes** -- held out of the review shortlist |
+| Does it suppress the NOVEL candidates? | **No -- the opposite.** 16.7% vs 42.4%, OR 0.27 |
+
+None of the proposed mitigations (recalibrating the detector, separate baselines
+per processing method, informational-only flagging) is warranted by this
+measurement. Adding them would be solving a problem that does not exist here.
+
+**Honest caveats.** n = 69 scoreable multi-sector candidates is small, and the
+headline 29.0% vs 18.9% is only marginally significant (p = 0.0549); the crux
+result (p = 0.0323, and p = 0.0006 on scores) is firmer than the headline. The
+detector also runs on the 24-feature set, so it does not see crowding or
+variability -- rebuilding it on the current 31 is a separate, unexamined
+question. And this measures the EXISTING widesector pool, not a fresh
+full-pool reprocess.
+
+#### Incidental finding: a latent bug is silently dropping candidates
+
+**237 pool rows** carry status `"Post-processing error: 'bool' object has no
+attribute 'sum'"` -- **222 of 2,454 single-sector (9.0%) and 15 of 271
+widesector (5.5%)**. This is the same defect fixed in
+`injection_recovery_sensitivity.py`: when TLS fits no transit it returns scalars
+rather than arrays, and `sec_mask.sum()` then fails on a bool. These stars are
+dropped from feature extraction entirely. Scoped, not fixed -- it is a
+production code change in `06_download_unknown.compute_all_features` and needs
+its own go-ahead.
+
+### FINAL STATE OF THE MULTI-SECTOR ROLLOUT INVESTIGATION
+
+| scope | verdict |
+|---|---|
+| **Training data** | **PERMANENTLY EXCLUDED.** Eligibility is class-correlated (72.5% vs 41.4%, Fisher p=0.0034, OR 3.74), injecting ~0.19 SD of artificial class signal. |
+| **Candidate pools** | **SAFE TO ROLL OUT.** OOD impact measured and benign; novel long-period candidates are favoured, not suppressed. 23x enrichment above the old ceiling. |
+| **OOD detector** | **No change required.** |
+| **Awaiting** | explicit go-ahead to wire pools-only reprocessing into `06_download_unknown.py`. |
