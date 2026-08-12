@@ -1,0 +1,42 @@
+{
+  "n_ok": 90,
+  "groups": {
+    "free=other/none": 41,
+    "free=EXACT": 32,
+    "free=HALF": 17
+  },
+  "secondary_eclipse_depth": {
+    "free=EXACT": {
+      "n": 32,
+      "free_median": 0.00027580481175510003,
+      "true_median": 0.0002538547439353
+    },
+    "free=HALF": {
+      "n": 17,
+      "free_median": 0.0002838915456295,
+      "true_median": 0.0001802114380619
+    },
+    "free=other/none": {
+      "n": 41,
+      "free_median": 0.0003163622648483,
+      "true_median": 0.0005347321308823
+    }
+  },
+  "odd_even_mismatch": {
+    "free=EXACT": {
+      "n": 31,
+      "free_median": 0.484186051667184,
+      "true_median": 0.5074478330580283
+    },
+    "free=HALF": {
+      "n": 17,
+      "free_median": 7.2528929189342675,
+      "true_median": 1.5492157171692074
+    },
+    "free=other/none": {
+      "n": 39,
+      "free_median": 0.8312754253206238,
+      "true_median": 0.5508197454546986
+    }
+  }
+}

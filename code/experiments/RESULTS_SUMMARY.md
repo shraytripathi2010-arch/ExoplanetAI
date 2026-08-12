@@ -7180,3 +7180,85 @@ period` -- my BLS duration grid reaches 0.20 d while the floor on
 Losses are spread across both shapes so the paired comparison is not biased,
 but the affected cells are the very shortest periods and the fix would be to
 scale the duration grid to `minimum_period`.
+
+### Follow-up: does the half-period alias degrade the EB-catching features? NO -- it AMPLIFIES one
+
+The BLS assessment above raised, but did not test, the worry that TLS's
+half-period alias on eclipsing binaries compromises
+`secondary_eclipse_depth` and `odd_even_mismatch` -- the two features that
+exist to reject EBs. **Tested. The worry was wrong, in an informative way.**
+90 EB trials, 90/90 ok, 32 min. Script `half_period_feature_test.py`.
+**Production untouched, md5 `1f0b7cb8e78ab542374eaf78fc837a6f`.**
+
+**Design.** Inject a known EB, then run TLS **twice on the identical array**:
+ARM A the free production search, ARM B with the period grid clamped to
++/-0.5% of the TRUE injected period, forcing the correct fold. Same code path,
+same star, same signal -- so any feature difference is the fold period alone.
+Splitting ARM A by which alias it landed on isolates the half-period effect.
+
+**The prediction was written into the script before running**, so the reading
+could not be fitted afterwards:
+
+> At the half period the primary and secondary both fold onto phase 0 and
+> alternate; phase 0.5 is empty. So `secondary_eclipse_depth` -> DESTROYED,
+> `odd_even_mismatch` -> AMPLIFIED.
+
+#### Result: half right
+
+| feature | group | free fold | true fold | ratio | MWU p |
+|---|---|---|---|---|---|
+| `secondary_eclipse_depth` | free=EXACT (n=32) | 0.000276 | 0.000254 | 1.09 | 0.677 |
+| | **free=HALF (n=17)** | **0.000284** | **0.000180** | **1.58** | **0.235 (ns)** |
+| `odd_even_mismatch` | free=EXACT (n=31) | 0.484 | 0.507 | 0.95 | 0.364 |
+| | **free=HALF (n=17)** | **7.253** | **1.549** | **4.68** | **0.044** |
+
+* **`odd_even_mismatch` AMPLIFIED 4.7x -- prediction CONFIRMED** (7.25 sigma vs
+  1.55 sigma, p = 0.044).
+* **`secondary_eclipse_depth` NOT destroyed -- prediction REFUTED.** It is
+  slightly higher at the half fold, and the difference is not significant.
+
+**Where the amplification actually comes from** (checked rather than assumed):
+the odd/even depth difference grows only 1.29x (1,113 ppm vs 860 ppm), but
+`odd_even_mismatch` is that difference **normalised by its uncertainty**, and
+at half period there are twice as many folded eclipses, so the denominator
+shrinks. Most of the 4.7x is the uncertainty term, not the signal term.
+
+#### The practical conclusion inverts the worry
+
+**The half-period alias does not make EBs harder to reject -- it makes them
+easier.** It drives a 4.7x increase in exactly the feature designed to catch
+them, while leaving the other unharmed. The concern raised in the BLS
+assessment is retracted; no action follows from it, and BLS's better period
+accuracy on EBs buys even less than it appeared to.
+
+#### An unrelated weakness the test surfaced instead
+
+`secondary_eclipse_depth` recovers only **20-30% of the injected secondary
+depth even at the CORRECT fold**:
+
+| injected depth | expected secondary | measured at true fold | recovered |
+|---|---|---|---|
+| 2,500 ppm | 900 ppm | 201 ppm | **0.22** |
+| 5,000 ppm | 1,800 ppm | 494 ppm | **0.27** |
+
+(expected = 0.36 x primary, since the injector sets secondary `rp` = 0.6 x
+primary `rp`.)
+
+Mechanism: the feature takes the **median** over phase 0.45-0.55 -- **10% of
+the phase** -- while the eclipse itself spans roughly 2%. The median is
+therefore dominated by out-of-eclipse flux and dilutes the secondary by
+roughly the duty-cycle ratio. This is a property of the implementation, not of
+the fold, and it is why the alias made no difference: the feature is blunt at
+every period.
+
+**Recorded as an observation, not a proposed change.** A duration-aware window
+(or a depth measured over the eclipse rather than a fixed phase band) would
+plausibly sharpen it, but that is a production feature in the deployed 31 and
+any change needs its own full validation cycle. Not attempted here.
+
+#### Limits
+
+n = 17 in the HALF group and p = 0.044 is marginal -- directional, not
+bulletproof. And 41 of 90 trials landed on neither the exact period nor the
+half alias: grazing EBs at impact parameter 0.9 are genuinely hard to recover,
+which is itself consistent with the low EB detection rates in the BLS run.
