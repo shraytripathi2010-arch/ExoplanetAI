@@ -7262,3 +7262,125 @@ n = 17 in the HALF group and p = 0.044 is marginal -- directional, not
 bulletproof. And 41 of 90 trials landed on neither the exact period nor the
 half alias: grazing EBs at impact parameter 0.9 are genuinely hard to recover,
 which is itself consistent with the low EB detection rates in the BLS run.
+
+## SECONDARY_ECLIPSE_DEPTH REBUILD -- found a PHASE-CONVENTION BUG, but fixing it does not help
+
+Task: rebuild `secondary_eclipse_depth` with a duration-aware window, since the
+half-period diagnostic measured it recovering only 20-30% of injected secondary
+depth. **The premise was right that the window is wrong, but incomplete: the
+window is also in the WRONG PLACE.** Fixing it is a measurable small
+REGRESSION. **Nothing promoted. Production untouched at 0.9300 / 31 features /
+md5 `1f0b7cb8e78ab542374eaf78fc837a6f`, verified before and after.**
+
+### First: the proposed formula already exists
+
+`weak_secondary.py` (2026-08-03) already implements exactly the proposed
+duration-aware window as `sec_depth_windowed`:
+
+    dur_phase = duration / period
+    half      = max(0.5 * dur_phase, 0.002)
+    window    = |phase - 0.5| < half
+
+with values already computed for 5,365 stars, and already reported: AUC 0.435,
+max |corr| 0.478, coverage 97.8%, no clearing arm when ADDED at 24 -> 26. The
+brief's framing -- that the earlier investigation tested "a different statistic,
+noise-normalised significance, not depth accuracy" -- is half right: it tested
+**both**. Only the REPLACEMENT variant (31 -> 31) was genuinely untested.
+
+### THE REAL FINDING: production measures the secondary at the PRIMARY's phase
+
+**TLS's `r.folded_phase` places the PRIMARY at phase 0.5, not 0.** Verified
+directly with a pure transit carrying no secondary at all (8,000 ppm injected):
+
+| phase window | measured depth |
+|---|---|
+| **0.49 - 0.51** | **0.009202** <- the primary is HERE |
+| 0.00 - 0.01 | 0.001232 |
+| 0.99 - 1.00 | 0.000347 |
+
+Production (`06_download_unknown.compute_all_features`) does:
+
+    sec_mask     = (phase > 0.45) & (phase < 0.55)     -> samples the PRIMARY
+    primary_mask = (phase < 0.02) | (phase > 0.98)     -> samples ANTI-transit
+
+So `secondary_eclipse_depth` is a median over a slab centred on the **primary
+transit** and ~6x wider than it, leaving the median dominated by out-of-transit
+baseline. It measures neither the secondary (wrong phase) nor the primary (too
+diluted).
+
+**Confirmed on real data**, 5,485 training stars:
+
+| feature | fold used | n | single-feature AUC | \|AUC-0.5\| |
+|---|---|---|---|---|
+| `secondary_eclipse_depth` (DEPLOYED) | TLS fold, window on primary | 5,373 | **0.4935** | **0.0065** |
+| `sec_depth_windowed` (correct) | own fold, duration-aware | 5,365 | 0.4350 | 0.0650 |
+| `sec_significance` (correct) | own fold, noise-normalised | 5,365 | 0.3811 | 0.1189 |
+
+The deployed column sits at chance and correlates with nothing (max |rho| 0.160
+against `depth_mean`) -- the signature of a near-noise measurement.
+
+**Why `weak_secondary.py` escaped this:** it builds its own fold,
+`phase = ((t - t0)/period) % 1.0`, which puts the primary at 0 and the secondary
+at 0.5, so its window is correct. That resolves a discrepancy that has been
+sitting unexplained in this log: why the "weak secondary" work got physically
+sensible class rates (FPs at 3.4x the significant-secondary rate) while the
+deployed feature stayed weak. Different fold conventions.
+
+**A Part 1 run of mine was invalidated by the same bug and is reported anyway**,
+because it is corroboration. `secondary_window_accuracy.py` measured
+depth-recovery against noiseless ground truth, but both its windows assumed the
+secondary sat at phase 0.5 in TLS's fold -- so it measured PRIMARY recovery. Its
+"new window" recovered **2.387x** the true secondary depth; the primary/secondary
+depth ratio in the injected model is **2.44**. The bug predicts that number.
+
+### Class-rate gate: PASSES
+
+|AUC - 0.5| is **0.0650 corrected vs 0.0065 deployed -- 10x better class
+separation.** So Part 3 was authorised and run.
+
+### Part 3: like-for-like swap at the same slot (31 -> 31) -- SMALL SIGNIFICANT REGRESSION
+
+Production recipe, frozen split, 12 training bootstraps, corrected column
+replacing the broken one.
+
+| | coverage | max \|rho\| vs other 30 |
+|---|---|---|
+| deployed | 0.9796 | -- |
+| corrected | 0.9779 | 0.151 (`transit_shape_ratio`) |
+
+| arm | mean d | sd | min | max | pos | >=MDE |
+|---|---|---|---|---|---|---|
+| swap (full test) | **-0.0024** | 0.0014 | -0.0048 | +0.0001 | **1/12** | 0/12 |
+| swap (2-min subset) | -0.0024 | 0.0014 | -0.0048 | +0.0001 | 1/12 | 0/12 |
+
+**95% CI [-0.0046, -0.0002] -- entirely below zero.** Brier 0.0840 -> 0.0853
+(worse), ECE 0.0353 -> 0.0356 (flat).
+
+So **replacing a near-noise feature with a genuinely informative one makes the
+model measurably, if slightly, worse.** Counterintuitive, and consistent with a
+pattern this project has now measured four times: novel-by-correlation is not
+novel-to-the-model. The corrected secondary information is already reachable by
+the tree ensemble through `odd_even_mismatch`, `depth_mean_odd/even` and
+friends, so the swap perturbs a well-fit model without adding anything.
+
+### RECOMMENDATION: report the bug, do NOT promote the swap
+
+* **The bug is real** and worth recording for correctness and interpretability:
+  two deployed features are computed on the wrong phase regions.
+* **Fixing it does not help the model** -- the swap is a small but statistically
+  clean regression (CI entirely below zero, 1/12 positive).
+* **Do not promote.** Production keeps its current formula.
+
+### Carried forward, not tested here
+
+* **`transit_shape_ratio` is affected by the same bug.** Its `primary_mask`
+  targets the anti-transit region, so it is not measuring transit shape. That is
+  consistent with its weak AUC (0.4333, coverage 3,825/5,485) and its standing
+  as a retirement candidate, but it was NOT tested directly and no claim is made
+  about what fixing it would do.
+* **The untested third option is RETIREMENT, not repair.** If the deployed
+  column is near-noise (AUC 0.4935) and the corrected version is worse, the
+  open question is whether dropping it entirely (31 -> 30) is better than
+  either. Same 12-bootstrap harness, ~15 min. Not run -- it is a different
+  question from the one asked, and expanding scope unilaterally is what the
+  brief asked me not to do.
