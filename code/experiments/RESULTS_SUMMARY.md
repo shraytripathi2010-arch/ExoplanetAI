@@ -7030,3 +7030,153 @@ model's competence -- **already ships**, as the IsolationForest
 Total cost: one script, ~4 minutes of training. The bounded-pilot-with-kill
 design worked exactly as intended -- it spent minutes to close a question that
 had been estimated at 1-2 days.
+
+## BLS AS A COMPLEMENTARY DETECTOR + 2-SECTOR STACKING -- both assessed, both NO
+
+Two mechanistically distinct proposals, two separate verdicts. Detection-stage
+assessment only. **Production untouched: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`, verified before and after. Nothing built
+into the pipeline.**
+
+### PART 0 -- "stack the 2 highest-SNR sectors": which operation is it?
+
+"Stacking to increase per-transit SNR" only means anything if the data are
+**phase-combined**, so this is interpretation (a) -- folding at an ephemeris --
+not (b) concatenation. (Concatenation does not stack signal; it extends the
+search baseline, which is the already-validated wide-sector work below.)
+
+So the drift wall applies. Computed on this project's own **5,290 stars** with
+usable `period_uncertainty`. Max span keeping accumulated drift under one
+transit duration is `P x duration / sigma_P`:
+
+| percentile | max allowable span |
+|---|---|
+| 25th | 4.4 d |
+| **50th** | **9.4 d** |
+| 75th | 16.6 d |
+| 90th | 31.7 d |
+
+**The median star can tolerate 9.4 days -- shorter than a single 27-day sector.**
+
+Against real sector geometry (measured from this project's own 8-sector sample:
+one sector spans 27.1 d, two adjacent span 54.1 d):
+
+| 2-sector configuration | span | stars avoiding the drift wall |
+|---|---|---|
+| adjacent sectors | ~27 d | **12.0%** |
+| two sectors, one gap between | ~54 d | **5.3%** |
+| four apart | ~110 d | 2.0% |
+| one year apart | ~365 d | 0.2% |
+| *(closed stacking run's median)* | 759 d | 0.0% |
+| *(consistency re-proposal's median)* | 1,151 d | 0.0% |
+
+**Reducing to two sectors does NOT escape the wall -- it moves 0.0% to 5.3%.**
+The brief's own framing was right: the failure is driven by SPAN, not sector
+count, and two adjacent sectors still span 54 d against a 9.4 d median budget.
+5.3% of 5,290 is ~280 stars, squarely inside the 200-696 range that closed
+prior multi-sector attempts on scale grounds regardless.
+
+**PART 2 NOT RUN** -- Part 0 found no untested non-circular version.
+
+**Why the wide-sector work escaped this entirely, restated for future readers:**
+it never folds at a stored period. Sectors are concatenated and **TLS runs its
+own blind search**, so `sigma_P` never enters the calculation. Same raw
+material, two different operations, opposite outcomes. That distinction is the
+whole reason one is closed and the other confirmed a scaling law three times.
+
+### PART 1 -- BLS vs TLS: 300 paired trials, both detectors on the identical curve
+
+`astropy.timeseries.BoxLeastSquares` (astropy 8.0.1, **no new dependency**).
+Every trial injects one signal into one real light curve and runs BOTH
+detectors on the same array, so any difference is the detector alone. BLS gets
+the **same period range TLS actually searched** on that curve and the same
+alias-aware recovery test. Both shapes the proposal names:
+`inject_transit` (U-shaped, limb-darkened) and `inject_eclipsing_binary`
+(grazing, V-shaped, with a half-depth secondary). Periods down to 0.5 d.
+289/300 ok; script `bls_vs_tls_detector.py`.
+
+#### Runtime: BLS is genuinely much cheaper
+
+    TLS median 38.5 s     BLS median 6.97 s     -> 6x faster
+
+#### THE OPERATIVE RESULT: on detection recall, BLS adds NOTHING
+
+"Does the star get flagged at all" (recovery at any alias -- an aliased
+detection still surfaces the star for review, and the period is refined later):
+
+| shape | both | TLS-only | BLS-only | neither | McNemar | TLS -> union |
+|---|---|---|---|---|---|---|
+| EB (V-shaped) | 88 | 2 | 3 | 52 | p = 1.000 | 0.621 -> 0.641 |
+| transit (U-shaped) | 95 | 3 | 2 | 44 | p = 1.000 | 0.681 -> 0.694 |
+| **POOLED** | **183** | **5** | **5** | **96** | **p = 1.000** | **0.651 -> 0.668 (+0.017)** |
+
+**Perfectly symmetric: 5 TLS-only against 5 BLS-only.** There is no
+complementary population. The +0.017 union gain is noise, and the hypothesis
+that BLS's box model wins on non-canonical shapes is **not supported on
+detection**.
+
+#### There IS a real BLS advantage -- but it is period ACCURACY on EBs, not recall
+
+On EXACT-period recovery, BLS wins: BLS-only 16 vs TLS-only 5 pooled
+(McNemar **p = 0.0266**), concentrated in the V-shaped EB arm (12 vs 3,
+p = 0.0352). The mechanism is specific and visible in the alias breakdown at
+EB, P = 10 d (n = 29):
+
+| | exact | any-alias | aliases when detected |
+|---|---|---|---|
+| TLS | 0.138 | 0.552 | **half 12**, exact 4 |
+| BLS | **0.379** | 0.517 | **exact 11**, half 4 |
+
+**TLS finds the signal just as often -- it reports the wrong period.** A
+V-shaped eclipse plus a secondary at phase 0.5 looks to TLS's physical transit
+template like two identical transits at half the period, so it locks onto the
+half-period alias. BLS's plain box is less prone to it.
+
+Real, significant, and correctly diagnosed -- but note what it buys: **EBs are
+the NEGATIVE class.** Better period assignment on eclipsing binaries does not
+find planets.
+
+**One unmeasured downstream hypothesis, flagged as such.** At half-period the
+secondary eclipse folds onto phase 0 alongside the primary, which is exactly
+where `secondary_eclipse_depth` and `odd_even_mismatch` are measured -- the two
+features specifically designed to catch EBs. If TLS is mis-periodding EBs at
+this rate, those features may be degraded on precisely the rows they exist to
+flag. **This was not tested here** and would be its own investigation.
+
+#### Integration cost kills the "cheap add-on" framing anyway
+
+A BLS-only detection cannot be scored by the deployed model. Of the **22
+TLS-derived features** in the production 31, BLS natively supplies **3**
+(`period`, `duration`, `depth`). The other **19** -- `SDE`, `SDE_raw`, `FAP`,
+`period_uncertainty`, `depth_mean*`, `odd_even_mismatch`, `rp_rs`, `snr`,
+transit counts, `chi2red_min`, `depth_consistency_std`,
+`secondary_eclipse_depth`, `transit_shape_ratio`, `depth_duration_ratio` -- are
+TLS outputs with no BLS equivalent. So any BLS-only candidate would still need
+a full TLS run to be scored, and BLS's 6x speed advantage buys nothing at the
+pipeline level.
+
+### RECOMMENDATION
+
+**Do not add BLS as a complementary detector.** On the question actually asked
+-- does BLS catch a population TLS misses -- the answer is measured and
+symmetric: 5 vs 5, McNemar p = 1.000, union gain +0.017. TLS's higher general
+sensitivity does dominate, as its design premise predicts, and the box-model
+advantage on non-canonical shapes does not appear in detection recall.
+
+**Do not pursue 2-sector stacking.** It is the closed folding operation at
+smaller scale, and the smaller scale does not rescue it: 5.3% of stars at a
+54-day span, ~280 stars, below the scale bar that closed the earlier attempts.
+
+**Worth keeping from this run** (neither is a pipeline change): the measured
+TLS half-period alias behaviour on V-shaped EBs, and the derived hypothesis
+that it may be degrading the very features meant to reject EBs.
+
+### Known defect in this run
+
+11 of 300 trials (6 transit, 5 EB) failed with
+`ValueError: The maximum transit duration must be shorter than the minimum
+period` -- my BLS duration grid reaches 0.20 d while the floor on
+`minimum_period` is also 0.2 d. A bug in the harness, not in either detector.
+Losses are spread across both shapes so the paired comparison is not biased,
+but the affected cells are the very shortest periods and the fix would be to
+scale the duration grid to `minimum_period`.
