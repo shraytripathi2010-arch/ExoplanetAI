@@ -7661,3 +7661,110 @@ the *tool* if long-period reach is ever prioritised.
 NVIDIA GPU becomes routinely available AND Lead A has already been exhausted.
 Lead A addresses this project's biggest measured detection limitation directly,
 with validated in-house tooling and no new dependency -- it should come first.
+
+## MULTI-SECTOR ROLLOUT -- STOPPED AT PART 0. Reprocessing training data is CLASS-CORRELATED.
+
+Proposal: roll the validated multi-sector concatenation out across the full
+training set and candidate pools, closing the ~12.3-day period ceiling that the
+CETRA assessment showed still applies to 96.9% of the pool. **Stopped at the
+Part 0 gate and reported for decision, per the brief's own instruction to halt
+if training data could be revised in ways that invalidate prior comparisons.
+Nothing reprocessed, nothing wired. Production untouched: 0.9300 / 31 features /
+md5 `1f0b7cb8e78ab542374eaf78fc837a6f`.**
+
+### This is RETROACTIVE REVISION, not clean addition
+
+**5,471 of 5,486 training stars (99.73%) are currently single-sector** (median
+baseline: negatives 25.3 d, positives 26.4 d); only 15 already exceed 40 d. Any
+star reprocessed on a wider baseline can return a different period, depth,
+duration, SDE and FAP -- so this revises the feature values underpinning the
+frozen split and every prior experiment's baseline, rather than adding new rows.
+
+### THE DISQUALIFYING FINDING: reprocessability is correlated with the label
+
+TESS sector count is a direct function of |ecliptic latitude|, and that differs
+by class in this training set (n=5,484 with coordinates):
+
+| | positives | negatives |
+|---|---|---|
+| \|ecl lat\| > 54 deg | 55.24% | 45.49% |
+| \|ecl lat\| > 78 deg (near-CVZ) | 2.56% | **7.55%** |
+
+KS D = 0.1687, **p = 4.2e-23**.
+
+Measured directly against MAST on a random sample of 120 training stars, asking
+how many have a usable (>=2 **consecutive**) sector run:
+
+| class | reprocessable | 95% CI |
+|---|---|---|
+| **positives** | **66/91 = 72.5%** | [0.622, 0.814] |
+| **negatives** | **12/29 = 41.4%** | [0.235, 0.611] |
+
+**Fisher exact p = 0.0034, odds ratio 3.74, confidence intervals do not
+overlap.** Positives are ~1.75x more likely to be reprocessable than negatives.
+
+Reprocessing "every star that can be reprocessed" would therefore apply an
+SDE-boosting treatment to **72.5% of positives and only 41.4% of negatives**.
+Measured shift from multi-sector processing on data already in hand:
+**SDE +0.62 SD**, `transit_count` -0.41 SD. That implies roughly a **0.19 SD
+artificial class signal in SDE arising from PROCESSING alone**, before any
+astrophysics.
+
+**This is precisely the confound `FEATURE_COLUMNS` deliberately excludes.** Sky
+position is kept out of the model with the recorded reasoning that the unknown
+pool "sits at a systematically different latitude than either training class, so
+a learned position->label rule would not transfer." Partial reprocessing would
+reintroduce it not as a feature -- where a control arm could catch it -- but as a
+distortion of the feature VALUES, where no control arm can see it. It would
+inflate measured AUC while making deployment worse, since candidates are
+processed uniformly rather than class-correlated.
+
+### Real addressable population (sampled, n=120, scaled to 5,486)
+
+| criterion | fraction | ~stars |
+|---|---|---|
+| >= 2 sectors total | 79.2% | ~4,343 |
+| **>= 2 CONSECUTIVE (usable)** | **65.0%** | **~3,565** |
+| >= 3 consecutive | 25.8% | ~1,417 |
+
+(Total sector count overstates it: non-consecutive sectors separated by
+year-long gaps give TLS a huge period grid over sparse data -- the pathology
+already filtered out of the K2 and 8-sector pools.)
+
+### The "reprocess a uniform subset instead" escape does not work either
+
+Restricting to the 65% that ARE reprocessable and treating them uniformly would
+remove the within-set inhomogeneity, but: it drops ~34% of training rows (5,486
+-> ~3,619), which the fitted learning curve prices at roughly **-0.008 AUC**;
+and because retention is itself class-correlated, the surviving set is *more*
+imbalanced than the original (~86.8% positive vs 79.0%). It costs data and
+worsens balance to fix a confound.
+
+### Part 3 (pools only) is NOT risk-free either
+
+Training (single-sector) versus the existing widesector pool, on detection
+features alone: **domain separability AUC 0.9248**. Reprocessing pools while
+training stays single-sector means scoring candidates whose SDE/snr sit off the
+distribution the model was fit on. The deployed IsolationForest OOD flag would
+likely fire more often on exactly the long-period candidates this is meant to
+surface -- which may be correct behaviour, but it is a real effect that needs
+measuring before wiring, not after.
+
+### VERDICT AND RECOMMENDATION
+
+| option | verdict |
+|---|---|
+| **Reprocess training data (Parts 1-2)** | **DO NOT PROCEED.** Class-correlated at p=0.0034, OR 3.74. Would inject ~0.19 SD of artificial class signal and invalidate every prior experiment's baseline. |
+| Uniform-subset reprocessing | Not attractive: -34% rows (~-0.008 AUC) and worse class balance. |
+| **Reprocess candidate pools only (Part 3)** | **Viable, and the only sensible version** -- but measure the 0.9248 train/serve separability effect on OOD flagging first. Not wired. |
+| Hold entirely | Defensible; the ceiling is real but so is the confound. |
+
+**Recommended: pools-only, and only after an OOD-impact measurement.** The
+detection-reach argument remains valid and unchanged -- 96.9% of the candidate
+pool is still searched at ~12.3 days, and the 8-sector work showed longer
+baselines nearly double detection even at already-searchable periods. But the
+training-side half of this proposal cannot be done without corrupting the
+comparison base, and no amount of validation downstream repairs a
+class-correlated processing artifact upstream.
+
+**Awaiting explicit direction. Nothing has been reprocessed or wired.**
