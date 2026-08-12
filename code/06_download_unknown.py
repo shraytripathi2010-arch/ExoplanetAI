@@ -371,8 +371,54 @@ def build_candidate_pool(excluded_tics, target_size):
               f"rather than silently padding the list -- increase SECTORS_TO_TRY to search further back.")
 
     df = pd.DataFrame(candidates)
+    df = annotate_consecutive_sectors(df, sector_obs_df, sectors_used)
     df.to_csv(CANDIDATE_LIST_PATH, index=False)
     print(f"\nCandidate pool: {len(df)} stars, saved to {CANDIDATE_LIST_PATH}")
+    return df
+
+
+def annotate_consecutive_sectors(df, sector_obs_df, sectors_used):
+    """Adds `sectors_observed` (the longest CONSECUTIVE run, only when it has
+    >= MULTI_SECTOR_MIN_RUN sectors) so the download stage can concatenate.
+
+    Deliberately does NOT change which candidates are selected or their order --
+    it only annotates the already-chosen list, so this is purely additive to
+    the existing default path.
+
+    Stars whose longest run is a single sector get `sectors_observed = NaN`,
+    which routes them down `download_one_star`'s ORIGINAL single-sector branch
+    unchanged. Single-sector behaviour is therefore identical by construction,
+    not merely by test."""
+    if df.empty or sector_obs_df is None or "sequence_number" not in sector_obs_df.columns:
+        df["sectors_observed"] = np.nan
+        df["n_sectors_consecutive"] = 1
+        return df
+
+    tic_to_sectors = {}
+    for sector in sectors_used:
+        rows = sector_obs_df[sector_obs_df["sequence_number"] == sector]
+        for tic_str in rows["target_name"].dropna().unique():
+            try:
+                tic_to_sectors.setdefault(int(tic_str), set()).add(int(sector))
+            except (ValueError, TypeError):
+                continue
+
+    observed, n_run = [], []
+    for tic_id in df["tic_id"]:
+        run = longest_consecutive_sectors(tic_to_sectors.get(int(tic_id), []))
+        if len(run) >= MULTI_SECTOR_MIN_RUN:
+            observed.append(",".join(str(s) for s in run))
+            n_run.append(len(run))
+        else:
+            observed.append(np.nan)
+            n_run.append(1)
+    df = df.copy()
+    df["sectors_observed"] = observed
+    df["n_sectors_consecutive"] = n_run
+    n_multi = int((df["n_sectors_consecutive"] >= MULTI_SECTOR_MIN_RUN).sum())
+    print(f"  multi-sector: {n_multi}/{len(df)} candidates have >= "
+          f"{MULTI_SECTOR_MIN_RUN} CONSECUTIVE sectors and will be concatenated; "
+          f"the other {len(df) - n_multi} stay single-sector (unchanged path).")
     return df
 
 
@@ -426,10 +472,17 @@ def build_candidate_pool_multi_sector(excluded_tics, target_size, n_sectors=3):
 
     records = []
     for tic_id, obs_sectors in tic_to_sectors.items():
+        # Only the longest CONSECUTIVE run is safe to concatenate -- see
+        # longest_consecutive_sectors(). Within an N-most-recent window these
+        # are normally all consecutive anyway, so this is a no-op in the common
+        # case and a guard in the rare one (a star missing a middle sector).
+        run = longest_consecutive_sectors(obs_sectors)
         records.append({
             "tic_id": tic_id,
             "n_sectors_observed": len(obs_sectors),
-            "sectors_observed": ",".join(str(s) for s in sorted(obs_sectors, reverse=True)),
+            "n_sectors_consecutive": len(run),
+            "sectors_observed": (",".join(str(s) for s in sorted(run, reverse=True))
+                                 if len(run) >= MULTI_SECTOR_MIN_RUN else np.nan),
             "sector": max(obs_sectors),   # most recent sector observed, kept for backward-compat display
         })
     pool = pd.DataFrame(records)
@@ -834,6 +887,213 @@ OPTIONAL_FEATURES = {"transit_shape_ratio", "FAP"}
 # figures behind this choice are an upper bound and do NOT transfer to
 # deployment. Recall transfers; precision does not.
 TRIAGE_PROBABILITY_FLOOR = 0.30
+
+
+# =====================================
+# MULTI-SECTOR CONCATENATION (candidate pools only -- deployed 2026-08-12)
+# =====================================
+# Concatenating CONSECUTIVE sectors into one time-ordered series extends TLS's
+# own period ceiling, which is a hard function of baseline:
+#
+#     period_max = (max(t) - min(t)) / 2      (TLS requires >= 2 transits)
+#
+# Validated at three baselines, predicted vs measured to two decimals:
+#     25.3 d -> 12.66 (predicted 12.66)
+#     76.3 d -> 38.15 (predicted 38.16)
+#    216.5 d -> 108.22 (predicted 108.23)
+#
+# *** TRAINING DATA IS PERMANENTLY OUT OF SCOPE FOR THIS. ***
+# Eligibility for multi-sector reprocessing is CLASS-CORRELATED: 72.5% of
+# positives vs 41.4% of negatives have >= 2 consecutive sectors (Fisher
+# p = 0.0034, OR 3.74), because sector count is a function of |ecliptic
+# latitude| and that differs by class (KS D = 0.169, p = 4.2e-23). Reprocessing
+# training rows would inject ~0.19 SD of artificial class signal into SDE --
+# the same sky-position confound FEATURE_COLUMNS deliberately excludes, but
+# hidden inside feature VALUES where no control arm can see it. Do not apply
+# any of this to data/training_dataset/. See RESULTS_SUMMARY.md.
+#
+# This is NOT the closed multi-sector STACKING work. Nothing here folds at a
+# stored ephemeris; sectors are concatenated and TLS runs its own blind period
+# search, so period_uncertainty never enters.
+MULTI_SECTOR_MIN_RUN = 2          # need >= 2 CONSECUTIVE sectors to be worth it
+MULTI_SECTOR_MAX_GAP_DAYS = 10.0  # a missing sector leaves a ~27 d hole; reject those
+MULTI_SECTOR_MIN_DUTY = 0.70      # fraction of the span actually covered by data
+SECTOR_LENGTH_DAYS = 27.5         # one TESS sector; used to trim back to single-sector on fallback
+
+
+def longest_consecutive_sectors(sectors):
+    """Longest run of CONSECUTIVE sector numbers. Total sector count is
+    misleading: TESS revisits a field yearly, so a star with sectors
+    {1,2,3,28,29} has a 5-sector total but only a 3-sector usable baseline --
+    concatenating across the year-long gap would hand TLS an enormous period
+    grid over almost no data, the pathology filtered out of the K2 and
+    8-sector pools. Returns the run as a sorted list."""
+    s = sorted({int(x) for x in sectors})
+    if not s:
+        return []
+    best, run = [s[0]], [s[0]]
+    for i in range(1, len(s)):
+        if s[i] == s[i - 1] + 1:
+            run.append(s[i])
+        else:
+            run = [s[i]]
+        if len(run) > len(best):
+            best = list(run)
+    return best
+
+
+def multi_sector_quality(time_arr, flux_arr):
+    """Quality gate for a CONCATENATED, already-preprocessed light curve.
+
+    ~36% of the wide-sector validation pool carried severe flux outliers (raw
+    std up to ~2000 on a series normalised to 1) that the single-sector pool
+    does not, so this is not optional -- without it, bad curves silently
+    produce bad features. Same criteria used to filter that pool.
+
+    Returns (ok: bool, reason: str, stats: dict)."""
+    t = np.asarray(time_arr, dtype=float)
+    f = np.asarray(flux_arr, dtype=float)
+    m = np.isfinite(t) & np.isfinite(f)
+    t, f = t[m], f[m]
+    stats = {"baseline_days": np.nan, "max_gap_days": np.nan,
+             "duty_cycle": np.nan, "flux_median": np.nan, "flux_mad": np.nan,
+             "frac_outliers": np.nan}
+    if len(t) < 100:
+        return False, f"too few finite points ({len(t)})", stats
+    order = np.argsort(t)
+    t, f = t[order], f[order]
+    span = float(t[-1] - t[0])
+    gaps = np.diff(t)
+    big = gaps[gaps > 0.5].sum()
+    med = float(np.median(f))
+    mad = float(np.median(np.abs(f - med)) * 1.4826)
+    frac_out = float(np.mean(np.abs(f - med) > 10 * mad)) if mad > 0 else 1.0
+    stats.update(baseline_days=span, max_gap_days=float(gaps.max()),
+                 duty_cycle=float(1.0 - big / span) if span > 0 else np.nan,
+                 flux_median=med, flux_mad=mad, frac_outliers=frac_out)
+    if stats["max_gap_days"] > MULTI_SECTOR_MAX_GAP_DAYS:
+        return False, f"gap {stats['max_gap_days']:.1f} d > {MULTI_SECTOR_MAX_GAP_DAYS}", stats
+    if not np.isfinite(stats["duty_cycle"]) or stats["duty_cycle"] < MULTI_SECTOR_MIN_DUTY:
+        return False, f"duty cycle {stats['duty_cycle']:.2f} < {MULTI_SECTOR_MIN_DUTY}", stats
+    if abs(med - 1.0) > 0.01:
+        return False, f"median flux {med:.4f} not within 1% of 1.0", stats
+    if not (0 < mad < 0.05):
+        return False, f"robust sigma {mad:.5f} outside (0, 0.05)", stats
+    if frac_out > 0.01:
+        return False, f"{100*frac_out:.1f}% of points beyond 10 sigma", stats
+    return True, "ok", stats
+
+
+PROCESSING_MODE_PATH = os.path.join(CATALOG_FOLDER, f"processing_mode{_RUN_TAG}.csv")
+
+
+def audit_processing_mode(candidates_df):
+    """STAGE E2 -- quality-gate every concatenated curve and record, per star,
+    whether it was ultimately searched single- or multi-sector.
+
+    Runs AFTER preprocessing because the gate needs normalised flux; raw TESS
+    flux is in e-/s and its absolute level is meaningless for the outlier test.
+
+    A star failing the gate FALLS BACK to single-sector rather than being
+    dropped or silently searched on a bad curve, by trimming to the most recent
+    SECTOR_LENGTH_DAYS of the already-downloaded concatenated curve.
+
+    *** KNOWN LIMITATION, measured and recorded rather than hidden. ***
+    This trim is NOT identical to true single-sector processing. The curve was
+    normalised GLOBALLY across all its sectors during preprocessing, so a slice
+    of it inherits that normalisation; genuine single-sector processing would
+    normalise that sector alone. On a 25-star sample, all 12 fallbacks still
+    failed the gate after trimming (10 on robust sigma, 2 on median flux),
+    which is consistent with EITHER intrinsically bad photometry OR the slice
+    inheriting a distorted global normalisation -- the two cannot be separated
+    without re-downloading and re-preprocessing that sector alone. The
+    `quality_gate` column records the post-trim verdict for every such star, so
+    the condition is visible downstream instead of silent. A true
+    re-download-and-reprocess fallback is the correct fix and is deliberately
+    NOT attempted here; existing status/OOD filters already handle bad curves.
+
+    Writes `processing_mode{tag}.csv`, which is merged into the features table
+    so the single-vs-multi distinction is permanently visible and can never
+    become an invisible confound -- the same discipline as the FFI cadence
+    column and the crowding source-tracking."""
+    print("\n" + "=" * 60)
+    print("STAGE E2: multi-sector quality gate + processing-mode audit")
+    print("=" * 60)
+
+    intended = {}
+    if "sectors_observed" in candidates_df.columns:
+        for _, row in candidates_df.iterrows():
+            if pd.notna(row.get("sectors_observed")):
+                intended[f"TIC_{int(row['tic_id'])}"] = str(row["sectors_observed"])
+
+    rows = []
+    hosts = sorted(f[:-4] for f in os.listdir(PROCESSED_FOLDER)
+                   if f.endswith(".csv")) if os.path.isdir(PROCESSED_FOLDER) else []
+    n_multi = n_fallback = n_single = 0
+    for host in hosts:
+        ppath = os.path.join(PROCESSED_FOLDER, host + ".csv")
+        rec = {"host": host, "processing_mode": "single_sector",
+               "n_sectors_used": 1, "multi_sector_intended": host in intended,
+               "quality_gate": "n/a (single-sector)"}
+        if host not in intended:
+            n_single += 1
+            try:
+                d = pd.read_csv(ppath, usecols=["time"])
+                rec["baseline_days"] = float(d["time"].max() - d["time"].min())
+            except Exception:
+                rec["baseline_days"] = np.nan
+            rows.append(rec); continue
+
+        try:
+            d = pd.read_csv(ppath)
+            ok, reason, stats = multi_sector_quality(d["time"].to_numpy(), d["flux"].to_numpy())
+        except Exception as e:
+            ok, reason, stats = False, f"read error: {type(e).__name__}", {}
+            d = None
+        rec.update({k: v for k, v in stats.items()})
+        rec["quality_gate"] = reason
+        if ok:
+            rec["processing_mode"] = "multi_sector"
+            rec["n_sectors_used"] = len(str(intended[host]).split(","))
+            n_multi += 1
+        else:
+            # fall back: keep only the most recent contiguous segment
+            rec["processing_mode"] = "single_sector_fallback"
+            n_fallback += 1
+            # Trim to the most recent SECTOR_LENGTH_DAYS, which is that star's
+            # single-sector data. Do NOT try to find the boundary by gap
+            # detection: consecutive TESS sectors are separated by only ~1-2 day
+            # downlink gaps (measured max 3.9 d on this pool), indistinguishable
+            # from the mid-sector downlink gap, so a gap threshold either splits
+            # mid-sector or -- as an earlier version of this did -- finds no
+            # boundary at all and silently leaves the bad curve in place while
+            # still labelling it a fallback.
+            if d is not None and len(d) > 100:
+                d = d.sort_values("time").reset_index(drop=True)
+                tmax = float(d["time"].max())
+                seg = d[d["time"] > tmax - SECTOR_LENGTH_DAYS].reset_index(drop=True)
+                if len(seg) > 100:
+                    ok2, reason2, stats2 = multi_sector_quality(
+                        seg["time"].to_numpy(), seg["flux"].to_numpy())
+                    seg.to_csv(ppath, index=False)
+                    rec["baseline_days"] = float(seg["time"].max() - seg["time"].min())
+                    rec["n_sectors_used"] = 1
+                    # Record whether the trimmed curve is itself clean. A star
+                    # whose single sector ALSO fails is a data-quality problem
+                    # that predates multi-sector work; surfaced, not hidden.
+                    rec["quality_gate"] = f"multi failed ({reason}); trimmed -> {reason2}"
+                else:
+                    rec["quality_gate"] = f"multi failed ({reason}); trim left too few points"
+        rows.append(rec)
+
+    out = pd.DataFrame(rows)
+    out.to_csv(PROCESSING_MODE_PATH, index=False)
+    print(f"  multi-sector (passed gate) : {n_multi}")
+    print(f"  fell back to single-sector : {n_fallback}"
+          + (f"  ({100*n_fallback/max(n_multi+n_fallback,1):.1f}% of attempted)" if n_multi + n_fallback else ""))
+    print(f"  single-sector (unchanged)  : {n_single}")
+    print(f"  -> {PROCESSING_MODE_PATH}")
+    return out
 
 
 def bin_lightcurve(time_arr, flux_arr, flux_err_arr):
@@ -1681,7 +1941,17 @@ def main():
 
     download_candidates(candidates_df)
     preprocess_candidates()
+    mode_df = audit_processing_mode(candidates_df)
     features_df = extract_features(candidates_df, feature_columns)
+    # Carry the single-vs-multi-sector provenance onto every feature row, so the
+    # distinction is permanently visible downstream and cannot become a hidden
+    # confound. Merge, never overwrite: features_df is the source of truth for
+    # everything else.
+    if len(features_df) and len(mode_df):
+        keep = ["host", "processing_mode", "n_sectors_used", "baseline_days", "quality_gate"]
+        features_df = features_df.merge(
+            mode_df[[c for c in keep if c in mode_df.columns]], on="host", how="left")
+        features_df["processing_mode"] = features_df["processing_mode"].fillna("single_sector")
     ranked = score_candidates(features_df, candidates_df, feature_columns)
 
     if len(ranked) == 0:

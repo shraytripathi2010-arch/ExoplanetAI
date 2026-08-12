@@ -7899,3 +7899,120 @@ its own go-ahead.
 | **Candidate pools** | **SAFE TO ROLL OUT.** OOD impact measured and benign; novel long-period candidates are favoured, not suppressed. 23x enrichment above the old ceiling. |
 | **OOD detector** | **No change required.** |
 | **Awaiting** | explicit go-ahead to wire pools-only reprocessing into `06_download_unknown.py`. |
+
+## MULTI-SECTOR CONCATENATION WIRED INTO PRODUCTION (candidate pools only) -- DEPLOYED
+
+Closes the multi-sector rollout investigation. Concatenation is now part of
+`06_download_unknown.py`'s standard candidate path. **Training data untouched
+and permanently excluded. Production model untouched: 0.9300 / 31 features /
+md5 `1f0b7cb8e78ab542374eaf78fc837a6f`; `training.csv` md5
+`e58ec25aa89476cb8f45cba665b54079`.**
+
+### What was added
+
+| piece | behaviour |
+|---|---|
+| `longest_consecutive_sectors()` | longest run of CONSECUTIVE sectors. `{1,2,3,28,29}` -> `[1,2,3]`, not 5 -- concatenating across a year gap would hand TLS a huge grid over sparse data |
+| `multi_sector_quality()` | the established flux filter (median within 1% of 1, robust sigma in (0,0.05), <1% beyond 10 sigma) PLUS continuity (max gap <= 10 d, duty >= 0.70) |
+| `annotate_consecutive_sectors()` | annotates the ALREADY-SELECTED default pool with `sectors_observed`; does not change which candidates are chosen or their order |
+| `audit_processing_mode()` (STAGE E2) | quality-gates each concatenated curve, falls back where it fails, writes `processing_mode{tag}.csv` |
+| provenance columns | `processing_mode`, `n_sectors_used`, `baseline_days`, `quality_gate` merged onto every feature row |
+
+**Single-sector is unchanged BY CONSTRUCTION, not merely by test.** A star whose
+longest run is one sector gets `sectors_observed = NaN`, which routes it down
+`download_one_star`'s original branch untouched. Verified anyway: 8 single-sector
+files **byte-identical (md5) before and after** the new stage, all labelled
+`single_sector`, gate not applied.
+
+**Spawn safety:** `audit_processing_mode` runs in the parent process only, and
+the existing `_tls_worker` already receives explicit paths as arguments rather
+than reading module-level state -- the pattern that caused the variability
+deployment's `BrokenProcessPool`. No new multiprocessing was introduced.
+
+### Validation 1 -- reproduces the existing widesector pool exactly
+
+Production gate against all 271 existing widesector curves: **165 pass (60.9%)**.
+That reconciles precisely with the earlier ad-hoc figure rather than differing
+from it:
+
+    271 total
+    -  98 fail the FLUX criteria (97 robust sigma, 1 outlier fraction)
+    = 173   <- exactly the 173/271 = 63.8% measured in the wide-sector investigation
+    -   8 fail the added CONTINUITY criteria (7 max-gap, 1 duty cycle)
+    = 165
+
+So the production gate is the established filter **plus** continuity, and the
+numbers decompose exactly. Passing population: baseline 76.2 d median, max gap
+2.0 d, duty 0.877.
+
+### Validation 2 -- fresh, never-before-downloaded data, end to end
+
+10 CVZ stars, none previously in any pool, run through
+annotate -> download -> preprocess -> audit:
+
+    downloaded 10/10, preprocessed 10/10, 0 failures
+    multi-sector (passed gate) : 8
+    fell back to single-sector : 2
+
+| outcome | n | baseline | max gap | duty |
+|---|---|---|---|---|
+| `multi_sector` | 8 | **209.7 - 218.1 d** | 4.1 - 5.9 d | 0.80 - 0.87 |
+| `single_sector_fallback` | 2 | 22.6 / 24.4 d after trim | **30.1 / 28.3 d** | 0.65 / 0.66 |
+
+**The two fallbacks fired for exactly the right reason:** a ~28-30 day hole,
+i.e. a MISSING SECTOR inside the nominal run. That is the precise pathology the
+continuity guard exists to catch, and it caught it on data it had never seen.
+
+Reach on the 8 that passed: median baseline **216.7 d -> period_max 108.3 d**,
+against the single-sector ceiling of 12.3 d -- **8.8x**. (These are 8-sector CVZ
+targets, chosen to exercise the path; a general pool will have a lower
+multi-sector fraction and shorter runs. This is a capability demonstration, not
+a projected pool-wide yield.)
+
+### A real bug caught in testing, before deployment
+
+The first fallback implementation located sector boundaries by splitting on time
+gaps > 5 days. **Consecutive TESS sectors are separated by only ~1-2 day
+downlink gaps** (measured max 3.88 d on this pool), so no boundary was ever
+found, `start` stayed 0, and the whole curve was written back -- while still
+being labelled `single_sector_fallback`. It would have shipped a provenance
+column asserting a fallback that never happened. Replaced with a trim to the
+last `SECTOR_LENGTH_DAYS` (27.5). Retested on 25 random curves: **12/12
+fallbacks now trim correctly**, 47,548 -> 16,460 rows median, 27.5 d baseline.
+
+### Known limitation, measured and recorded rather than hidden
+
+**Trim-fallback is not identical to true single-sector processing.** The curve
+was normalised GLOBALLY across all its sectors during preprocessing, so a slice
+inherits that normalisation. On the 25-star sample, **all 12 trimmed curves
+still failed the gate** (10 robust sigma, 2 median flux). That is consistent
+with EITHER intrinsically bad photometry OR the slice inheriting a distorted
+global normalisation, and the two cannot be separated without re-downloading and
+re-preprocessing that sector alone. The `quality_gate` column records the
+post-trim verdict per star, so the condition is visible downstream instead of
+silent. A true re-download fallback is the correct fix and was deliberately not
+attempted.
+
+**Related, scoped, NOT done:** ~39% of concatenated curves fail on flux. The
+likely root cause is per-sector flux-level offsets at concatenation, and the
+principled fix is per-sector normalisation BEFORE concat. It was not applied
+because it would change results and break the "reproduce the existing pool"
+requirement. Worth its own task.
+
+### Process note
+
+The fresh-data test appended 10 rows to
+`data/catalogs/unknown_download_log.csv` -- a real production catalog -- because
+the test overrode `RAW_FOLDER`/`PROCESSED_FOLDER` but not the log path. Caught
+in the pre-commit check and reverted with `git checkout`; the file is back to
+its committed state. Recorded because a sandbox that overrides only some paths
+is a trap this pipeline will present again.
+
+### FINAL STATE OF THE MULTI-SECTOR ROLLOUT
+
+| scope | state |
+|---|---|
+| **Training data** | **PERMANENTLY EXCLUDED.** Eligibility class-correlated (72.5% vs 41.4%, Fisher p=0.0034, OR 3.74); would inject ~0.19 SD of artificial class signal. Documented in code next to the constants so it cannot be re-proposed accidentally. |
+| **Candidate pools** | **DEPLOYED.** Concatenation + quality gate + fallback + provenance columns in the standard path. |
+| **OOD detector** | Unchanged -- measured safe (novel long-period candidates flagged 16.7% vs 42.4%, OR 0.27). |
+| **Open** | true re-download fallback; per-sector normalisation before concat. |
