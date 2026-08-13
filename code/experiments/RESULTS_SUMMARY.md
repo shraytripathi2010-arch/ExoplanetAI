@@ -8624,3 +8624,176 @@ change cannot be proven on 1,098 test stars, and every detector-side alternative
 inherits the same baseline-derived period ceiling. Manufacturing a fifth
 proposal here would be padding.
 
+
+---
+
+## GP DETRENDING vs SAVITZKY-GOLAY -- NEGATIVE. The better-powered metric moves the WRONG way.
+
+**Date: 2026-08-13. Production UNCHANGED: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`. `02_preprocess.py` detrending UNCHANGED.
+Nothing promoted, nothing wired in.** Detection-stage assessment only.
+
+### PART 0 -- current detrending, confirmed exactly
+
+`02_preprocess.process_one_file`, step 5:
+`savgol_filter(window_length=min(401, n-1) forced odd, polyorder=2, mode="interp")`,
+applied AFTER a 5-sigma MAD clip, then divide and renormalise to median 1.
+
+**`MAX_FLATTEN_WINDOW = 401` is in POINTS, so the PROTECTED TIMESCALE IS
+CADENCE-DEPENDENT.** The implementation is internally correct (odd, `< n`), but
+its physical width varies ~90x across the real training set:
+
+| cadence | share of 400 sampled training curves | 401-pt window |
+|---|---|---|
+| 20-sec | 14.5% | **2.2 h** |
+| 2-min | 82.0% | 13.4 h |
+| 10-min | 2.8% | 2.8 d |
+| 30-min | 0.8% | 8.4 d |
+
+The "~13.4 h" figure quoted throughout this file is the **2-min case only**.
+Recorded because it is a live property of the deployed pipeline, not a bug
+found here, and because a *cadence-aware* window is a far cheaper change than
+any of the three methods assessed -- see the closing recommendation.
+
+### PART 0 -- feasibility of the three proposed methods
+
+| rank | method | verdict |
+|---|---|---|
+| 1 | **GP (celerite2)** | **FEASIBLE.** `celerite2` 0.3.3 installs as a pure wheel, no CUDA. O(N) scaling: ~1-3 s/star fit+predict against TLS's 60-70 s. **Detrending would be ~3-5% of existing per-star cost** -- affordable at full scale. Piloted below. |
+| 2 | **CoFiAM** | **REAL BUT ARCHITECTURALLY MISMATCHED.** Verified, not assumed: Kipping et al.'s HEK method, 1-30 cosine models per epoch chosen by Durbin-Watson autocorrelation. But its protection guarantee is defined **relative to a KNOWN transit duration** -- it is a post-detection characterisation filter. Detrending here runs BEFORE TLS, when no duration exists. No package found; would be a from-paper implementation of a method that does not fit the slot. |
+| 3 | **PLD** | **BLOCKED ON DATA THIS PROJECT DOES NOT KEEP.** `lightkurve.TessPLDCorrector` ships and works, so the method is available -- but PLD needs target pixel files and **this pipeline retains no pixel data**: `web/job_runner.py:1232` and `:1267` delete each TPF immediately after the centroid check, by design. Re-acquiring for ~8,000 stars is ~29 h of download and ~64 GB. PLD also corrects **pointing systematics**, not the stellar variability savgol removes -- a different problem from the one posed. |
+
+### PART 1 -- the pilot: 60 paired trials, 180 TLS searches
+
+`detrend_gp_pilot.py`. The existing sensitivity harness could not be reused
+directly: it injects into ALREADY-FLATTENED curves, so it cannot compare
+detrenders. This one injects into the **RAW** light curve, then detrends the
+same injected series three ways. **One star, one injection, one noise draw ->
+three arms**, so a difference cannot be a different star or a different draw.
+
+Hosts: 60 draws from the 217 real negative TEST-split stars with a raw file.
+Grid: depths [84, 250, 700, 2500] ppm x periods [2, 6, 10] d x 5 repeats.
+Durations from the host's real M*/R*. Recovery, aliases and tolerance follow
+the existing harness exactly. **60/60 trials usable in all three arms.**
+
+Arms: `savgol` (production exactly), `gp_protect` (SHOTerm + jitter, undamped
+period floored at 0.5 d ~ savgol's 13.4 h), `gp_tight` (floor 0.1 d).
+
+#### Recovery rate -- nominally better, NOT significant
+
+| arm | recovered | rate |
+|---|---|---|
+| savgol | 6/60 | 10.0% |
+| gp_protect | 8/60 | 13.3% |
+| gp_tight | 8/60 | 13.3% |
+
+Paired McNemar exact, vs savgol: **savgol-only 1, GP-only 3, p = 0.6250** for
+both GP arms. Two extra detections on four discordant pairs. **There is no
+detectable difference in recovery, and this design has almost no power to find
+a small one** -- the union of all three arms recovers only 9/60.
+
+By depth, the arm ordering is not even consistent: at **84 ppm -- the
+Earth-size depth this whole question is about -- savgol got 1/15 and both GP
+arms got 0/15.** Nominally worse, on one detection. At 250 ppm the sign flips.
+This is noise at n=15 per cell, and it should not be read either way.
+
+#### SDE -- the well-powered measurement, and it goes the WRONG way
+
+Every trial yields an SDE whether or not the period was recovered, so this uses
+all 60 pairs instead of the 4 discordant ones:
+
+| comparison | savgol | GP | median delta | Wilcoxon p |
+|---|---|---|---|---|
+| vs `gp_protect` | 11.18 | 8.85 | **-0.355** | **0.0088** |
+| vs `gp_tight` | 11.18 | 8.35 | **-1.138** | **0.0003** |
+
+**GP detrending significantly REDUCES TLS's detection statistic**, and the more
+aggressive arm reduces it ~3x more. The `gp_tight` floor genuinely bound in
+**28 of 60** trials (fitted rho below 0.5 d), so the aggressiveness axis is
+real -- and it produces a clean damage gradient in SDE while leaving recovery
+verdicts identical in **60/60** trials.
+
+**That is the answer to "does tighter detrending remove real signal?" -- yes,
+measurably.** The GP absorbs transit power into its own model of the trend. The
++3.3 pp recovery difference is 2 events on 4 discordant pairs (p = 0.63); the
+SDE loss is n = 60, paired, p < 0.01. **When the underpowered metric favours a
+change and the well-powered one opposes it, the well-powered one wins.**
+
+Residual scatter barely moves: GP/savgol ratio **0.9879** -- a 1.2% tighter
+curve, bought with a significant SDE loss. That is the whole trade in one line.
+
+### PART 1.3 -- the variability features: architecturally safe, and the counterfactual measured
+
+**Architecturally unambiguous.** Every `var_*` consumer reads a RAW, pre-flatten
+file -- `06.add_variability_features` -> `RAW_FOLDER`;
+`retrain_pipeline._variability_for_raw` -> `raw_path`;
+`eightsector_build_pool` -> `raw_dir=RAW_DIR`. Detrending lives in
+`02_preprocess.process_one_file`, which READS raw and WRITES `data/processed/`,
+never back. **A detrender swap changes the TLS-input copy only, by construction
+rather than by convention.**
+
+Confirming a no-op would prove nothing, so `detrend_variability_isolation.py`
+measures the **counterfactual**: what each detrender would destroy if it were
+ever wrongly applied upstream of the variability path (30 stars, ratio of the
+detrended value to the raw value production actually uses):
+
+| feature | savgol | gp_protect |
+|---|---|---|
+| var_oot_rms | 0.97 | 0.95 |
+| var_excess | 0.97 | 0.94 |
+| var_ls_amp | 0.51 | **0.24** |
+| var_ls_power | 0.36 | **0.087** |
+| var_ls_period | 0.14 | **0.11** |
+
+The three Lomb-Scargle rotation features are **destroyed** by either detrender,
+and **the GP is strictly worse than savgol** -- it retains 8.7% of
+`var_ls_power` against savgol's 36%. Median measured rotation period collapses
+from **1.96 d to 0.22 d**. Unsurprising: modelling rotation is exactly what a GP
+is for.
+
+**So adopting a GP would make the raw/processed separation MORE safety-critical,
+not less.** The architecture that must be refused if ever proposed: detrending
+the raw file in place, or handing a detrended curve to `variability_for_raw`.
+Both are the mistake `add_variability_features`' own docstring already warns
+about, and a GP would make it roughly 4x more damaging.
+
+### PARTS 2 AND 3 -- NOT ENTERED, correctly
+
+Part 2 was gated on Part 1 showing real promise. It does not: no significant
+recovery gain, and a significant SDE loss. Re-deriving TLS features for 5,494
+training stars under a detrender that measurably lowers SDE would be a
+retroactive revision of the entire feature table in exchange for a measured
+negative. No modelling was run, no training data touched.
+
+### Verdict
+
+**CLOSED. GP detrending is feasible and cheap, and it does not help.** CoFiAM
+is architecturally mismatched to a pre-detection pipeline. PLD is blocked on
+pixel data this project deliberately does not retain and addresses a different
+noise source anyway.
+
+**Do not re-propose "better detrending" as an SNR lever without new
+information.** What would justify reopening: a detrending method that provably
+preserves in-transit points (e.g. an iterative fit with transit masking AFTER a
+first-pass TLS detection -- a fundamentally different, two-pass architecture),
+or a test with enough trials to resolve a few-percentage-point recovery
+difference, which needs hundreds of injections rather than 60.
+
+**The one cheap idea this surfaced, NOT built and NOT recommended without its
+own test:** the savgol window is capped in POINTS, so 14.5% of training stars
+(20-sec cadence) are detrended with a 2.2 h protected timescale rather than
+13.4 h -- six times more aggressive than the design intent, on stars where
+transit durations are often 2-4 h. **A cadence-aware window would be a
+~5-line change** and is far better motivated than any of the three methods
+assessed here. It is a separate task with its own validation, not a change to
+make on the strength of this entry.
+
+### Process notes
+
+* My time estimate was wrong again: 13 min projected from a single-trial smoke
+  test (94 s), 55 min actual under 7 parallel workers.
+* `report()` imported `statsmodels`, which is not installed here -- it would
+  have crashed after the 55-minute run. Caught mid-run and replaced with the
+  exact binomial form of McNemar's test via scipy, which is the same test.
+* `celerite2` 0.3.3 was pip-installed into the environment for this pilot. It
+  is not imported by any production code path.
