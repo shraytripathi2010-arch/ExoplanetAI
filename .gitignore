@@ -75,6 +75,11 @@ code/experiments/*.json.partial
 *_backup_pre_crowding.csv
 data/training_dataset/training_backup_before_crowding_backfill.csv
 
+# Same reasoning for the gate-bug label recovery (2026-08-13): the append was
+# verified byte-exact against this backup, and git history already holds the
+# pre-recovery training.csv, so the copy is local rollback safety only.
+data/training_dataset/training_BACKUP_pre_label_recovery_*.csv
+
 # Deployment scratch: staged artifact is byte-identical to the deployed
 # model once promoted, and *.pre_variability.bak duplicates what git history
 # already holds. The ROLLBACK copy in models/versions/ IS tracked.
