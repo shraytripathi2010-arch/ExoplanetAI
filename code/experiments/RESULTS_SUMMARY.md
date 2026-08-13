@@ -8797,3 +8797,161 @@ make on the strength of this entry.
   exact binomial form of McNemar's test via scipy, which is the same test.
 * `celerite2` 0.3.3 was pip-installed into the environment for this pilot. It
   is not imported by any production code path.
+
+---
+
+## CADENCE-AWARE DETRENDING WINDOW -- CLOSED. Confound gate FAILED, and the fix is a wash anyway.
+
+**Date: 2026-08-13. Production UNCHANGED: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`. `02_preprocess.py` UNCHANGED (md5
+`fd4ead26896059037fe59b2d53141249`). `training.csv` UNCHANGED (5,494 rows, md5
+`10452580b9cfbb70ef0efc3520e82d07`). Nothing promoted, nothing reprocessed.**
+
+The premise was correct and well motivated: `MAX_FLATTEN_WINDOW = 401` is a cap
+in POINTS, so the physical protected timescale varies ~90x across the training
+set, and the "~13.4 h design intent" holds only for the 82% at 2-min cadence.
+**Two independent findings then killed it, either of which is sufficient.**
+
+### PART 0 -- THE GATE FAILED, far harder than the multi-sector precedent
+
+Cadence measured directly from all 5,494 training stars' processed curves
+(`cadence_class_confound.py`), never read from a cached table.
+
+| cadence | negatives | positives | % of neg | % of pos | positive rate |
+|---|---|---|---|---|---|
+| 20-sec | 79 | 324 | 6.85% | 7.46% | 80.4% |
+| 2-min | 913 | 3,945 | 79.18% | 90.88% | 81.2% |
+| 10-min | 35 | 30 | 3.04% | 0.69% | 46.2% |
+| **30-min** | **126** | **42** | **10.93%** | **0.97%** | **25.0%** |
+
+Overall class balance is 79.0% positive. **The 30-min bucket is 25.0% positive
+-- an 11.3x enrichment of negatives.**
+
+**"Affected by the fix" (i.e. non-2-min): 9.12% of positives vs 20.82% of
+negatives.**
+
+    Fisher exact   OR = 0.382,  p < 1e-6
+    chi-square     chi2 = 352.45, dof 3, p = 4.4e-76
+    affected-rate difference  -11.69 pp,  z = -11.03
+
+**The training-side multi-sector rollout was permanently excluded on OR 3.74,
+p = 0.0034. This is the same disqualifying pattern, seventy orders of magnitude
+further past the line.**
+
+The mechanism is a selection effect that cannot be sampled away: confirmed
+planets are preferentially on TESS's 2-min target list, while TOI false
+positives include many stars observed only in coarse-cadence FFI data. So
+"reprocess only the non-2-min stars" would apply a systematic feature change to
+a population 2.7x enriched in negatives -- manufacturing class separation
+exactly as the multi-sector rollout would have.
+
+**PARTS 2 AND 3 NOT ENTERED. No training star was reprocessed. `training.csv`
+was never opened for writing.**
+
+### PART 1 -- the fix still had a live question: deploy to the CANDIDATE path?
+
+The candidate path carries no class label, so it cannot be confounded this way
+-- the same reasoning that let multi-sector concatenation ship to pools while
+being permanently barred from training. So the fix was built and tested for
+that use only.
+
+#### The regression gate: the 82% baseline case is provably untouched
+
+`TARGET_PROTECTED_HOURS` is DERIVED as `401 * 2.0 / 60.0`, never written as a
+bare `13.4`. **This constant has caused real unit bugs in this project before**,
+and the derivation is what makes the no-op provable rather than asserted:
+
+* `cadence_aware_window()` returns **exactly 401** for **all 4,858** real
+  2-min-cadence training stars (measured cadences 1.9998945 - 2.0002020 min)
+* identical to production's `choose_savgol_window()` at n = 60, 101, 402,
+  1,000, 20,000
+
+#### What the fix does to the populations it targets
+
+54 paired trials on a sample enriched for non-2-min cadence, injecting into RAW
+curves so the window is the only variable (same harness as the GP pilot):
+
+| bucket | n | old pts | new pts | old protected | new protected | transit spans |
+|---|---|---|---|---|---|---|
+| 20-sec | 18 | 401 | 2,405 | 2.23 h | 13.36 h | 452 pts |
+| 10-min | 18 | 401 | 160 | 44.6 h | 13.28 h | 58.9 pts |
+| **30-min** | 18 | 401 | **27** | 200.5 h | 13.50 h | **8.2 pts** |
+
+#### Recovery: it helps exactly where predicted, hurts exactly where predicted, and cancels
+
+| bucket | n | old | new | old-only | new-only | McNemar exact p |
+|---|---|---|---|---|---|---|
+| 20-sec | 18 | 1 | **4** | 0 | 3 | 0.2500 |
+| 10-min | 18 | 6 | 6 | 1 | 1 | 1.0000 |
+| 30-min | 18 | **9** | 6 | 3 | 0 | 0.2500 |
+| **POOLED** | **54** | **16** | **16** | **4** | **4** | **1.0000** |
+
+**A perfect wash: 16 vs 16, four discordant pairs each way, p = 1.0000.**
+
+SDE, paired over all 54 trials, is null everywhere -- pooled median delta
+**+0.24, Wilcoxon p = 0.4208**; no bucket reaches p < 0.22. Unlike the GP pilot,
+where the well-powered metric moved significantly against the change, here it
+simply does not move.
+
+#### The real finding: physical width is the WRONG invariant at coarse cadence
+
+The `transit spans` column explains the whole table. Holding the *physical*
+window fixed at 13.4 h means holding the *point count* fixed only if cadence is
+fixed. At 30-min cadence the new 27-point window sits against a transit that
+spans **8.2 points** -- a polyorder-2 savgol fit over 27 points will partially
+absorb an 8-point dip, so the "fix" detrends the transit away. At 20-sec the
+2,405-point window sits against a 452-point transit, comfortably protected.
+
+**So the correct invariant is the window-to-transit-duration ratio in POINTS,
+not physical hours.** The current 401-point cap is accidentally right for coarse
+cadence for exactly this reason, and wrong for fine cadence. That is a genuinely
+non-obvious result and it is the useful output of this investigation.
+
+#### Variability isolation -- architecturally safe, re-verified not assumed
+
+Architecture is unchanged from the GP pilot and re-confirmed: every `var_*`
+consumer reads a RAW file (`add_variability_features` -> `RAW_FOLDER`;
+`_variability_for_raw` -> `raw_path`), detrending writes only
+`data/processed/`. A window change is invisible to that path **by
+construction**.
+
+Quantitative counterfactual on 24 non-2-min stars (ratio to the raw value
+production actually uses):
+
+| feature | old (401 pts) | new (cadence-aware) |
+|---|---|---|
+| var_oot_rms | 0.989 | 0.928 |
+| var_excess | 0.989 | 0.928 |
+| var_ls_amp | 0.050 | 0.452 |
+| var_ls_power | 0.005 | 0.412 |
+| var_ls_period | 0.277 | 0.088 |
+
+**Neither window is safe for the variability path** -- which is the point:
+production reads RAW, and that separation, not the choice of window, is what
+protects the deployed feature.
+
+### Verdict
+
+**DO NOT PROMOTE, on two independent grounds.**
+
+1. **Training data: barred.** Cadence is class-correlated at p = 4e-76. This is
+   the multi-sector exclusion again, and it is permanent for the same reason.
+2. **Candidate path: no reason to.** The fix is a measured wash (16 vs 16,
+   p = 1.0000), because its 20-sec gain and its 30-min loss cancel.
+
+**Scoped follow-up, NOT built and NOT recommended without its own test:** a
+*conditional* window -- `max(401, cadence_aware)`, still capped at `n-1` --
+would take the 20-sec lengthening while leaving coarse cadence on the existing
+401-point cap, capturing the only arm that trended positive and avoiding the one
+that trended negative. **It is untested**, and both per-bucket signals rest on
+three discordant pairs (p = 0.25), so this is a hypothesis generated by this
+pilot, not a result of it. It would also apply to ~7.5% of candidates, so
+demonstrating it would need far more than 18 trials per bucket.
+
+**Do not re-propose a cadence-aware window for TRAINING data.** The confound is
+structural, not a sampling artifact.
+
+### Process note
+
+Estimated ~30-45 min for the pilot; actual wall time **8.8 min**. Wrong in the
+useful direction this time, but wrong again.

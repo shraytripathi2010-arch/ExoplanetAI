@@ -1,0 +1,23 @@
+{
+  "n_training": 5494,
+  "n_measured": 5494,
+  "affected_positive": 396,
+  "n_positive": 4341,
+  "affected_negative": 240,
+  "n_negative": 1153,
+  "affected_pct_positive": 9.12232204561161,
+  "affected_pct_negative": 20.815264527320036,
+  "fisher_or": 0.3818631178707224,
+  "fisher_p": 4.69718219796523e-25,
+  "chi2": 352.4545766109193,
+  "chi2_p": 4.3871225381340404e-76,
+  "z": -11.031139441493757,
+  "gate_passed": false,
+  "bucket_counts": {
+    "2-min": 4858,
+    "20-sec": 403,
+    "30-min": 168,
+    "10-min": 65,
+    ">30-min": 0
+  }
+}
