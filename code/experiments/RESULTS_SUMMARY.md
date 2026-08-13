@@ -8448,3 +8448,179 @@ promotion gate and scheduler configuration untouched; no retrain triggered.
 **The incident opened by the crowding/variability promotions on 2026-08-06 is
 now closed end to end: bug found, root cause named, fix deployed and validated,
 data recovered.**
+
+---
+
+## FOUR-THREAD CLOSEOUT AUDIT -- all four confirmed closed; 5 loose ends resolved; 1 new lead with a real number
+
+**Date: 2026-08-13. Production UNCHANGED: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`, verified before and after.
+`training.csv` 5,494 rows / md5 `10452580b9cfbb70ef0efc3520e82d07` (post label
+recovery). Nothing built, nothing promoted, no closed experiment re-run.**
+
+### PART 1 -- documentation status of the four threads: COMPLETE, no gaps
+
+| thread | entry | key numbers present |
+|---|---|---|
+| Cross-mission (Kepler/K2) | "CROSS-MISSION ... CLOSED AT PART 1" | 36.4% yield wall; K2 domain AUC 0.9973; full-pull projection **+0.0061 vs 0.0097 MDE**; PlanetNet-MMG real-but-unverifiable |
+| Synthetic injection | "THREE DIFFERENT PROPOSALS" + RAVEN entry + VAE entry | v1 domain AUC 0.9654; RAVEN 0.95-0.97 on detection AND shape independently; 7/31 features uncomputable; VAE kill criterion |
+| CETRA | "CETRA (arXiv:2503.20875) FEASIBILITY" | no NVIDIA GPU; `period_max` inherited from baseline per CETRA's own paper; 16/22 TLS features have no equivalent; FAP ranks 5/31 |
+| BLS / stacking | "BLS AS A COMPLEMENTARY DETECTOR + 2-SECTOR STACKING" | drift wall 9.4 d median budget; 2-sector escape **5.3%**; concatenation deployed separately (1088e3ee) |
+
+**No documentation gap found. Nothing rewritten.** Every one of the five loose
+ends below was already flagged in the file -- this entry resolves them, it does
+not discover them.
+
+### PART 2 -- the five loose ends
+
+#### 1. The 9 lost training labels -- ALREADY DONE
+
+Completed and verified earlier the same day; see "LABEL RECOVERY AFTER THE GATE
+BUG". **8 of 9 recovered**, byte-exact append, frozen test set unchanged at
+1,098. The 9th (`TIC_230741378`, SPECULOOS-3) is excluded on a genuine TLS
+failure. Nothing outstanding.
+
+#### 2. SAP flux fallback -- MEASURED. Recommend a scoped pilot. NOT built.
+
+The claim on record rested on one star. Measured across **all 237**
+unfittable stars, comparing PDCSAP against SAP in the raw files (which already
+carry `sap_flux` -- **no re-download needed**):
+
+| case | n | share |
+|---|---|---|
+| both PDCSAP and SAP unusable | 185 | 78.1% |
+| **PDCSAP bad, SAP CLEAN** | **52** | **21.9%** |
+
+The 52 are not marginal. Their PDCSAP carries **27-44% negative flux values** --
+physically impossible for photometry, and robust sigma of 1.0-6.5 -- while their
+SAP is clean at robust sigma **0.022-0.048**, inside the gate. For these stars
+the question is not "which photometry is better"; PDCSAP is simply broken.
+
+**Recommendation: a scoped pilot is worth it, and this is a real decision to
+make, not something to build unilaterally.** Scope: run the existing
+`compute_all_features` on SAP-derived processed curves for these 52, and report
+how many produce valid features and what their SDE distribution looks like
+against the pool. **The confound must be carried, not waved away:** SAP is not
+background-subtracted or systematics-corrected, so any feature it produces comes
+from a different photometry pipeline than every other row in the project -- which
+is precisely the kind of domain shift that closed the synthetic and cross-mission
+threads. A SAP-derived candidate would need its own provenance column and its own
+OOD check before it could be ranked beside a PDCSAP one. Estimated effort: half a
+day. **Ceiling on the payoff: 52 stars, ~2% of the 2,465-star pool.**
+
+#### 3. `transit_shape_ratio` permutation importance -- MEASURED. Stays closed.
+
+Never measured before; measured now (`shape_ratio_importance.py`), same protocol
+as the secondary-eclipse run (frozen test mask, SEED 20260812, n_repeats 10,
+roc_auc) with **both columns ranked in ONE run** so they are comparable.
+Baseline frozen-test AUC 0.9294.
+
+| feature | rank | importance | NaN rate |
+|---|---|---|---|
+| `secondary_eclipse_depth` | **8/31** | +0.00721 +/- 0.00132 | 2% |
+| `transit_shape_ratio` | **20/31** | **+0.00193 +/- 0.00056** | 30% |
+
+**The answer is neither of the two options the question offered.**
+`transit_shape_ratio` is **not dead weight** -- shuffling it costs a consistently
+positive amount, 3.4 sd from zero. But it is **not load-bearing in the sense
+`secondary_eclipse_depth` is** either: it costs **3.7x less**, and at **20% of
+the 0.0097 MDE** its contribution is far below what this test set can resolve.
+
+So it lands in exactly the trap the secondary-eclipse work already mapped:
+**measurably non-zero, too small for any fix or retirement to be provable.**
+Fixing the phase convention or retiring the column would both move the model by
+~0.002 AUC in an unknown direction, unmeasurable on 1,098 test stars. **Closed
+on the same grounds the secondary-eclipse swap and retirement were closed --
+and now for a measured reason rather than an unmeasured suspicion.**
+
+(Top of the ranking, for the record: `st_rad` +0.0367, `st_teff` +0.0241,
+`var_oot_rms` +0.0162, `crowd_flux_ratio_max` +0.0139, `FAP` +0.0107. The two
+2026-08 promotions hold ranks 3 and 4.)
+
+#### 4. Per-sector normalisation before concatenation -- HYPOTHESIS REFUTED. Closed.
+
+The recorded hypothesis: ~39% of concatenated curves fail the flux gate because
+of per-sector flux-level offsets at the boundary, fixable by normalising each
+sector before concatenating.
+
+Measured on the **271 real processed multi-sector curves** (median 7 segments),
+which reproduce the recorded failure rate -- **35.8% fail**, against the ~39% on
+record, so this is the right population and stage:
+
+| quantity | value | gate |
+|---|---|---|
+| per-sector offset spread | median **0.00014** (p90 0.042) | median must be within 0.01 of 1 |
+| robust sigma, before | median 0.00488 | must be < 0.05 |
+| robust sigma, after per-sector normalisation | median **0.00488** | -- |
+| **curves rescued** | **0** | -- |
+| curves newly broken | 0 | -- |
+
+Among the 97 failing curves: median robust sigma **0.7934** -- sixteen times the
+0.05 ceiling -- while median `|median - 1|` is **0.00000**. **The median level is
+already perfect; the failures are pure scatter.** Preprocessing normalises each
+file before concatenation, so the boundary offsets the hypothesis blamed are
+~0.014% and were never the problem.
+
+**These are intrinsically variable stars, not mis-assembled curves** -- the same
+population the pre-TLS sigma cut was backed out for after it rejected 6 genuine
+detections. Per-sector normalisation would recover **0 of 97**. Removed from the
+open list.
+
+**A methodology note on my own first pass:** I initially ran this on RAW PDCSAP
+and got "2 of 120 rescued", which pointed the same direction for the wrong
+reason -- raw flux is un-normalised, so its sigma (~0.49) is not comparable to a
+gate that operates on processed curves. Re-run on the correct stage before
+reporting. The refutation stands on the processed measurement, not the raw one.
+
+#### 5. CETRA's mono-transit capability -- CONFIRMED CPU-FEASIBLE. Separable from CETRA.
+
+The CETRA entry's LEAD C already argued the capability "is not intrinsically
+GPU-bound". Confirmed concretely: **`MonoTools`** (H. Osborn) is a real,
+`pip install MonoTools`, **CPU** package built exactly for this -- detection,
+vetting and modelling of monotransits and unknown-period planets, on a
+PyMC v5 / pytensor + celerite backend. No CUDA anywhere in that stack. Its
+`MonoSearch` component also vets detected monotransits against variability,
+asteroids and background EBs, which overlaps this project's existing
+centroid/crowding checks.
+
+**So the capability does NOT stay closed with CETRA.** CETRA remains correctly
+not pursued (GPU-blocked, inherits the period ceiling, forfeits 16 of 22
+features). Mono-transit search is a **separate, CPU-reachable capability this
+pipeline lacks entirely**, and it is the one thing in this whole four-thread
+sweep that is genuinely new rather than a variation on something already closed.
+
+**Not scoped further here, deliberately.** It is a detection-stage addition, not
+a model change: a new search mode producing a new kind of candidate with no
+period, which the 31-feature model **cannot score** (`period`,
+`transit_count`, `odd_even_mismatch` and most of the rest are undefined for a
+single event). It would need its own candidate class, its own vetting path and
+its own UI treatment. That is a project, not a follow-up, and it should be
+proposed and approved as one.
+
+### PART 3 -- honest final verdict
+
+**Three of the four threads are comprehensively closed and should not be
+reopened.** Cross-mission, synthetic injection, and BLS/stacking each now have a
+*quantitative* closure -- a measured wall (36.4% yield, 0.9973 domain AUC,
++0.0061 vs MDE, 5.3% drift escape), not a judgement call. Two of the five loose
+ends (per-sector normalisation, `transit_shape_ratio`) are now **closed with
+numbers that did not exist this morning**, and both closed negative.
+
+**Two things are genuinely live, and only two:**
+
+1. **SAP fallback -- 52 stars, 21.9% of the unfittable population.** Bounded,
+   cheap, real, with a real confound. Worth a pilot; worth *deciding* rather
+   than defaulting.
+2. **Mono-transit search -- CPU-feasible via MonoTools.** The only capability
+   gap in this sweep that is not a re-run of a closed idea. Also the largest
+   piece of work, and the one most likely to be worth it, because it addresses
+   the period ceiling *by not needing a period at all* -- the one constraint
+   that survived every other attempt in this file.
+
+Everything else across these four topic areas is done. **No further modelling
+angle is being recommended, because there is not one worth recommending** -- the
+learning curve says the ceiling is a data limit, the MDE says a ~0.002 feature
+change cannot be proven on 1,098 test stars, and every detector-side alternative
+inherits the same baseline-derived period ceiling. Manufacturing a fifth
+proposal here would be padding.
+
