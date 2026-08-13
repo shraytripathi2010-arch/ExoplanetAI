@@ -1096,6 +1096,84 @@ def audit_processing_mode(candidates_df):
     return out
 
 
+def validate_flux_for_search(flux_arr):
+    """Cheap pre-TLS sanity check on an already-normalised light curve.
+
+    WHY THIS EXISTS. 237 candidate rows (222 of 2,454 single-sector, 15 of 271
+    wide-sector) were failing with
+    `Post-processing error: 'bool' object has no attribute 'sum'` and being
+    dropped from feature extraction entirely -- no score at all. Traced to
+    source: those stars' PDCSAP flux is itself pathological. Measured on
+    TIC_85136394: raw pdcsap_flux median 4.28 with **4,366 of 15,669 points
+    <= 0**. Dividing by a savgol trend that passes near zero then produces
+    sign flips and enormous spread, giving a processed curve with median
+    exactly 1.0 but robust sigma 1.2-8.3 (a healthy curve is ~0.0002-0.006)
+    and only 2-5% of points within +/-10% of unity. TLS cannot fit anything in
+    that, returns a degenerate result, and the post-processing then crashed.
+
+    (For the same star `sap_flux` is clean -- median 77.5, no non-positive
+    values -- so a SAP fallback could in principle recover these. That is a
+    photometry-source change with real confound implications and is NOT done
+    here.)
+
+    *** DELIBERATELY STRUCTURAL ONLY -- NOT a statistical quality threshold. ***
+    An earlier version of this rejected anything with robust sigma > 0.05,
+    intending to skip the wasted TLS run. Measured against real data, that was
+    WRONG: it rejected 15 of 80 previously-successful candidates, and 6 of those
+    had genuine TLS detections (SDE 5.7-9.7, snr 2.0-27.0). They are
+    high-amplitude VARIABLE STARS, not corrupted ones -- e.g. TIC_281595262 has
+    robust sigma 0.077, min 0.66, max 1.36, 80% of points within 10% of the
+    median, and TLS found SDE 7.14. The genuinely broken curves sit an order of
+    magnitude further out (robust sigma 1.18-8.33 with large negative
+    excursions), and no single statistical cut separates the two cleanly.
+
+    So this rejects ONLY what is definitionally unsearchable, and leaves the
+    statistical judgement to TLS, whose no-fit result is then caught explicitly
+    by tls_result_is_degenerate(). Cost: the pathological stars each burn a full
+    TLS run before being reported. That is the correct trade -- a false
+    rejection loses a real candidate permanently, a wasted search costs seconds.
+
+    Returns (ok, reason)."""
+    f = np.asarray(flux_arr, dtype=float)
+    f = f[np.isfinite(f)]
+    if len(f) < 50:
+        return False, f"only {len(f)} finite flux points"
+    med = float(np.median(f))
+    if not np.isfinite(med) or med <= 0:
+        return False, f"non-positive median flux ({med:.4g})"
+    if float(np.median(np.abs(f - med))) <= 0:
+        return False, "degenerate flux (zero scatter)"
+    return True, "ok"
+
+
+def tls_result_is_degenerate(r):
+    """True when TLS found no transit and returned a NO-FIT result object.
+
+    In that case TLS does not return empty arrays -- it returns SCALARS where
+    arrays are expected:
+
+        r.SDE = 0 (int)        r.period = nan        r.T0 = 0 (int)
+        r.folded_phase = nan   r.folded_y = nan      r.transit_depths = nan
+
+    so `(phase > 0.45) & (phase < 0.55)` evaluates to the plain Python bool
+    `False`, and the next call `.sum()` raises
+    `AttributeError: 'bool' object has no attribute 'sum'`.
+
+    Detected EXPLICITLY here rather than caught by a broad try/except. A bare
+    except around post-processing would report a Python error message as if it
+    were a data condition -- which is exactly what it did, for 237 stars,
+    hiding a real photometry problem behind what looked like a code defect.
+    This project has been bitten by that pattern before (the calibration
+    staleness bug, the scheduler's silent `except: pass`)."""
+    phase = getattr(r, "folded_phase", None)
+    if phase is None or np.ndim(phase) == 0:
+        return True
+    if np.size(phase) < 10:
+        return True
+    period = getattr(r, "period", np.nan)
+    return not (np.isscalar(period) and np.isfinite(period) and period > 0)
+
+
 def bin_lightcurve(time_arr, flux_arr, flux_err_arr):
     n = len(time_arr)
     if n <= MAX_POINTS_BEFORE_BINNING:
@@ -1235,6 +1313,12 @@ def compute_all_features(csv_path, host, r_star, m_star, required_columns):
 
     t_arr, f_arr, e_arr = bin_lightcurve(df["time"].to_numpy(), df["flux"].to_numpy(), df["flux_err"].to_numpy())
 
+    # Reject unsearchable photometry BEFORE spending a TLS run on it, and say
+    # WHY in the status. See validate_flux_for_search().
+    flux_ok, flux_reason = validate_flux_for_search(f_arr)
+    if not flux_ok:
+        return None, f"Unsearchable photometry: {flux_reason}"
+
     r_star = r_star if (r_star and not np.isnan(r_star) and r_star > 0) else 1.0
     m_star = m_star if (m_star and not np.isnan(m_star) and m_star > 0) else 1.0
     r_star_min, r_star_max = min(0.13, r_star * 0.5), max(3.5, r_star * 1.5)
@@ -1249,6 +1333,12 @@ def compute_all_features(csv_path, host, r_star, m_star, required_columns):
         )
     except Exception as e:
         return None, f"TLS error: {e}"
+
+    # TLS ran but found nothing: it returns scalars, not arrays. Detect that
+    # explicitly and report it as the data condition it is, rather than letting
+    # the array maths below raise a Python error that looks like a code defect.
+    if tls_result_is_degenerate(r):
+        return None, "No transit fit (TLS returned a degenerate no-fit result)"
 
     try:
         phase = r.folded_phase

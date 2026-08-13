@@ -8016,3 +8016,105 @@ is a trap this pipeline will present again.
 | **Candidate pools** | **DEPLOYED.** Concatenation + quality gate + fallback + provenance columns in the standard path. |
 | **OOD detector** | Unchanged -- measured safe (novel long-period candidates flagged 16.7% vs 42.4%, OR 0.27). |
 | **Open** | true re-download fallback; per-sector normalisation before concat. |
+
+## TLS NO-FIT POST-PROCESSING BUG -- FIXED. 0 candidates recovered, and that is the correct answer.
+
+The `Post-processing error: 'bool' object has no attribute 'sum'` affecting 237
+pool rows (222 of 2,454 single-sector, 15 of 271 wide-sector). **Production
+model untouched: 0.9300 / md5 `1f0b7cb8e78ab542374eaf78fc837a6f`;
+`training.csv` md5 `e58ec25aa89476cb8f45cba665b54079`.**
+
+### Root cause, traced to source
+
+When TLS finds no transit it does not return empty arrays -- it returns
+**scalars where arrays are expected**. Measured directly on `TIC_85136394`:
+
+    r.SDE = 0 (int)        r.period = nan        r.T0 = 0 (int)
+    r.folded_phase = nan   r.folded_y = nan      r.transit_depths = nan
+
+So `(phase > 0.45) & (phase < 0.55)` becomes the plain Python bool `False`, and
+the next line's `.sum()` raises `AttributeError`.
+
+### But TLS was RIGHT to find nothing -- the photometry is broken upstream
+
+The processed curves of all 237 have median flux exactly 1.0 but **robust sigma
+1.18 to 8.33** (a healthy curve is ~0.0002-0.006), only 2-5% of points within
++/-10% of unity, and **negative flux** -- physically impossible for normalised
+photometry. Tracing upstream on `TIC_85136394`: the raw **PDCSAP flux itself**
+has median 4.28 with **4,366 of 15,669 points <= 0**. Dividing by a savgol trend
+passing near zero produces the sign flips and the enormous spread.
+
+**Notably, `sap_flux` for the same star is clean** (median 77.5, min 40.3, no
+non-positive values). A SAP fallback could plausibly recover this whole
+population -- but that changes the photometry source, a real confound. Scoped,
+NOT done.
+
+### The fix: explicit no-fit detection, not a broad try/except
+
+`tls_result_is_degenerate()` checks whether `folded_phase` is a real array and
+`period` is finite and positive, and returns
+`"No transit fit (TLS returned a degenerate no-fit result)"`. A bare `except`
+around post-processing is what produced the original symptom: it surfaced a
+Python error message as though it were a data condition, for 237 stars, hiding a
+photometry problem behind what looked like a code defect. Same failure pattern
+as the calibration-staleness bug and the scheduler's silent `except: pass`.
+
+### A REGRESSION I INTRODUCED AND BACKED OUT
+
+The first version of the fix also added a pre-TLS check rejecting anything with
+robust sigma > 0.05, to skip the wasted search. **Measured against real data it
+rejected 15 of 80 previously-successful candidates, 6 of which had genuine TLS
+detections** (SDE 5.7-9.7, snr 2.0-27.0). Those are high-amplitude VARIABLE
+STARS, not corrupted ones -- `TIC_281595262` has robust sigma 0.077, min 0.66,
+max 1.36, 80% of points within 10% of the median, and TLS found SDE 7.14. The
+genuinely broken curves sit an order of magnitude further out, and no single
+statistical cut separates the two.
+
+`validate_flux_for_search()` is now **structural only** -- non-positive median,
+fewer than 50 finite points, or zero scatter. TLS makes the statistical
+judgement. Cost: the pathological stars each burn a full search before being
+reported. That is the correct trade -- **a false rejection loses a real
+candidate permanently; a wasted search costs seconds.**
+
+### Results
+
+| population | n | valid features | statuses |
+|---|---|---|---|
+| **previously affected** | 237 | **0** | 237 x `No transit fit (degenerate no-fit result)` |
+| **regression control** | 80 | **79** | 65 Success + 14 Success-with-imputed-optional |
+
+**Old `AttributeError`: 0 occurrences in either group.**
+
+**Breakdown for the 237: all genuinely unfittable, none incorrectly dropped.**
+TLS now runs to completion on every one (median 11.8 s) and returns a degenerate
+no-fit. **Recovery is 0, and that is the correct outcome** -- these stars were
+always correctly excluded; only the stated REASON was wrong, and it looked like
+a code defect rather than the photometry problem it is.
+
+The single regression-control failure (`TIC_376669357`, `period_uncertainty` not
+computable) is a **test-harness artifact, verified not a code regression**: that
+star is absent from `unknown_candidate_list.csv`, so the harness passed default
+stellar params (R*=1.0) instead of its real ones, changing TLS's period grid.
+
+### SEPARATE PRE-EXISTING CRITICAL BUG FOUND -- NOT FIXED HERE, NEEDS A DECISION
+
+The regression arm surfaced something larger. `best_model_metadata.json` lists
+**31** feature columns, and `main()` passes all 31 through
+`extract_features` -> `_tls_worker` -> `compute_all_features`. But that function
+structurally **cannot produce 7 of them** -- `crowd_flux_ratio_max`,
+`crowd_nearest_arcsec`, `var_oot_rms`, `var_excess`, `var_ls_amp`,
+`var_ls_power`, `var_ls_period` -- which are added by separate later stages.
+They are not in `OPTIONAL_FEATURES`, so they are always "blocking".
+
+**Measured: with the real 31-column metadata, 64 of 80 previously-successful
+stars fail on exactly those 7 columns.** With the 24 producible columns, 79 of
+80 succeed.
+
+**Implication: a fresh candidate run today would produce ZERO scored
+candidates.** The existing `unknown_features.csv` was generated while the
+metadata still had 24 columns, before the crowding (2026-08-05) and variability
+(2026-08-06) promotions -- neither of which updated this gate.
+
+Not fixed here: it is outside this task's scope, and the right fix (exclude
+non-TLS columns from the gate, or move the check after the crowding/variability
+stages) is a design decision, not a patch. **Flagged for explicit direction.**
