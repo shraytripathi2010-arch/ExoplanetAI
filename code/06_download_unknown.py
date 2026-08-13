@@ -863,6 +863,43 @@ FEATURE_METADATA_PATH = os.path.join(MODELS_FOLDER, "best_model_metadata.json")
 # the star.
 OPTIONAL_FEATURES = {"transit_shape_ratio", "FAP"}
 
+# Model features that compute_all_features STRUCTURALLY CANNOT PRODUCE, because
+# they come from other sources entirely and are added by later stages in
+# extract_features(). They are not "missing data" at TLS time -- they do not
+# exist yet, by design.
+#
+#   st_rad, st_teff            TIC catalog, via fetch_stellar_params() (STAGE C)
+#   crowd_flux_ratio_max,      TIC catalog neighbours, via add_crowding_features(),
+#   crowd_nearest_arcsec       called per batch inside extract_features()
+#   var_*  (5 columns)         RAW pre-flatten light curves, via
+#                              add_variability_features(), same call site
+#
+# *** WHY THIS CONSTANT EXISTS -- a real outage, not a hypothetical. ***
+# compute_all_features' completeness gate originally hard-coded only
+# ("st_rad", "st_teff") as not-from-TLS. The crowding promotion (2026-08-05) and
+# the variability promotion (2026-08-06) each added columns to FEATURE_COLUMNS
+# and to best_model_metadata.json, but neither extended this exclusion. From
+# 2026-08-06 the gate therefore demanded 7 columns that cannot exist at that
+# point, marked them blocking (they are not in OPTIONAL_FEATURES), and returned
+# None for EVERY star. Measured: 64 of 80 previously-successful candidates fail
+# with the real 31-column list; 79 of 80 succeed with the 24 producible ones.
+# The pipeline could not score a single new candidate for a week.
+#
+# Both stages run UNCONDITIONALLY for every batch in extract_features(), and
+# score_candidates() then re-validates the COMPLETE 31-column row
+# (`blocking_cols` + a hard schema check). So these columns are still fully
+# validated -- just at the only stage where they actually exist. Nothing is
+# weakened here; a genuinely missing crowding or variability value still
+# excludes the star, one stage later and for the right reason.
+#
+# ANY future feature added to FEATURE_COLUMNS that is not computed by
+# compute_all_features MUST be added to this set.
+NON_TLS_FEATURE_COLUMNS = {
+    "st_rad", "st_teff",
+    "crowd_flux_ratio_max", "crowd_nearest_arcsec",
+    "var_oot_rms", "var_excess", "var_ls_amp", "var_ls_power", "var_ls_period",
+}
+
 # Triage floor, chosen deliberately from the threshold sweep in
 # code/experiments/audit_calibration_threshold_errors.py rather than inherited
 # as a default. The pipeline never actually applied a binary threshold -- it
@@ -1380,7 +1417,9 @@ def compute_all_features(csv_path, host, r_star, m_star, required_columns):
 
     missing_or_bad = [
         c for c in required_columns
-        if c not in ("st_rad", "st_teff")   # these come from the catalog, not TLS -- checked separately
+        # Not from TLS -- added by later stages, and re-validated on the
+        # complete row by score_candidates(). See NON_TLS_FEATURE_COLUMNS.
+        if c not in NON_TLS_FEATURE_COLUMNS
         and (c not in feats or feats[c] is None or (isinstance(feats[c], float) and not np.isfinite(feats[c])))
     ]
 

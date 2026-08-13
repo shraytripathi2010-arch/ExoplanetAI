@@ -8118,3 +8118,177 @@ metadata still had 24 columns, before the crowding (2026-08-05) and variability
 Not fixed here: it is outside this task's scope, and the right fix (exclude
 non-TLS columns from the gate, or move the check after the crowding/variability
 stages) is a design decision, not a patch. **Flagged for explicit direction.**
+
+**UPDATE 2026-08-13: FIXED.** See "THE 31-vs-24 FEATURE-COLUMN MISMATCH" below
+-- `NON_TLS_FEATURE_COLUMNS`, validated end-to-end, plus the damage assessment
+(candidate pools intact; 9 training labels lost and flagged, not recovered).
+
+---
+
+## THE 31-vs-24 FEATURE-COLUMN MISMATCH -- FIXED. The tool could not score a single new candidate for a week.
+
+**Date: 2026-08-13. Production model UNCHANGED (0.9300 AUC, 31 features, md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`). `training.csv` UNCHANGED (md5
+`e58ec25aa89476cb8f45cba665b54079`). Promotion gate and scheduler untouched.**
+
+Found as a side-effect of the TLS no-fit investigation and flagged there for
+direction. This is the fix.
+
+### The bug
+
+`compute_all_features()` ends with a completeness gate: every column in
+`required_columns` must be present and finite, or it returns `None` and the star
+is dropped. That gate hard-coded a single exception:
+
+```python
+if c not in ("st_rad", "st_teff")   # these come from the catalog, not TLS
+```
+
+`main()` passes the model's full feature list -- read from
+`best_model_metadata.json` -- straight through `extract_features` ->
+`_tls_worker` -> `compute_all_features`. That list was 24 columns when the
+exception was written. Then:
+
+* **2026-08-05, crowding promotion:** `crowd_flux_ratio_max`,
+  `crowd_nearest_arcsec` added to `FEATURE_COLUMNS` (24 -> 26).
+* **2026-08-06, variability promotion:** `var_oot_rms`, `var_excess`,
+  `var_ls_amp`, `var_ls_power`, `var_ls_period` added (26 -> 31).
+
+Neither promotion extended the exception. Both stages run **after** TLS -- they
+are called per batch inside `extract_features`, on the frame `_tls_worker`
+returns. So from 2026-08-06 the gate demanded **7 columns that cannot exist at
+that point in the pipeline**, marked them blocking (none are in
+`OPTIONAL_FEATURES`), and returned `None` for every star.
+
+There was no crash, no traceback, no silent wrong answer. Every star got an
+honest, precise, *entirely useless* status:
+
+```
+Required feature(s) not computable: ['crowd_flux_ratio_max', 'crowd_nearest_arcsec',
+ 'var_oot_rms', 'var_excess', 'var_ls_amp', 'var_ls_power', 'var_ls_period']
+```
+
+**A fresh candidate run produced ZERO scored candidates, and had for seven days.**
+
+### Blast radius -- four consumers, one root cause
+
+| caller | what it does | passes |
+|---|---|---|
+| `code/06_download_unknown.py` `main()` | the candidate pipeline | metadata's 31 |
+| `web/job_runner.py:987` | per-candidate multi-sector strengthening | metadata's 31 |
+| `web/retrain_pipeline.py:281` | **label watcher -> training.csv** | `m05.FEATURE_COLUMNS` |
+| `code/k2_pilot/`, `code/kepler_pilot/` | closed pilots | `m05.FEATURE_COLUMNS` |
+
+All four add crowding/variability *after* the call, so all four were broken and
+all four are fixed by the single source-level change.
+
+### Damage assessment -- measured, not assumed
+
+**Candidate pools: INTACT.** `unknown_features.csv` (2,454 rows, 488 Success)
+and `unknown_features_widesector.csv` (271 rows, 69 Success) both carry all 29
+TLS-side columns and are dated 2026-08-06 15:18/15:19 -- written *before* the
+variability promotion landed that evening. Nothing was corrupted; the pipeline
+simply could not add to them. (`st_rad`/`st_teff` are correctly absent from the
+feature file: `score_candidates` merges them in from the candidate list.)
+
+**Training data: 9 real labels lost.** The label watcher calls
+`compute_all_features` on every newly-confirmed planet / false positive before
+appending to `training.csv`. Every one since the promotion failed with the error
+above and sits as `failed` in `label_watch_queue`:
+
+| host | label | failed at |
+|---|---|---|
+| TIC_21113347 | 1 | 2026-08-06 19:38 |
+| TIC_125520907 | 1 | 2026-08-07 19:40 |
+| TIC_230741378 | 1 | 2026-08-10 19:57 |
+| TIC_65910228 | 1 | 2026-08-10 19:58 |
+| TIC_345143460 | 1 | 2026-08-10 20:01 |
+| TIC_156514476 | 1 | 2026-08-10 20:01 |
+| TIC_302070274 | 1 | 2026-08-11 20:12 |
+| TIC_341630071 | 1 | 2026-08-11 20:19 |
+| TIC_30499203 | 0 | 2026-08-12 20:24 |
+
+The last *successful* append was **TIC_453789494 on 2026-08-05 11:43** -- the
+day before. The timeline is unambiguous: training-set growth stopped dead on the
+promotion date. **These 9 are recoverable by re-running the watcher, but that
+writes to `training.csv`, so it is NOT done here and needs explicit direction.**
+
+### The fix
+
+A named constant, not another inline tuple:
+
+```python
+NON_TLS_FEATURE_COLUMNS = {
+    "st_rad", "st_teff",
+    "crowd_flux_ratio_max", "crowd_nearest_arcsec",
+    "var_oot_rms", "var_excess", "var_ls_amp", "var_ls_power", "var_ls_period",
+}
+```
+
+with a comment block recording this outage and stating the rule directly: **any
+future feature added to `FEATURE_COLUMNS` that is not computed by
+`compute_all_features` MUST be added to this set.** The original two-element
+tuple was correct when written and became wrong silently, twice, because nothing
+tied it to `FEATURE_COLUMNS`. Naming it is what makes the next promotion trip
+over it.
+
+**Nothing is weakened.** `score_candidates()` already re-validates the
+*complete* 31-column row -- `blocking_cols` NaN exclusion plus a hard
+`missing_required` schema check that raises `SystemExit`. A genuinely missing
+crowding or variability value still drops the star; it now happens one stage
+later, at the only point where those columns actually exist. This is the same
+principle as the no-fit fix: name the real condition instead of collapsing it
+into a generic failure.
+
+### Validation
+
+**(1) The exact configuration that failed, 317 real stars, real 31-column metadata:**
+
+| population | n | produced features | still blocked on a non-TLS column |
+|---|---|---|---|
+| regression control (previously Success) | 80 | **79** (65 Success + 14 imputed-optional) | **0** |
+| previously unfittable (from the no-fit fix) | 237 | 0 -- all `No transit fit` | **0** |
+
+Before the fix, 64 of those same 80 failed on exactly the 7 columns. The single
+remaining failure is `TIC_376669357`, already established as a harness artifact
+(absent from the candidate list, so default stellar params changed TLS's grid).
+The 237 correctly stay excluded for the right reason.
+
+**(2) Fresh end-to-end pass, 40 real stars, full `extract_features` ->
+`score_candidates`** (sandboxed outputs; production catalogs untouched):
+
+* 29/40 produced a complete feature row; **0 blocked on a non-TLS column**
+* all 7 previously-impossible columns non-null on **29/29** successful rows
+* 12 stars correctly excluded at scoring for missing `st_rad`/`st_teff` in TIC
+* **17 candidates scored**, top probability 0.994
+* 9 flagged `imputed_features` (`FAP` / `transit_shape_ratio`) -- the optional-
+  feature path still works and is still reported per star
+
+**(3) Bootstrap uncertainty ensemble against those freshly-scored rows:** 32
+members, 31 features, manifest feature list **identical** to the metadata list;
+produced a band for **17/17**. Median band width (p84-p16) 0.108; max
+`disagreement_sigma` 2.94.
+
+### Two harness defects of my own, recorded because both produced convincing wrong answers
+
+1. **`ModuleNotFoundError: No module named 'm06'`.** Loading the pipeline via
+   `importlib.util.spec_from_file_location` works in the parent only;
+   `extract_features`'s spawn-based pool re-imports by name in each child, which
+   fails, and all 40 stars came back as worker errors. The first run therefore
+   printed **"ZERO scored -- the outage is NOT fixed"** with the fix working
+   correctly. Fixed with a real importable shim that sets `__file__` to the true
+   source so every path constant resolves as in production. Production is
+   unaffected: it runs the file as `__main__`, which children re-import via the
+   `if __name__ == "__main__"` guard.
+2. `extract_features` prints `"Feature extraction: 10/40 stars succeeded"` using
+   an exact `== "Success"` test, while `score_candidates` correctly uses
+   `startswith("Success")`. The real count was 29. **Cosmetic in the log only --
+   no star is lost by it** -- but it understates success by the entire
+   imputed-optional population and is worth correcting the next time that
+   function is touched.
+
+### Status
+
+**FIXED and deployed to the candidate path.** Production model, `training.csv`,
+promotion gate and scheduler untouched. The 9 lost training labels are flagged,
+not recovered.
