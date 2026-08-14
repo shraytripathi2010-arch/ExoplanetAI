@@ -10065,3 +10065,124 @@ twice, no clear; (c) a dense net as the classifier on the existing features,
 tree's own output, -0.0324. A new proposal must explain which of these four it
 is not, and must not rest on ExoNet's or PlanetNet-MMG's headline figures --
 the first does not report AUC and the second cannot be read.
+
+---
+
+## TRANSFER LEARNING, THIRD PROPOSAL -- FULLY COVERED by two existing closures. No new work. And the cited paper says the OPPOSITE.
+
+**Date: 2026-08-14. Production UNCHANGED: 0.9402 / 33 features / md5
+`c37f9f4bdb252d52b8c1c5487dad9e6d`. Nothing built, nothing run beyond
+re-verification.** This entry is a confirmation of prior closures, not a new
+investigation.
+
+### PART 0.1 -- warm-start is still discarded by the calibration wrapper. Re-verified empirically, not cited from memory.
+
+```
+warm-started base fitted: n_iter_ = 8
+clone(base) is fitted?  False              <-- fitted state STRIPPED by clone()
+calibrated sub-estimators: 5
+any sub-estimator IS the warm-started base object?  False
+sub-estimator n_iter_ values: [8, 8, 8, 8, 8]
+base object n_iter_ after calibration: 8   (unchanged -> base never continued)
+
+through production's exact Pipeline wrapper:
+any sub-pipeline IS the fitted pipeline object?     False
+inner HGB objects distinct from the original?       True
+```
+
+`CalibratedClassifierCV(cv=5)` clones the estimator and **refits from scratch on
+every fold**. A warm-started base contributes nothing. The original finding
+stands unchanged.
+
+### PART 0.2 -- ExoMiner++ does NOT demonstrate transfer learning. It explicitly REJECTED it. Third correction of this premise.
+
+The abstract confirms the mechanism is pooled training:
+
+> "we leverage multi-source training by **combining** high-quality labeled data
+> from the Kepler space telescope with TESS data"
+
+And the fulltext contains the direct head-to-head, which is **stronger evidence
+than the prior closure recorded** -- ExoMiner++ tried *precisely what this brief
+proposes* and abandoned it:
+
+> "**Initially, we experimented with various transfer learning approaches**
+> (Ng 2016), such as **training on Kepler data and fine-tuning certain layers of
+> the model using TESS data**. However, as TESS data grew in size and label
+> quality, **a simpler approach of combining Kepler and TESS data to create a
+> larger training set proved more effective**."
+
+So the single paper cited to justify reopening transfer learning is **direct
+evidence against it**: a team with vastly more data, a neural architecture where
+layer-wise fine-tuning is natural and cheap, and a strong incentive to make it
+work, tested pretrain-on-Kepler/fine-tune-on-TESS and **found pooling beat it**.
+
+**This premise has now been corrected three times in this conversation.** It is
+recorded here in quotable form so a fourth proposal can be checked in seconds.
+
+### PART 0.3 -- Roman and PLATO have no data. Neither can inform any near-term action.
+
+Checked live against the mission pages, not assumed:
+
+| mission | status today (2026-08-14) | science data |
+|---|---|---|
+| **Roman** (NASA) | **not launched**; scheduled 2026-08-30, Falcon Heavy from KSC LC-39A; in integrated operations | **none** |
+| **PLATO** (ESA) | **not launched**; planned March 2027, Ariane 6; assembly complete Oct 2025, in final testing | **none** |
+
+Roman launches in ~16 days and PLATO in ~19 months. Neither has produced a
+single light curve. **They cannot be a basis for action now regardless of
+anything else**, and a future proposal citing them should be dated accordingly.
+
+### PART 0.4 -- does anything survive? No.
+
+| proposal element | already closed by |
+|---|---|
+| CNN pretrain-on-Kepler, fine-tune-on-TESS | the CNN closure (0.68-0.70, four-deep evidence base, data-volume wall at every size) **and** ExoMiner++'s own rejection of exactly this |
+| tree warm-start "under a different scheme" | the domain-adaptation closure, re-verified above |
+| domain-adversarial adaptation | structurally inapplicable -- a fitted tree has no learnable representation to adapt |
+| "ExoMiner++ demonstrates transfer learning" | **factually wrong**; the paper says the opposite, verbatim |
+| Roman / PLATO leverage | no data exists |
+
+### PART 1 -- the "different scheme" question, answered without an experiment
+
+Mechanically, yes: dropping `CalibratedClassifierCV`, or using `cv="prefit"`,
+would preserve warm-started state. **That is not the binding constraint, and
+running the experiment would not address the two that are.**
+
+**(a) It trades away something measured and load-bearing.** The sigmoid/cv=5
+calibration was validated across an extensive sweep and carries the deployed
+model's Brier 0.0763 and ECE 0.0355. Any warm-start scheme built on removing it
+must show the warm-start gain **exceeds the calibration loss**, not merely that
+warm-start "works" -- and no warm-start gain of any size has ever been measured
+here.
+
+**(b) The data problem is SCHEME-INDEPENDENT, which is the decisive point.**
+Warm-starting on *what*? Kepler is domain-separable from TESS at ~0.97, K2 at
+**0.9973**. Warm-started trees import Kepler's domain-specific splits as
+**"frozen bias the new trees must fit around"** -- the original finding's exact
+language. **No deployment mechanism repairs a domain mismatch that lives in the
+pretrained structure itself.** Changing the wrapper changes whether the bias
+survives; it cannot change whether the bias is wrong.
+
+And the quantitative ceiling still binds independently: a **full** Kepler pull
+projects **+0.0061 AUC, below the 0.0097 MDE**, under same-distribution
+assumptions Kepler demonstrably does not meet. A warm-start scheme cannot beat
+the ceiling of simply *having all that data*, which is itself under the
+detection threshold.
+
+**Verdict: no worthwhile experiment exists here.** The domain-separability
+result makes every warm-start scheme moot regardless of implementation.
+
+### Recommendation
+
+**FULL CLOSURE. No new work. Production stays at 0.9402 / 33 features.**
+
+This is stated plainly rather than partially: there is no salvageable fragment,
+no scoped pilot worth defining, and no "revisit when X" condition other than the
+ones already on record -- >3,000 usable cross-mission rows past the 36.4% Kepler
+yield wall, or a larger test set that lowers the MDE. Roman/PLATO data would be
+new information, but the earliest possible date for any is well after Roman's
+2026-08-30 launch plus commissioning.
+
+**Pattern flag for future proposals.** Three distinct proposals in this
+conversation have now cited ExoMiner++ as evidence for transfer learning. The
+paper states the opposite in one sentence, quoted above. Check that quote first.
