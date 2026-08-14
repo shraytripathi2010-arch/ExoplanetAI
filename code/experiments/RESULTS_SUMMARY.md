@@ -9440,3 +9440,62 @@ conformal artifact production actually consumes is regenerated and current.
   traced to a genuine no-Gaia-source-within-3-arcsec case, not a defect --
   confirmed by re-querying three known-good stars and getting their exact
   archived values back.
+
+### FOLLOW-UP (2026-08-14): launchd root-caused to macOS TCC; real tick verified
+
+**The launchd failure is NOT fixable in code.** Diagnosed with two throwaway
+probe LaunchAgents rather than by assumption (both removed afterwards):
+
+    probe 1, WorkingDirectory = .../ExoplanetAI/web
+      shell-init: error retrieving current directory:
+      getcwd: cannot access parent directories: Operation not permitted
+
+    probe 2, absolute paths, no WorkingDirectory
+      head /Users/.../ExoplanetAI/web/app.py  -> Operation not permitted   ABS_READ_DENIED
+      ls   /Users/.../models/best_model_metadata.json -> OK                ABS_LIST_OK
+
+**Directory entries are listable but file CONTENTS are unreadable** -- the
+signature of macOS TCC protection on `~/Downloads`. Any process launchd spawns
+is denied, so `python3 -u app.py` cannot read `app.py` and exits EX_CONFIG (78)
+before it can log anything. That is why the log has no traceback.
+
+This is a user-consent security boundary and was deliberately NOT worked around.
+`tccutil` can only reset grants, not create them, and editing TCC.db directly is
+SIP-protected and would be circumventing a security control.
+
+**Fix requires the user, one of:**
+
+1. **Grant Full Disk Access** to the interpreter the agent runs --
+   `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3` --
+   in System Settings -> Privacy & Security -> Full Disk Access, then reload:
+
+       launchctl bootout gui/$(id -u)/com.exoplanetai.app
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.exoplanetai.app.plist
+
+2. **Structural alternative: move the project out of `~/Downloads`.**
+   `~/Downloads`, `~/Desktop` and `~/Documents` are TCC-protected; a path like
+   `~/ExoplanetAI` is not, and launchd would work with no permission grant at
+   all. This is the more durable fix but touches absolute paths in the plist,
+   the DB, logs and caches, so it is offered rather than taken.
+
+Until then the app runs via a manual `nohup` start (live on port 5050,
+`/health` ok, scheduler thread alive) but is **not supervised and will not
+survive a reboot**.
+
+**A REAL RETRAIN TICK WAS VERIFIED against the 33-feature config**, forced with
+`maybe_trigger_retrain(threshold=1, dry_run=True)` -- the pipeline's own dry-run
+mode runs the identical retrain/compare/promote logic while writing nothing:
+
+    10 new examples -- triggering retrain
+    Challenger built as clone of production CalibratedClassifierCV
+    New model test ROC-AUC 0.9386 vs production 0.9386
+    Paired bootstrap (new - production): mean +0.0000, 95% CI [+0.0000, +0.0000]
+    NOT promoted: CI includes zero
+    production model md5 unchanged: True
+
+Correct on every count: retraining on unchanged data reproduces the same model,
+so the delta is exactly zero and the gate declines. **No ValueError and no
+feature-count crash -- the 33-feature configuration survives a full tick**,
+which was the real risk the atomic swap existed to avoid. (0.9386 here vs the
+0.9402 headline is the retrain path evaluating on the GROWN test set of 1,104
+rather than the frozen 1,098 mask.)
