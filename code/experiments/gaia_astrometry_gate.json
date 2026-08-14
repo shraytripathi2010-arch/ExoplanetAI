@@ -1,0 +1,40 @@
+{
+  "gaia_ruwe": {
+    "avail_pos": 0.9790370882285188,
+    "avail_neg": 0.9653078924544666,
+    "fisher_or": 1.6784652903251287,
+    "fisher_p": 0.008921237926118132,
+    "auc_availability": 0.5068645978870261,
+    "pools": {
+      "main": 0.952,
+      "widesector": 0.981549815498155
+    },
+    "auc_value": 0.41688504835896617,
+    "median_pos": 1.013,
+    "median_neg": 1.052
+  },
+  "gaia_nss": {
+    "avail_pos": 0.995162404975812,
+    "avail_neg": 0.98438855160451,
+    "fisher_or": 3.262429200755192,
+    "fisher_p": 0.00046531540799544467,
+    "auc_availability": 0.505386926685651,
+    "pools": {
+      "main": 0.9595,
+      "widesector": 0.988929889298893
+    },
+    "auc_value": 0.4383382280959373,
+    "median_pos": 0.0,
+    "median_neg": 0.0
+  },
+  "gaia_ruwe_high": {
+    "auc_value": 0.4187489033349189,
+    "median_pos": 0.0,
+    "median_neg": 0.0
+  },
+  "gaia_nss_flag": {
+    "auc_value": 0.43852790014684284,
+    "median_pos": 0.0,
+    "median_neg": 0.0
+  }
+}

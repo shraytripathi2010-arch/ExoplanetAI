@@ -9114,3 +9114,185 @@ non-standard schema with no `time` column, the same condition
 `02_preprocess.validate_schema` already rejects. Guarded rather than allowed to
 kill a 5,494-star pass; 5,483 stars processed, 10 with no raw file, 1
 non-standard.
+
+---
+
+## GAIA RUWE + NSS -- **THE STRONGEST CLEAR IN THIS PROJECT'S HISTORY.** Recommended, NOT promoted.
+
+**Date: 2026-08-14. Production UNCHANGED and untouched: 0.9300 / 31 features /
+md5 `1f0b7cb8e78ab542374eaf78fc837a6f`. `training.csv` UNCHANGED (5,494 rows,
+md5 `10452580b9cfbb70ef0efc3520e82d07`). Nothing promoted. This entry is a
+RECOMMENDATION awaiting explicit go-ahead.**
+
+Motivated by Armstrong et al. 2022, who reject flagged astrometric binaries
+outright for KOI validation.
+
+### PART 0.1 -- the "already-pulled-and-unused" pattern does NOT repeat a third time
+
+Checked directly. It was real twice (crowding's `contratio`/`numcont`, stellar
+density's `rho`/`logg`); this time it is **false**. The TIC batch query returns
+**125 columns, none of them RUWE or NSS**:
+
+    TIC version 20190415  -- TIC v8, built on Gaia DR2
+    gaia columns: GAIA, GAIAmag, e_GAIAmag, gaiabp, gaiarp, gaiaqflag
+    'ruwe' present: False       'nss' present: False
+
+RUWE and `non_single_star` are Gaia **DR3** products and TIC v8 predates DR3, so
+a genuinely new query is required.
+
+**NSS is CHEAPER than the brief assumed.** `non_single_star` is a bitfield in the
+MAIN DR3 source table (1 astrometric, 2 spectroscopic, 4 eclipsing) -- only the
+detailed orbital solutions live in `nss_two_body_orbit` etc. **One query returns
+both fields.**
+
+### An infrastructure finding: the obvious route is unusable, measured not assumed
+
+| approach | measured |
+|---|---|
+| `Gaia.launch_job` per star, 8 workers | **16 stars did not finish in 10 minutes** |
+| Gaia TAP async `tap_upload` cross-match | hung past 10 minutes |
+| **VizieR `I/355/gaiadr3`, bulk table upload** | **200 stars in 33 s = 165 ms/star** |
+
+VizieR accepts a whole coordinate table per call -- same data, ~200x throughput,
+~15 min for all 5,494 training stars. Recorded because the naive route would
+have made this look infeasible.
+
+### PART 0.2 / 0.4 -- THE AVAILABILITY-TRAP GATE: **BOTH PASS**
+
+The check that closed the CTL and density cases: does *mere availability*
+predict the label?
+
+| field | avail (pos) | avail (neg) | Fisher OR | p | **AUC(availability)** | \|AUC-0.5\| |
+|---|---|---|---|---|---|---|
+| `gaia_ruwe` | 97.90% | 96.53% | 1.678 | 0.0089 | **0.5069** | **0.0069** |
+| `gaia_nss` | 99.52% | 98.44% | 3.262 | 0.00047 | **0.5054** | **0.0054** |
+| *(closed CTL trap, for scale)* | 78.7% | -- | -- | -- | *0.3775* | *0.1225* |
+
+**Roughly 18x smaller than the trap that disqualified `contratio`.** The p-values
+are significant only because n = 5,494; the effect is ~1.4 pp.
+
+### PART 0.5 -- TRAIN vs SERVE on BOTH real pools: **PASSES**
+
+This is the comparison that actually caught the crowding trap.
+
+| field | train-neg | train-pos | main pool | widesector pool |
+|---|---|---|---|---|
+| `gaia_ruwe` | 96.53% | 97.90% | **95.20%** | **98.15%** |
+| `gaia_nss` | 98.44% | 99.52% | **95.95%** | **98.89%** |
+| *(closed crowding trap)* | *78.7%* | -- | *37.5%* | -- |
+
+**No train/serve mismatch.** Two data-quality issues were fixed before this
+table was trusted: one VizieR chunk died on a transient `ConnectionError`
+(200 rows left NaN -- would have faked a gap) and was retried; and the
+**widesector candidate list carries no ra/dec at all**, so coordinates were
+resolved from TIC by id first (271/271).
+
+### Redundancy: essentially ORTHOGONAL to everything deployed
+
+| | max \|rho\| vs the 31 | vs `crowd_flux_ratio_max` | vs `crowd_nearest_arcsec` |
+|---|---|---|---|
+| `gaia_ruwe` | 0.147 (`st_teff`) | **0.027** | **0.001** |
+| `gaia_nss` | 0.132 (`st_rad`) | **0.083** | **0.008** |
+
+`gaia_ruwe` vs `gaia_nss`: **0.155**. The hypothesis that photometric blend and
+astrometric wobble are different physical channels is **confirmed
+quantitatively**, not assumed -- the deployed crowding pair and these two are
+nearly independent.
+
+### |GALACTIC LATITUDE| CONTROL ARM: clean
+
+| field | rho \|gal b\| | AUC by \|gal b\| quartile |
+|---|---|---|
+| `gaia_ruwe` | +0.069 | [0.445, 0.377, 0.375, 0.389] |
+| `gaia_nss` | +0.008 | [0.463, 0.416, 0.427, 0.411] |
+
+Consistently informative in the same direction in every quartile -- not a
+spatial confound, unlike the `trend_*` features closed the day before.
+
+### Value-level signal, and the circularity check that could have sunk NSS
+
+    RUWE > 1.4    8.02% of positives  vs  23.59% of negatives   (2.9x)
+    NSS  > 0      0.83% of positives  vs  12.92% of negatives   (15.6x)
+
+RUWE > 1.4 is the standard Gaia "likely non-single" cut (Lindegren,
+GAIA-C3-TN-LU-LL-124), reported as a diagnostic; the model receives the
+continuous value.
+
+**THE CIRCULARITY CONCERN, TESTED:** the negative class is TOI false positives,
+many of which are eclipsing binaries -- and NSS bit 4 *is* "eclipsing". If the
+signal came from that bit, the feature would largely be Gaia restating the
+label. Decomposed:
+
+| NSS bit | n | % of positives | % of negatives |
+|---|---|---|---|
+| 1 astrometric | 90 | 0.62% | 5.55% |
+| 2 spectroscopic | 116 | 0.28% | 9.16% |
+| **4 eclipsing** | **0** | -- | -- |
+
+**The eclipsing bit appears ZERO times.** The entire signal is astrometric and
+spectroscopic orbital motion -- exactly Armstrong et al.'s mechanism, and
+independent of how the label was assigned. The concern is fully resolved.
+
+### PART 3 -- resampled model comparison, 12 bootstraps, production's exact recipe
+
+Frozen split, frozen test 1,098 stars, MDE 0.0097.
+
+| arm | AUC | mean delta | sd | 95% CI | positive | >= MDE | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| base (31) | 0.9198 | -- | -- | -- | -- | -- | 0.0852 | 0.0388 |
+| +ruwe (32) | 0.9278 | +0.0081 | 0.0017 | [+0.0059, +0.0114] | 12/12 | 3/12 | 0.0800 | 0.0347 |
+| +nss (32) | 0.9282 | +0.0085 | 0.0013 | [+0.0066, +0.0110] | 12/12 | 1/12 | 0.0798 | 0.0370 |
+| **+both (33)** | **0.9339** | **+0.0142** | 0.0015 | **[+0.0124, +0.0168]** | **12/12** | **12/12** | **0.0763** | 0.0355 |
+
+2-min-only subset (968 test stars): base 0.9122, +ruwe +0.0089, +nss +0.0103,
+**+both +0.0163**.
+
+**`+both` CLEARS on both criteria: ci_lo > 0 AND mean delta >= MDE, with 12/12
+bootstraps at the MDE.** Brier improves 0.0852 -> 0.0763 and ECE 0.0388 ->
+0.0355, so this is not an AUC-only artefact.
+
+Individually **neither clears**: both have ci_lo > 0, but mean deltas of 0.0081
+and 0.0085 sit *below* the 0.0097 MDE. **They are complementary, not
+substitutes** -- rho 0.155, and their separate gains (0.0081 + 0.0085 = 0.0166)
+are close to the joint 0.0142. Two different physical channels.
+
+*(The 0.9198 base is the bootstrap-refit baseline, not the deployed model's
+recorded 0.9300 -- the same offset every prior bootstrap comparison in this file
+shows. The delta is the number that matters.)*
+
+### NSS as a HARD EXCLUSION rule -- architectural answer, NOT built
+
+Armstrong et al. reject flagged binaries outright. **This project's architecture
+is not suited to that as a trainable feature, and the distinction matters:**
+
+* A hard exclusion is a **vetting-layer** rule, not a model input. It belongs
+  where `08_characterize_candidates.py` already puts VSX variable-star and Gaia
+  blend evidence -- as a `confidence_tier` doubting line and a UI badge, with
+  the candidate still visible and the reason stated.
+* Encoding it as a model feature is strictly more informative: the model learns
+  *how much* to down-weight, rather than being handed a threshold. The measured
+  result supports that -- the continuous RUWE contributes on its own, and NSS is
+  only 3.37% prevalent, so a hard cut would discard 185 training rows to encode
+  what one column already carries.
+* **Recommendation: soft feature for the model, and a doubting-evidence line in
+  the vetting layer.** Not a filter that silently removes candidates.
+
+### RECOMMENDATION -- promote the PAIR, pending explicit go-ahead
+
+| field | verdict |
+|---|---|
+| `gaia_ruwe` | **Promote as part of the pair.** Alone: +0.0081, ci_lo > 0 but below MDE. |
+| `gaia_nss` | **Promote as part of the pair.** Alone: +0.0085, ci_lo > 0 but below MDE. |
+| **both together** | **PROMOTE: +0.0142, CI [+0.0124, +0.0168], 12/12 at MDE.** Larger than crowding (+0.010-0.012) and variability (+0.0092-0.0101), the two features currently deployed. |
+
+**NOT DONE, and requiring explicit approval:** backfilling the two columns into
+`training.csv` (5,494 rows), extending `FEATURE_COLUMNS` 31 -> 33, wiring the
+VizieR query into `06_download_unknown.py` alongside `add_crowding_features` and
+`add_variability_features`, retraining, and running the promotion gate. Each is
+a production change and none was taken unilaterally.
+
+Two caveats to carry into that decision, both small and both stated rather than
+buried: availability is mildly class-correlated (1.4 pp, p = 0.0089 -- 18x under
+the CTL trap but not zero), and the ~4.8% of main-pool candidates with no Gaia
+match would score with two imputed columns, so they need the existing
+`imputed_features` treatment.
