@@ -9693,3 +9693,139 @@ training stars and both pools -- and it would now have to clear the same
 significance variant, (b) arrives with the per-star uncertainty already
 computed, and (c) explains why re-scaling a 0.0359-strength feature should clear
 0.0097 when the raw version twice failed to.**
+
+---
+
+## FOUR SHAPE/RESIDUAL SUB-PROPOSALS -- 1 duplicate, 1 blocked-by-construction, 1 tested NEGATIVE, 1 closed architecture
+
+**Date: 2026-08-14. Production UNCHANGED: 0.9402 / 33 features / md5
+`c37f9f4bdb252d52b8c1c5487dad9e6d`. Nothing promoted.** Frozen test 1,098, so
+**MDE unchanged at ~0.0097**.
+
+### PART 0 -- routing, by code and by prior result
+
+| # | sub-proposal | verdict |
+|---|---|---|
+| 1 | skewness of the binned phase-folded transit | **DUPLICATE** of the closed Medium-lift Item 2 |
+| 2 | ingress/egress duration RATIO | **NOT derivable** -- the existing fit is symmetric BY CONSTRUCTION |
+| 3 | trapezoid fit residual (chi2/BIC) | **Zero-new-compute variant. Tested below. NEGATIVE.** |
+| 4 | local-flux CNN / deep embedding | **Reopens a closed architecture question. Not built.** |
+
+**(1) Skewness -- duplicate.** "Medium-lift Item 2: phase-folded flux
+distribution statistics" already computed **in/out-of-transit skewness AND
+kurtosis on the binned phase-folded curve, plus their differences** (which
+cancel each star's own noise character -- i.e. already a normalisation, which is
+the only thing the new wording adds). 5,380/5,631 usable, missingness AUC 0.502.
+Result: **-0.0072, 95% CI [-0.0153, +0.0010]**, nested CV flat. Re-running it
+under the word "normalized" would re-derive the same number.
+
+**(2) Ingress/egress ratio -- blocked by construction, and this is a code fact,
+not a judgement.** `trapezoid_shape.py:142` is:
+
+```python
+x = np.abs(phi - phi0)
+```
+
+The trapezoid is **symmetric about `phi0`**, so ingress and egress are the SAME
+fitted quantity and their ratio is **identically 1 for every star**. It is
+therefore *not* a cheap variant of the existing fit -- extracting it needs a new
+asymmetric 6-parameter model, refitted across 5,494 training stars and both
+pools. And the motivation is weak independently of cost: a real transit is
+time-symmetric, so ingress/egress asymmetry measures detrending and systematics
+artefacts rather than the blend physics the proposal targets. It would also
+inherit `trap_vshape`'s **31.2% usable training coverage**.
+
+**(4) CNN -- closed, and the gap has WIDENED.** A small 1D CNN over phase-folded
+points is the same data-volume-limited approach already built and closed at
+**0.68-0.70**. That was measured against a then-0.90+ tree model; production is
+now **0.9402**, so the gap has grown from ~0.20 to **~0.25 AUC** while nothing
+about the available data volume has changed -- the learning-curve work put the
+requirement at roughly 10x more labelled data. **No CNN infrastructure was
+built and no compute was spent.** Documentation only, as specified.
+
+### PART 1-3 -- the one genuinely testable sub-proposal: the fit residual
+
+**It was already computed and already saved, and had never been fed to the
+model.** `trapezoid_shape.py:259` writes `trap_rmse` (the weighted RMS residual)
+for training AND both pools, and the trapezoid validation's arms were **A:
++vshape, B: +vshape,t14r, C: availability only, D: +vshape|avail, E:
++vshape|sky** -- **none included the residual.** Zero new fitting required.
+
+Also derived `trap_bic = n*ln(RSS/n) + k*ln(n)` with `RSS = n*rmse^2`, `k = 5`.
+This is **not** a monotone transform of rmse across stars, because `trap_nbins`
+varies per star -- so it is a genuinely different ordering for a tree model.
+
+**Availability, checked up front (and it is excellent, unlike `trap_vshape`):**
+
+| population | rows | trap_rmse | trap_bic |
+|---|---|---|---|
+| training | 5,494 | **93.5%** | 93.5% |
+| main pool (Success) | 488 | **99.2%** | 99.2% |
+| widesector pool (Success) | 69 | **97.1%** | 97.1% |
+
+**Class-rate gate: PASSES.** avail 93.62% positive vs 93.06% negative, Fisher
+OR 1.094, **p = 0.502**, AUC(availability) **0.5028**.
+
+**Single-feature signal: the STRONGEST in this project's history -- and it is a
+mirage.**
+
+| feature | AUC | \|AUC-0.5\| | max \|rho\| vs the 33 | rho vs `trap_vshape` |
+|---|---|---|---|---|
+| `trap_rmse` | **0.6507** | **0.1507** | **0.962 (`depth_mean`)** | 0.062 |
+| `trap_bic` | 0.6356 | 0.1356 | 0.932 (`depth_mean`) | 0.045 |
+
+For scale: `gaia_ruwe`, the strongest feature promoted this project, has
+|AUC-0.5| = 0.0831 -- barely half of `trap_rmse`'s. **But `trap_rmse` is 0.962
+correlated with `depth_mean`, which is already deployed.** A weighted RMS
+residual scales with the amplitude of the signal being fitted, so it is
+substantially transit depth restated, not an independent goodness-of-fit
+measure. The 0.80 redundancy threshold is exceeded outright.
+
+**|Galactic latitude| control arm: FAILS.**
+
+| feature | rho \|gal b\| | AUC by \|gal b\| quartile |
+|---|---|---|
+| `trap_rmse` | -0.236 | **[0.735, 0.816, 0.633, 0.396]** |
+| `trap_bic` | -0.214 | [0.720, 0.787, 0.619, 0.386] |
+
+Swinging from 0.816 to **below chance at 0.396** is the same spatial-confound
+signature that closed the `trend_*` features.
+
+**Modelled anyway** -- it passed the class-rate gate, and a measured null closes
+harder than an argued one. 12 bootstraps, production's exact recipe, frozen
+split:
+
+| arm | AUC | mean delta | 95% CI | positive | >= MDE | Brier | ECE |
+|---|---|---|---|---|---|---|---|
+| base (33) | 0.9339 | -- | -- | -- | -- | 0.0763 | 0.0355 |
+| +rmse | 0.9328 | **-0.0011** | [-0.0037, +0.0019] | 3/12 | **0/12** | 0.0762 | 0.0353 |
+| +bic | 0.9336 | -0.0004 | [-0.0027, +0.0018] | 4/12 | 0/12 | 0.0758 | 0.0341 |
+| +rmse,bic | 0.9335 | -0.0004 | [-0.0025, +0.0029] | 5/12 | 0/12 | 0.0758 | 0.0362 |
+| **+rmse,vshape** | 0.9315 | **-0.0025** | [-0.0045, +0.0005] | 2/12 | 0/12 | 0.0782 | 0.0382 |
+
+2-min-only subset: -0.0011 / -0.0002 / -0.0002 / -0.0030. **Every arm is
+negative. Nothing clears. The combined-with-`trap_vshape` arm is the worst**,
+settling that question too: residual and shape are not complements here.
+
+**This is the cleanest demonstration in this file that single-feature AUC is not
+a promotion criterion.** `trap_rmse` has the widest single-feature separation
+ever measured here (0.6507) and moves the model by **-0.0011**, because the
+information is already in `depth_mean` at rho 0.962.
+
+### Verdict
+
+**Promote nothing. Build nothing further.**
+
+| sub-proposal | recommendation |
+|---|---|
+| skewness | **duplicate** -- closed at -0.0072, do not re-run |
+| ingress/egress ratio | **not pursued** -- identically 1 in the symmetric fit; needs a new asymmetric fit for a time-symmetric quantity |
+| fit residual (rmse / BIC) | **DON'T PROMOTE** -- tested, -0.0011, 0/12 at MDE, redundant at rho 0.962 and spatially unstable |
+| local-flux CNN | **NOT BUILT** -- gap widened from ~0.20 to ~0.25 AUC |
+
+**Before proposing a fifth shape feature:** the deployed shape information is
+`odd_even_mismatch`, and `transit_shape_ratio` (phase-convention-broken, rank
+20/31, retirement unprovable). `trap_vshape` remains positive-but-unprovable at
++0.0007 with 31.2% coverage. Skewness/kurtosis, Haar energy, trapezoid residual
+and BIC are all now measured and negative. A new shape proposal needs to say
+which of these it is NOT, and why it would not simply restate `depth_mean`.
