@@ -8955,3 +8955,162 @@ structural, not a sampling artifact.
 
 Estimated ~30-45 min for the pilot; actual wall time **8.8 min**. Wrong in the
 useful direction this time, but wrong again.
+
+---
+
+## THREE ExoMiner++-INSPIRED FEATURES -- one is a duplicate-in-part, one is blocked, none clears
+
+**Date: 2026-08-13. Production UNCHANGED: 0.9300 / 31 features / md5
+`1f0b7cb8e78ab542374eaf78fc837a6f`. `training.csv` UNCHANGED (5,494 rows, md5
+`10452580b9cfbb70ef0efc3520e82d07`). Nothing promoted.** MDE on this test set
+~0.0097; frozen test 1,098 stars.
+
+### PART 0 -- Lomb-Scargle duplicate check: PARTIAL duplicate, with a genuinely new angle
+
+`var_ls_amp`, `var_ls_power`, `var_ls_period` **are already deployed and are
+Lomb-Scargle features**. Exact definition read from `variability_features.py`:
+`astropy.timeseries.LombScargle` on RAW flux that has been quality-filtered,
+5-sigma clipped, **out-of-transit masked** (`|phase| > duration/period`, so the
+transit cannot inflate its own statistic) and 10-minute binned; peak by
+`argmax` of `autopower` over 0.2-13 d; amplitude from the fitted model.
+
+So the three deployed columns answer **"is this star variable, at what period,
+how strongly"**. They do **not** answer the proposal's question, which is
+whether the dominant periodicity sits **at or near a harmonic of the
+candidate's OWN transit period**. That is a *relation between two numbers*, not
+a new measurement, and it is computed nowhere in this project.
+
+**Verdict: not a duplicate of the measurement, but it is a derived quantity --
+zero new data, zero new compute.** `ls_period_match` is defined as the minimum
+over harmonics n in {1, 2, 1/2, 3, 1/3} of `|log(P_ls / (n * P_transit))|`, in
+log space so 2:1 and 1:2 are symmetric -- the same alias family the
+secondary-eclipse work already characterised. Hypothesis: a transit period
+sitting on the star's own rotation period, or a harmonic of it, suggests
+stellar activity rather than a planet.
+
+### PART 3 -- systematics flags: FEASIBILITY SPLITS THE PROPOSAL IN TWO
+
+**Momentum dumps are NOT recoverable from retained data.** Every download in
+this project calls a bare `.download()`, and lightkurve's
+`TessQualityFlags.DEFAULT_BITMASK = 17087` **includes bit 32, "Desaturation
+event"** -- the momentum-dump flag. Those cadences are removed *at download
+time*, before any CSV is written. Measured across 60 raw files / 1,063,181
+cadences: **bit 32 appears 0 times**, as the bitmask guarantees.
+
+**Scattered light IS retained** -- bits 2048/4096 are not in the default mask:
+
+| bit | flag | cadences | % | files (of 60) |
+|---|---|---|---|---|
+| 4096 | Straylight2 | 86,240 | **8.11%** | 47 |
+| 32768 | Insufficient Targets for Error Correction | 10,749 | 1.01% | 18 |
+| 1024 | Cosmic ray in collateral data | 2,000 | 0.19% | 2 |
+| 2048 | Straylight | 462 | 0.04% | 2 |
+
+So only the straylight half was buildable, and it was built. Recovering
+momentum dumps would need a **full re-download of all 5,494 training stars plus
+both candidate pools with `quality_bitmask=0`** -- same class of blocker as PLD,
+though cheaper (light curves, not pixel files). **Not attempted: the straylight
+half, which IS available, turned out to carry no signal at all (below), so
+there is no evidence the momentum-dump half would either.**
+
+### The pre-model battery, all three proposals
+
+| feature | NaN pos | NaN neg | single-feature AUC | \|AUC-0.5\| | max \|rho\| vs the 31 |
+|---|---|---|---|---|---|
+| `ls_period_match` | 2.6% | 1.2% | **0.5887** | 0.0887 | **0.301** (`period`) |
+| `trend_slope_ppm_day` | 0.2% | 0.1% | 0.6087 | 0.1087 | **0.826** (`var_ls_amp`) |
+| `trend_amp_frac` | 0.2% | 0.1% | 0.6110 | 0.1110 | **0.829** (`var_ls_amp`) |
+| `straylight_frac` | 0.2% | 0.1% | **0.4964** | **0.0036** | 0.430 |
+| `flagged_frac` | 0.2% | 0.1% | 0.5326 | 0.0326 | 0.471 |
+
+**|ecliptic latitude| differs between classes: KS D = 0.169, p = 4.2e-23**
+(medians 59.2 vs 52.0 deg). The documented spatial confound is live, which is
+why the control arm below is a stratified AUC and not a correlation.
+
+| feature | rho \|gal b\| | rho \|ecl lat\| | AUC by ecliptic-latitude quartile |
+|---|---|---|---|
+| `ls_period_match` | **-0.004** | +0.062 | **[0.596, 0.547, 0.607, 0.603]** stable |
+| `trend_slope_ppm_day` | -0.248 | +0.149 | [0.524, **0.434**, 0.709, 0.705] unstable |
+| `trend_amp_frac` | -0.254 | +0.161 | [0.522, **0.435**, 0.715, 0.710] unstable |
+| `straylight_frac` | +0.127 | -0.111 | [0.497, 0.429, 0.475, 0.588] |
+
+#### PROPOSAL 2 (trend/slope) -- REJECTED before modelling, on two counts
+
+First, the mechanism question was answered before computing anything: savgol
+divides by a ~13.4 h trend, so **anything slower -- including a full-baseline
+linear slope -- is already divided out**. A trend feature on PROCESSED data is a
+null re-derivation. It was therefore computed on RAW, the same reasoning that
+put the variability features on raw.
+
+On raw it is **redundant**: |rho| **0.826 / 0.829 with `var_ls_amp`**, above the
+0.80 threshold. A slow trend on a raw curve largely *is* the low-frequency
+variability amplitude already deployed. And it is **spatially unstable** --
+quartile AUCs swing from 0.434 (below chance) to 0.715, with rho -0.25 against
+|galactic b|. Nominally the strongest single-feature AUC of the three, and the
+control arm shows why that number cannot be trusted.
+
+#### PROPOSAL 3 (straylight) -- REJECTED. No signal.
+
+`straylight_frac` is at **chance: AUC 0.4964, |AUC-0.5| = 0.0036**, despite
+being abundant (8.11% of cadences, 47/60 files). `flagged_frac` reaches only
+0.5326 and is likewise spatially unstable. **The prior concern -- that a
+straylight feature would be a proxy for ecliptic position -- did not even get
+the chance to bite: there is nothing there to be confounded.**
+
+#### PROPOSAL 1 (`ls_period_match`) -- cleared EVERY pre-model check, then did not clear the model
+
+* not redundant: max |rho| **0.301**, far under 0.80
+* spatially clean: rho with |galactic b| **-0.004**, quartile AUCs stable
+* **production availability: 100% of Success rows on BOTH pools** (488/488 main,
+  69/69 widesector) -- checked before modelling, per the standing rule
+* one caveat, reported: availability is mildly class-correlated (97.35% of
+  positives vs 98.79% of negatives, OR 0.452, p = 0.003). The magnitude is
+  **1.4 pp**, against the **31 pp** that disqualified multi-sector, and the NaN
+  pattern is **inherited from `var_ls_period`, an already-deployed column** --
+  so this adds no new missingness structure to production.
+
+**Result, 12 training bootstraps, production's exact recipe, frozen split:**
+
+| arm | mean delta | sd | min | max | positive | >= MDE |
+|---|---|---|---|---|---|---|
+| 31 -> 32 (full frozen test) | **-0.0006** | 0.0018 | -0.0040 | +0.0021 | 5/12 | **0/12** |
+| 31 -> 32 (2-min subset, n=968) | -0.0006 | 0.0019 | -0.0051 | +0.0023 | 5/12 | 0/12 |
+
+    95% CI on delta  [-0.0035, +0.0019]   ci_lo > 0: NO
+    AUC    0.9207 -> 0.9201
+    Brier  0.0851 -> 0.0852
+    ECE    0.0404 -> 0.0394
+
+**Does not clear.** Mean delta is negative, the CI straddles zero, and no
+bootstrap reaches the MDE. ECE improves by 0.0010, which is not a promotion
+criterion and is well inside noise.
+
+### Verdict
+
+| proposal | outcome |
+|---|---|
+| 1. LS peak / period matching | **NOT a duplicate** -- the deployed LS columns measure variability, this measures alias proximity. Genuinely novel, cleanly non-redundant, spatially robust. **Does not clear: -0.0006, CI [-0.0035, +0.0019], 0/12 at MDE. DO NOT PROMOTE.** |
+| 2. Overall trend / slope | **REJECTED pre-model.** Null on processed data by construction; on raw it is redundant with `var_ls_amp` (\|rho\| 0.83 > 0.80) and spatially unstable (quartile AUC 0.434-0.715). |
+| 3. Systematics flags | **SPLIT. Momentum dumps: FEASIBILITY-BLOCKED** -- destroyed at download by `DEFAULT_BITMASK` bit 32; would need a full re-download at `quality_bitmask=0`. **Scattered light: available and tested, at chance (AUC 0.4964).** |
+
+**Recommendation: promote none of them. Production stays at 0.9300 / 31
+features.**
+
+The one result worth carrying forward is negative but informative:
+`ls_period_match` is a *well-motivated, non-redundant, spatially clean* feature
+that still returns nothing. That is the fourth consecutive vetting-style feature
+(after weak-secondary, trapezoid shape, and odd-even timing) to pass every
+design check and fail the model -- consistent with the learning-curve finding
+that this ceiling is a **data limit, not a feature limit**.
+
+**Do not re-propose a re-download for momentum-dump flags** without new
+information: the straylight half of the same proposal is available, abundant,
+and carries no class signal, which is direct evidence against the family.
+
+### Process note
+
+`raw_features()` crashed on the first pass -- one archive file has a
+non-standard schema with no `time` column, the same condition
+`02_preprocess.validate_schema` already rejects. Guarded rather than allowed to
+kill a 5,494-star pass; 5,483 stars processed, 10 with no raw file, 1
+non-standard.
