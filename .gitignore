@@ -90,3 +90,10 @@ models/best_model_*_staged.joblib
 code/experiments/nasa_pscomppars_cache.csv
 data/raw_8sector/
 data/processed_8sector/
+
+# Gaia deployment (2026-08-14): staged artifact is byte-identical to the
+# deployed model once swapped, and the pre-deploy backups duplicate what git
+# history already holds. The ROLLBACK copy in models/versions/ IS tracked.
+models/staged_best_model_gaia33*
+data/training_dataset/training_BACKUP_pre_gaia_*.csv
+data/catalogs/*_BACKUP_pre_gaia_*.csv

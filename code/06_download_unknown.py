@@ -861,7 +861,16 @@ FEATURE_METADATA_PATH = os.path.join(MODELS_FOLDER, "best_model_metadata.json")
 # -- not merely noisy -- when a light curve has too few transits to
 # characterise, which is a property of the observing window rather than of
 # the star.
-OPTIONAL_FEATURES = {"transit_shape_ratio", "FAP"}
+# `gaia_ruwe`/`gaia_nss` are OPTIONAL for a different reason than the two above:
+# they are not undefined-by-physics, they are simply absent when Gaia has no
+# source within 3 arcsec (2.4% and 0.7% of training stars, 4.8%/4.1% of the main
+# candidate pool). Marking them optional is what makes the imputation policy
+# IDENTICAL on both sides: the star is still scored, the NaN is filled by
+# production's own SimpleImputer(median) INSIDE the fitted pipeline, and the
+# star is flagged in `imputed_features` so the dilution is visible per candidate
+# rather than silent. Filling them here instead would put a second, different
+# imputer in the serving path only -- a train/serve mismatch by construction.
+OPTIONAL_FEATURES = {"transit_shape_ratio", "FAP", "gaia_ruwe", "gaia_nss"}
 
 # Model features that compute_all_features STRUCTURALLY CANNOT PRODUCE, because
 # they come from other sources entirely and are added by later stages in
@@ -898,6 +907,11 @@ NON_TLS_FEATURE_COLUMNS = {
     "st_rad", "st_teff",
     "crowd_flux_ratio_max", "crowd_nearest_arcsec",
     "var_oot_rms", "var_excess", "var_ls_amp", "var_ls_power", "var_ls_period",
+    # Gaia DR3 astrometry, added by add_gaia_astrometry_features() at the same
+    # call site as crowding and variability. Registered here at the SAME TIME
+    # the columns were promoted -- the crowding and variability promotions each
+    # forgot this step and silently blocked every star for a week.
+    "gaia_ruwe", "gaia_nss",
 }
 
 # Triage floor, chosen deliberately from the threshold sweep in
@@ -1330,6 +1344,98 @@ def add_variability_features(df, raw_dir=None, max_workers=4):
     return df
 
 
+GAIA_COLUMNS = ["gaia_ruwe", "gaia_nss"]
+GAIA_CATALOG = "I/355/gaiadr3"
+GAIA_MATCH_ARCSEC = 3.0
+GAIA_CHUNK = 200
+
+
+def add_gaia_astrometry_features(df, max_workers=None):
+    """Adds Gaia DR3 RUWE and non-single-star flag to a candidate feature frame.
+
+    These are model INPUTS (promoted 31 -> 33 on 2026-08-14, +0.0142 AUC), so
+    they must be produced for every unknown candidate, not only backfilled onto
+    the training set.
+
+    *** WHY VIZIER AND NOT THE GAIA TAP SERVICE ***
+    Measured during validation, not assumed: `Gaia.launch_job` per star did not
+    finish 16 stars in 10 minutes with 8 workers, and an async `tap_upload`
+    cross-match hung past the same limit. VizieR's Gaia DR3 mirror takes a whole
+    coordinate TABLE in one call -- 200 stars in 33 s. Do not "simplify" this
+    back to a per-star cone search.
+
+    *** WHY IT RESOLVES COORDINATES FROM TIC FIRST ***
+    VizieR matches on sky position, and the feature frame is keyed `TIC_<id>`
+    with no ra/dec. The widesector candidate list has no ra/dec either -- found
+    during validation -- so resolving from TIC by id is the only route that
+    works for BOTH pools.
+
+    Never raises: a Gaia or MAST outage leaves the columns NaN, which is a
+    supported state (they are in OPTIONAL_FEATURES and are median-imputed inside
+    the fitted pipeline, with the star flagged in `imputed_features`).
+    """
+    hosts = df["host"].astype(str).tolist()
+    for c in GAIA_COLUMNS:
+        df[c] = np.nan
+    try:
+        import numpy as _np
+        from astropy.table import Table
+        import astropy.units as u
+        from astroquery.vizier import Vizier
+        from astroquery.mast import Catalogs
+    except Exception as e:
+        print(f"  gaia: modules unavailable ({e}); leaving columns NaN")
+        return df
+
+    # ---- step 1: TIC id -> ra/dec ----
+    ids, pos = [], []
+    for i, h in enumerate(hosts):
+        m = re.match(r"^TIC_(\d+)$", h)
+        if m:
+            ids.append(m.group(1)); pos.append(i)
+    ra = _np.full(len(hosts), _np.nan); dec = _np.full(len(hosts), _np.nan)
+    for s in range(0, len(ids), GAIA_CHUNK):
+        chunk = ids[s:s + GAIA_CHUNK]
+        try:
+            t = Catalogs.query_criteria(catalog="TIC", ID=chunk).to_pandas()
+            lut = dict(zip(t["ID"].astype(str), zip(t["ra"], t["dec"])))
+            for j, tic in enumerate(chunk, start=s):
+                if tic in lut:
+                    ra[pos[j]], dec[pos[j]] = lut[tic]
+        except Exception as e:
+            print(f"  gaia: TIC coordinate chunk failed ({type(e).__name__}); "
+                  f"those stars stay NaN")
+
+    # ---- step 2: bulk cone match against Gaia DR3 ----
+    ok_idx = _np.where(_np.isfinite(ra) & _np.isfinite(dec))[0]
+    v = Vizier(columns=["Source", "RUWE", "NSS", "+_r"], row_limit=-1)
+    for s in range(0, len(ok_idx), GAIA_CHUNK):
+        idx = ok_idx[s:s + GAIA_CHUNK]
+        try:
+            tb = Table({"_RAJ2000": ra[idx], "_DEJ2000": dec[idx]})
+            tb["_RAJ2000"].unit = u.deg
+            tb["_DEJ2000"].unit = u.deg
+            res = v.query_region(tb, radius=GAIA_MATCH_ARCSEC * u.arcsec,
+                                 catalog=GAIA_CATALOG)
+            if not len(res):
+                continue
+            r = res[0].to_pandas()
+            if "_q" not in r.columns:
+                continue
+            r = r.sort_values("_r").drop_duplicates("_q")
+            tgt = idx[(r["_q"].astype(int) - 1).to_numpy()]
+            df.loc[df.index[tgt], "gaia_ruwe"] = pd.to_numeric(
+                r.get("RUWE"), errors="coerce").to_numpy()
+            df.loc[df.index[tgt], "gaia_nss"] = pd.to_numeric(
+                r.get("NSS"), errors="coerce").to_numpy()
+        except Exception as e:
+            print(f"  gaia: VizieR chunk failed ({type(e).__name__}); "
+                  f"those stars stay NaN")
+    n_ok = int(df["gaia_ruwe"].notna().sum())
+    print(f"  gaia: matched {n_ok}/{len(hosts)} candidates in Gaia DR3")
+    return df
+
+
 def compute_all_features(csv_path, host, r_star, m_star, required_columns):
     """Runs TLS once with real stellar params and extracts every scalar TLS
     field the model needs PLUS the v2 feature set (chi2red_min,
@@ -1520,6 +1626,10 @@ def extract_features(candidates_df, required_columns):
             # Variability reads RAW_FOLDER (the pre-flatten downloads), NOT
             # data/processed_unknown/. See add_variability_features.
             new_df = add_variability_features(new_df)
+            # Gaia DR3 astrometry (RUWE + non-single-star). Same stage as
+            # crowding/variability, and registered in NON_TLS_FEATURE_COLUMNS
+            # so the TLS-stage gate cannot block on it.
+            new_df = add_gaia_astrometry_features(new_df)
             if os.path.exists(FEATURES_PATH):
                 old = pd.read_csv(FEATURES_PATH)
                 combined = pd.concat([old, new_df], ignore_index=True).drop_duplicates(subset="host", keep="last")

@@ -231,6 +231,32 @@ def _variability_for_raw(raw_path, period, t0, duration):
         return {c: float("nan") for c in VARIABILITY_COLUMNS}
 
 
+GAIA_COLUMNS = ["gaia_ruwe", "gaia_nss"]
+
+
+def _gaia_for_host(tic_id):
+    """Gaia DR3 RUWE + non-single-star for one newly-labelled star.
+
+    Reuses `06_download_unknown.add_gaia_astrometry_features` UNCHANGED rather
+    than reimplementing the VizieR call, so the label-append path and the
+    candidate path can never drift apart -- the exact failure mode that let
+    crowding and variability be added to FEATURE_COLUMNS without being added to
+    the TLS gate.
+
+    Returns NaNs rather than raising, matching _crowding_for_host and
+    _variability_for_raw. A NaN here is a supported state: both columns are in
+    OPTIONAL_FEATURES and are median-imputed inside the fitted pipeline.
+    """
+    try:
+        d = m06.add_gaia_astrometry_features(
+            pd.DataFrame({"host": [f"TIC_{int(tic_id)}"]}))
+        return {c: float(d[c].iloc[0]) if pd.notna(d[c].iloc[0]) else float("nan")
+                for c in GAIA_COLUMNS}
+    except Exception as e:
+        print(f"  gaia unavailable for TIC {tic_id}: {e}")
+        return {c: float("nan") for c in GAIA_COLUMNS}
+
+
 def process_and_append_new_examples(max_new=None):
     """Runs every pending watch-queue entry through download -> preprocess
     -> TLS feature extraction, reusing 06_download_unknown.py's
@@ -302,6 +328,11 @@ def process_and_append_new_examples(max_new=None):
             row.update(_variability_for_raw(
                 raw_path, feats.get("period"), feats.get("T0"),
                 feats.get("duration")))
+            # Gaia DR3 astrometry -- same reasoning as crowding and variability
+            # above: MODEL INPUTS, so an auto-appended star must carry them or
+            # it silently arrives with two missing features and degrades them
+            # over time.
+            row.update(_gaia_for_host(tic_id))
             # BUG FIXED (caught live): appending with header=False writes
             # values POSITIONALLY -- a naive pd.DataFrame([row]) has whatever
             # key order dict(feats) happened to produce, which does NOT

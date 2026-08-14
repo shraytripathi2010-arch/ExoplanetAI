@@ -241,6 +241,47 @@ FEATURE_COLUMNS = [
     # 2026-08-06 alongside model md5 1f0b7cb8... (rollback:
     # models/versions/best_model_pre_variability_0c996a41.joblib).
     "var_oot_rms", "var_excess", "var_ls_amp", "var_ls_power", "var_ls_period",
+    # Gaia DR3 astrometric binary indicators (promoted 2026-08-14). RUWE is the
+    # renormalized unit weight error of Gaia's SINGLE-star astrometric fit -- an
+    # unresolved companion drags the photocentre and inflates it. `gaia_nss` is
+    # nonzero when Gaia published a non-single-star solution. Motivated by
+    # Armstrong et al. 2022, who reject flagged astrometric binaries outright
+    # for KOI validation.
+    #
+    # Validated: frozen test 0.9294 -> 0.9402 on the headline fit; +0.0142 over
+    # 12 training bootstraps, CI [+0.0124, +0.0168], positive 12/12 and at/above
+    # the 0.0097 MDE on 12/12; 2-min subset +0.0163. Nested CV pooled
+    # out-of-fold 0.9383 -> 0.9471, winning all 5 outer folds. Brier 0.0852 ->
+    # 0.0763. NEITHER CLEARS ALONE (+0.0081 and +0.0085, both under the MDE) --
+    # they are complementary channels, rho 0.155.
+    #
+    # *** THE AVAILABILITY-TRAP GATE WAS RUN FIRST AND PASSED. *** TIC's
+    # contratio/numcont and stellar density's rho/logg both died because mere
+    # AVAILABILITY predicted the label (AUC 0.3775 for the CTL trap). Here
+    # AUC(availability) is 0.5069 and 0.5054 -- ~18x smaller -- and train-vs-
+    # serve availability matches (97.6%/99.3% training vs 95.9%/96.7% on the
+    # main pool's Success rows), unlike crowding's 78.7% vs 37.5% trap.
+    #
+    # Circularity checked: the negative class is TOI false positives, many of
+    # them EBs, and NSS bit 4 is "eclipsing" -- but that bit occurs ZERO times.
+    # All signal is astrometric (90 stars) and spectroscopic (116), independent
+    # of how the label was assigned.
+    #
+    # Both are in OPTIONAL_FEATURES: when Gaia has no source within 3 arcsec the
+    # value stays NaN, is median-imputed INSIDE the fitted pipeline (identically
+    # at train and serve time), and the star is flagged in `imputed_features`.
+    #
+    # Produced by 06_download_unknown.add_gaia_astrometry_features and
+    # retrain_pipeline._gaia_for_host, both via VizieR's I/355/gaiadr3 bulk
+    # table upload -- NOT per-star Gaia TAP, which failed to complete 16 stars
+    # in 10 minutes during validation.
+    #
+    # This list and the deployed artifact must change together. A 31-feature
+    # model raises ValueError on a 33-column matrix and vice versa, so editing
+    # either one alone crashes the scheduler's next retrain tick. Deployed
+    # 2026-08-14 alongside model md5 c37f9f4b... (rollback:
+    # models/versions/best_model_pre_gaia_1f0b7cb8.joblib).
+    "gaia_ruwe", "gaia_nss",
 ]
 
 

@@ -9296,3 +9296,147 @@ buried: availability is mildly class-correlated (1.4 pp, p = 0.0089 -- 18x under
 the CTL trap but not zero), and the ~4.8% of main-pool candidates with no Gaia
 match would score with two imputed columns, so they need the existing
 `imputed_features` treatment.
+
+---
+
+## DEPLOYED: Gaia DR3 RUWE + NSS, 31 -> 33 features, 0.9300 -> 0.9402
+
+**Date: 2026-08-14. THIS IS THE NEW NUMBER OF RECORD.**
+
+    model      models/best_model.joblib   md5 c37f9f4bdb252d52b8c1c5487dad9e6d
+    features   33   (was 31, md5 1f0b7cb8e78ab542374eaf78fc837a6f)
+    frozen-test AUC  0.9294 -> 0.9402   (headline fit, same 1,098 stars)
+    training.csv     5,494 rows x 51 cols, md5 3bf4a34317acbfcaf42972ee875ac0be
+    rollback   models/versions/best_model_pre_gaia_1f0b7cb8.joblib
+
+### Imputation policy -- IDENTICAL on both sides, by construction
+
+Unmatched stars stay **NaN**. Both columns are in `OPTIONAL_FEATURES`, so:
+`score_candidates` does not drop the star, the NaN is filled by production's own
+`SimpleImputer(median)` **inside the fitted pipeline** (so training and serving
+use the same imputer fitted on the same data), and the star is flagged in
+`imputed_features`. Filling them anywhere else would put a second, different
+imputer in the serving path only -- a train/serve mismatch by construction.
+
+Coverage: training 97.62% / 99.29%; main pool Success rows 95.90% / 96.72%;
+widesector Success rows 98.55% / 100%.
+
+### The gate that lost 9 labels last time -- checked BEFORE deploying
+
+`gaia_ruwe` and `gaia_nss` were added to **`NON_TLS_FEATURE_COLUMNS` (now 11)**
+in the same edit that promoted them. Verified live after the change:
+
+    {'gaia_ruwe','gaia_nss'} <= NON_TLS_FEATURE_COLUMNS   True
+    OPTIONAL_FEATURES  ['FAP','gaia_nss','gaia_ruwe','transit_shape_ratio']
+
+The crowding (Aug 5) and variability (Aug 6) promotions each skipped this and
+silently blocked every star for a week. It cannot recur for these two.
+
+### Backfill integrity
+
+**A first attempt FAILED its own check and was discarded.** Round-tripping
+through `pandas.read_csv -> to_csv` re-serialised every float and changed 8
+cells of `chi2red_min` in the 16th significant digit
+(`5.11146182632035e-09` -> `5.1114618263203505e-09`). Physically meaningless,
+but it breaks the byte-identical standard, and "negligible" is not a judgement
+to make silently on production training data. Restored from backup and redone as
+a **textual column append**, so:
+
+    every original line is a byte-exact PREFIX of its new line   True
+    row count 5,494 -> 5,494, host order identical               True
+    pre-existing data identical                                  True
+    both new columns round-trip exactly                          True
+
+**Candidate pools: a real gap was found and closed.** Joining the validated
+fetch by host (never positionally) exposed that `unknown_features.csv` holds
+**2,454 rows** while `unknown_candidate_list.csv` holds only **2,000** -- the
+feature table accumulated across runs. Coverage came out at 55.5%. The 1,081
+un-queried hosts were then fetched **with the newly wired production function**
+(987 matched), taking the main pool to 95.72% / 96.58%. This is the variability
+deployment's pool-gap lesson applied rather than rediscovered.
+
+### Full-scale retrain reproduces the validation exactly
+
+| metric | 31 features | 33 features | delta |
+|---|---|---|---|
+| frozen-test AUC (headline fit) | 0.9294 | **0.9402** | +0.0108 |
+| 2-min subset | 0.9216 | 0.9343 | +0.0127 |
+| bootstrap mean (12 resamples) | 0.9198 | 0.9340 | **+0.0142** |
+| bootstrap 95% CI | -- | -- | **[+0.0124, +0.0168]** |
+| positive / at MDE | -- | -- | **12/12 and 12/12** |
+| nested CV pooled out-of-fold | 0.9383 | **0.9471** | +0.0088, wins 5/5 folds |
+| Brier (bootstrap mean) | 0.0852 | 0.0763 | better |
+| ECE (bootstrap mean) | 0.0388 | 0.0355 | better |
+
+**+0.0142 / CI [+0.0124, +0.0168] is identical to the pre-deployment
+validation**, which is the consistency check that mattered.
+
+**One metric moved the wrong way and is recorded rather than buried:** on the
+single headline fit, ECE went **0.0210 -> 0.0298**. The bootstrap-mean ECE
+improves (0.0388 -> 0.0355) and Brier improves in both framings, so calibration
+is not broadly degraded -- but the headline-fit ECE is worse and conformal
+calibration was regenerated against the new model, which is where that is
+handled.
+
+### Live consumption proof, on a real candidate (TIC_466307646)
+
+    gaia_ruwe  0.9 -> 1.0 -> 1.2 -> 1.4 -> 2.0 -> 3.0 -> 5.0
+    p(planet)  0.9699 0.9653 0.9523 0.9413 0.8973 0.8903 0.8761   monotonic DOWN
+
+    gaia_nss   0 -> 1 -> 2
+    p(planet)  0.9678 -> 0.9085 -> 0.5127
+
+    clean single star (ruwe 0.95, nss 0)  p = 0.9647
+    flagged binary    (ruwe 3.0,  nss 1)  p = 0.7244    delta -0.2402
+
+Physically correct in both channels: more astrometric wobble, or a published
+non-single-star solution, lowers the planet probability.
+
+### Downstream artifacts, both done PROACTIVELY
+
+* **conformal_calibration.json** regenerated; `model_md5`
+  `c37f9f4bdb252d52b8c1c5487dad9e6d`, n_calibration 1,104.
+* **bootstrap ensemble** rebuilt: 32 members, **33 features**, and verified
+  live against a real candidate (band [0.9714, 0.9861]). After crowding this
+  broke silently and was only found by a downstream crash.
+
+### TWO PRE-EXISTING PROBLEMS FOUND, NEITHER CAUSED BY THIS DEPLOYMENT
+
+**1. The web app has been down since 2026-08-14 01:05 UTC**, ~11 hours before
+this work started (last scheduler tick 920; a 62-minute gap before it is
+consistent with the Mac sleeping). `launchctl` reports **exit 78 (EX_CONFIG) on
+3 attempts with ZERO output** -- python never starts. The app runs perfectly
+when launched from an authorized terminal, so this is a launchd/TCC-class issue
+on the machine, not a code fault:
+
+    manual start -> /health {"status":"ok","scheduler_thread_alive":true}, port 5050
+
+The app is currently **running via a manual `nohup` start**, so the service is
+live on the new model -- but it is **NOT under launchd supervision**, and will
+not survive a reboot until the agent is fixed. Requires the user: grant the
+LaunchAgent access to `~/Downloads` (System Settings -> Privacy & Security ->
+Files and Folders / Full Disk Access), then:
+
+```
+launchctl bootout gui/$(id -u)/com.exoplanetai.app
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.exoplanetai.app.plist
+```
+
+**2. `conformal_prediction.py`'s exchangeability diagnostic has been broken
+since 2026-08-06.** It reads `results/unknown_candidates/ranked_candidates.csv`,
+dated **2026-08-05**, which predates the variability promotion and so lacks
+`var_*`. It has failed on every run since, independent of this change. The
+conformal artifact production actually consumes is regenerated and current.
+
+### Verified after deployment
+
+* `FEATURE_COLUMNS` (33) == metadata `feature_columns` (33) == model
+  `n_features_in_` (33) -- swapped atomically with the artifact, per the
+  ValueError-on-mismatch lesson.
+* A real `maybe_trigger_retrain` tick runs clean against the 33-feature config
+  (`10/50 new examples -- not yet`, no crash).
+* `retrain_pipeline._gaia_for_host` returns values matching an independent fetch
+  exactly (TIC_231620255 -> 0.992, TIC_315398983 -> 0.935). An earlier NaN was
+  traced to a genuine no-Gaia-source-within-3-arcsec case, not a defect --
+  confirmed by re-querying three known-good stars and getting their exact
+  archived values back.
