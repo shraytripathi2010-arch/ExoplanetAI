@@ -9944,3 +9944,124 @@ as a strict subset and was wrong: the many-to-one direction runs the opposite
 way, and the raw ratio had the higher single-feature AUC. The deduplication
 check has to compare the actual functional relationship, not the apparent
 sophistication of the two formulas.
+
+---
+
+## THIRD DEEP-LEARNING PROPOSAL -- both literature claims FAIL verification; the small meta-learner was TESTED and is far worse
+
+**Date: 2026-08-14. Production UNCHANGED: 0.9402 / 33 features / md5
+`c37f9f4bdb252d52b8c1c5487dad9e6d`. Nothing promoted, no CNN built.** MDE
+~0.0097, frozen test 1,098.
+
+### PART 0 -- the two cited numbers, re-verified. NEITHER can be used as evidence.
+
+**ExoNet (Ansdell et al. 2018, arXiv:1810.13434) -- the "~0.955 AUC" DOES NOT
+EXIST.** Fetched the abstract and the ar5iv fulltext:
+
+> **The paper does not report any AUC value at all.**
+> Its metrics are **97.5% accuracy** and **98.0% average precision**, plus
+> precision-recall curves, versus AstroNet's baseline (+1.7% accuracy,
+> +2.5% average precision).
+
+This is the **accuracy-vs-AUC confusion this project has already been bitten by
+twice** in citation checking. The cited 0.955 matches nothing in the source.
+
+Three further facts make it non-comparable even if the number had been real:
+
+| | ExoNet | this project |
+|---|---|---|
+| population | **Kepler DR24 TCE table, `av_training_set` column** -- signals a mission pipeline ALREADY flagged | raw stars, no mission candidate list |
+| task | vetting a pre-filtered candidate list | end-to-end detection **plus** classification |
+| labelled volume | **3,600 planets + 12,137 FPs = 15,737**, split 80/10/10 | 5,494 rows |
+| inputs | global + local views + **centroid time series** + DR25 stellar parameters | 33 tabular features |
+
+So ExoNet is ~2.9x this project's labelled volume, on the **narrower vetting-only
+task**, with centroid inputs -- the exact distinction this project's own
+TOI-restricted-evaluation measurement already showed changes the picture. Its
+number is not a target this project's setup can be measured against.
+
+**PlanetNet-MMG -- STILL UNVERIFIABLE, second attempt.** Re-checked via OpenAlex
+on DOI `10.1016/j.eswa.2026.132396`: real (Expert Systems with Applications,
+vol. 324, art. 132396, 2026), but **closed access, NO abstract, NO
+abstract_inverted_index, no full-text URL** ($3,220 APC listed). The ~0.973
+figure cannot be sourced, exactly as the cross-mission investigation found.
+**It does not inform this recommendation, and should not be cited again as
+evidence without a fulltext.**
+
+### PART 1 -- the SMALL proposal is genuinely distinct, and it was TESTED
+
+It is a fair point that a dense net on the **already-computed** 33 features is
+not the closed CNN question: no representation has to be learned from raw flux,
+so the data-volume argument that closed the CNN does not transfer directly. And
+stacking had only ever been tested on model OUTPUTS (Part C: HGB+GP+CNN; the
+small-lift trio: HGB+RF+LR, +0.0039, CI [-0.0022, +0.0106]) -- never with a
+dense network as the base classifier or as a meta-learner over the raw features.
+
+So it was built and run: 12 bootstraps, production's exact recipe as baseline,
+same calibration wrapper on every arm so the comparison isolates model family.
+
+Parameter arithmetic, stated before running:
+
+    MLP (16, 8)     689 params  ->  6.4 training rows per parameter
+    MLP (64, 32)  4,289 params  ->  1.0 training rows per parameter
+
+| arm | test AUC | mean delta | 95% CI | positive | train AUC | train-test gap |
+|---|---|---|---|---|---|---|
+| base (HGB, 33 feat) | **0.9339** | -- | -- | -- | 1.0000 | 0.0661 |
+| mlp_small (16,8) | 0.8696 | **-0.0644** | [-0.0833, -0.0460] | **0/12** | 0.9225 | 0.0529 |
+| mlp_med (64,32) | 0.8963 | **-0.0377** | [-0.0461, -0.0302] | **0/12** | 0.9873 | **0.0910** |
+| stack_mlp (meta on HGB output + 33) | 0.9015 | **-0.0324** | [-0.0402, -0.0206] | **0/12** | 0.9760 | 0.0745 |
+
+2-min subset: -0.0677 / -0.0338 / -0.0317. **Every CI lies entirely BELOW zero.**
+These are not null results -- the networks are decisively worse, by 3-7x the MDE.
+
+**Both failure modes are visible at once, which is the signature of a data-volume
+wall rather than a tuning problem.** The larger net has the biggest train-test
+gap (0.0910 at 1.0 rows/parameter) -- overfitting. The smaller net has a smaller
+gap (0.0529) but the worst test AUC -- underfitting. There is no size between
+them that escapes: the capacity needed to match the tree cannot be supported by
+4,390 rows.
+
+**The stacked arm is the most damning result and it was the strongest version of
+the idea.** `stack_mlp` receives **HGB's own out-of-fold prediction as an input
+feature**. It could match the baseline by passing that number through. It scores
+**0.0324 WORSE**. A dense net at this data volume cannot even preserve
+information it is handed, let alone add to it.
+
+### PART 2 -- the CNN + late-fusion hybrid: NOT a genuine escape. NOT built.
+
+Late fusion changes **how** a raw-flux embedding is consumed, not **whether it
+can be learned**. The closed CNN's failure was the embedding itself: 0.68-0.70
+learning a light-curve representation from ~5k examples. Attaching a fusion head
+adds zero training data to that branch, so the bottleneck is untouched.
+
+**And this investigation adds a NEW argument against it that did not exist
+before.** The fusion head in such a hybrid is a dense network over
+[CNN embedding + tabular features]. Measured above: a dense network over
+[HGB output + the 33 tabular features] -- a strictly EASIER problem, with a
+known-good signal handed to it -- **loses 0.0324 AUC**. So even granting a
+perfect CNN embedding for free, the fusion layer itself is a liability at
+n = 4,390. The hybrid would have to overcome both a branch that failed and a
+combiner now measured to destroy information.
+
+**Not built, per instruction, and no separate go-ahead is recommended.**
+
+### Verdict
+
+| sub-proposal | verdict |
+|---|---|
+| ExoNet ~0.955 AUC as justification | **claim does not exist** in the source (97.5% accuracy / 98.0% AP, no AUC), and the task is vetting-only on 2.9x the data |
+| PlanetNet-MMG ~0.973 AUC | **still unverifiable** (closed access, no abstract). Cannot be used. |
+| small dense net on the 33 features | **TESTED. -0.0644 / -0.0377, CIs entirely below zero. Don't promote.** |
+| dense meta-learner on HGB output + 33 | **TESTED. -0.0324, CI entirely below zero. Don't promote.** |
+| 1D CNN + late fusion hybrid | **NOT built.** Fusion does not address the embedding bottleneck, and the fusion head is now independently measured to lose 0.0324. |
+
+**Production stays at 0.9402 / 33 features.**
+
+**Before a fourth neural proposal:** the closed evidence is now (a) a full CNN on
+raw flux at 0.68-0.70, gap since widened to ~0.25; (b) stacking on model outputs,
+twice, no clear; (c) a dense net as the classifier on the existing features,
+-0.0377 to -0.0644 with CIs below zero; (d) a dense meta-learner given the
+tree's own output, -0.0324. A new proposal must explain which of these four it
+is not, and must not rest on ExoNet's or PlanetNet-MMG's headline figures --
+the first does not report AUC and the second cannot be read.
