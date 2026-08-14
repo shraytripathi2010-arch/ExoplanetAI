@@ -9499,3 +9499,64 @@ feature-count crash -- the 33-feature configuration survives a full tick**,
 which was the real risk the atomic swap existed to avoid. (0.9386 here vs the
 0.9402 headline is the retrain path evaluating on the GROWN test set of 1,104
 rather than the frozen 1,098 mask.)
+
+### RESOLVED (2026-08-14): launchd supervision restored. Two causes, not one.
+
+**The open item from the RUWE/NSS deployment report is CLOSED.** The app runs
+under real launchd supervision on the 33-feature model. It took two fixes,
+because the first one uncovered a second, independent blocker.
+
+**Cause 1 -- TCC (fixed by the user).** Full Disk Access granted to
+`/Library/Frameworks/Python.framework/Versions/3.11/bin/python3`, then
+`bootout` + `bootstrap`. Verified independently here with a throwaway probe
+LaunchAgent running that exact interpreter: reading `web/app.py` returned
+**READ_OK**, where the same read had been `Operation not permitted` before.
+
+**Cause 2 -- stale `com.apple.macl` attributes on the EXISTING log files
+(found and fixed here).** After cause 1 was fixed the job still failed,
+`runs = 22, last exit code = 78: EX_CONFIG`, with **zero output**. Bisected with
+three probe agents:
+
+| probe | WorkingDirectory | log path | result |
+|---|---|---|---|
+| A | none | /tmp | exit 0 |
+| B | project | /tmp | exit 0, correct cwd |
+| C | project | **project logs/ (NEW files)** | exit 0, correct cwd |
+
+Probe C matched the real job's configuration and passed -- so TCC was genuinely
+resolved and neither `chdir` nor the log directory was at fault. The difference
+was that probes created **new** log files while the real job reopened the
+**pre-existing** `launchd_stdout.log` / `launchd_stderr.log`, both carrying
+`com.apple.macl` extended attributes written before the FDA grant. launchd
+itself opens those files before exec, could not, and returned EX_CONFIG(78)
+before python ever started -- which is why nothing was ever logged.
+
+Fixed by rotating them aside (renamed to `*.pre_fdafix`, not deleted) so launchd
+creates fresh ones. **Immediately after: `state = running`, `runs = 1`,
+`last exit code = (never exited)`.**
+
+**A third, self-inflicted confound was also cleared:** the temporary `nohup`
+instance from the deployment was still holding port 5050 with PPID 1. PPID 1 is
+indistinguishable at a glance from launchd supervision, and a healthy `/health`
+does not say which process answered -- so the earlier "it's fixed" reading was
+against that orphan, not a supervised job. Killed before the real verification.
+
+**Supervision proven, not assumed:** `launchctl` reported `pid = 10444`, `ps`
+confirmed that same pid with PPID 1, and a deliberate `kill -9` produced
+`old pid 10444 -> new pid 10477`, `runs = 2`, `state = running` -- KeepAlive
+demonstrably restarts it.
+
+**Serving the right model:** `/health` `status ok`, `scheduler_thread_alive
+true`, fresh tick. `/models` returns HTTP 200 and reports **0.9402**. On disk:
+33 features, `test_roc_auc` 0.9402, md5
+`c37f9f4bdb252d52b8c1c5487dad9e6d`, `gaia_ruwe`/`gaia_nss` present, conformal
+`model_md5` matching, bootstrap ensemble at 33 features.
+
+**Nothing degraded by the ~11.75 h outage (01:05 -> 12:51 UTC).** The retrain
+tick fires on a 24 h cadence and last ran **2026-08-13 20:29:47 UTC**, so the
+next was not due until 2026-08-14 20:29 UTC -- **outside the outage window, so
+no tick was missed**. The Update scheduler is disabled (`enabled = 0`), so no
+candidate runs were skipped. No run is in a non-terminal state (3 completed /
+6 failed, all dated 2026-07-29). `processed_watch_labels` 147, unchanged.
+**Zero label-queue failures during or after the outage window, and zero
+failures mentioning gaia** -- confirming the two new columns block nothing.
