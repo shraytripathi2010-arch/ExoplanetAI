@@ -9560,3 +9560,136 @@ candidate runs were skipped. No run is in a non-terminal state (3 completed /
 6 failed, all dated 2026-07-29). `processed_watch_labels` 147, unchanged.
 **Zero label-queue failures during or after the outage window, and zero
 failures mentioning gaia** -- confirming the two new columns block nothing.
+
+---
+
+## THIRD CENTROID PROPOSAL -- DUPLICATE OF BOTH PRIOR ONES. Nothing built. READ BEFORE PROPOSING A FOURTH.
+
+**Date: 2026-08-14. Production UNCHANGED: 0.9402 / 33 features / md5
+`c37f9f4bdb252d52b8c1c5487dad9e6d`. Nothing implemented, nothing retrained.**
+Frozen test still 1,098 stars, so the **MDE is unchanged at ~0.0097**.
+
+**Proposed:** "refine centroid shifts from flux-weighted moments", with the
+closing suggestion of "even a simple statistic of in-transit vs out-of-transit
+centroid", plus using **DAVE**.
+
+### PART 0 -- the two clauses map onto the two ALREADY-CLOSED methods, by code
+
+**Clause 1, "centroid shifts from flux-weighted moments" = METHOD (1), built
+and closed.** `scipy.ndimage.center_of_mass` **is** the flux-weighted first
+moment, Sum(I*x)/Sum(I). The deployed `_centroid_from_tpf`
+(`web/job_runner.py:1083`) already does exactly this:
+
+```python
+in_transit_img     = np.nanmedian(flux_cube[in_transit], axis=0)
+out_of_transit_img = np.nanmedian(flux_cube[out_of_transit], axis=0)
+diff_img           = out_of_transit_img - in_transit_img
+diff_img_clipped   = np.nan_to_num(np.clip(diff_img, 0, None), nan=0.0)
+row_com, col_com   = center_of_mass(diff_img_clipped)      # <- flux-weighted moment
+col_exp, row_exp   = tpf.wcs.world_to_pixel(target_coord)
+shift_pixels       = np.hypot(row_com - row_exp, col_com - col_exp)
+```
+
+There is no "refinement" available here that is not already the operation:
+difference image -> flux-weighted moment -> WCS comparison. **Closed at +0.0021,
+CI [-0.0020, +0.0059], and again at 77.6% coverage: +0.0032, CI [-0.0012,
++0.0076].**
+
+**Clause 2, "in-transit vs out-of-transit centroid" = METHOD (2), the rejected
+surrogate.** That is `centroid(IT) - centroid(OOT)`, verbatim the 2026-08-05
+proposal already documented as a duplicate and proven **strictly weaker**: the
+whole-stamp photocenter moves by ~`d*r` while the difference image reports `r`
+regardless, so at this dataset's 0.01-1% depths it measures **~0.004 px against
+pixel-scale noise instead of the difference image's stable 1.999 px**.
+
+**Neither clause reaches the one genuinely untested variant** already recorded
+in this file -- a **noise-normalised significance** (displacement / per-star
+positional uncertainty). The proposal describes flux-weighted moments (which is
+the existing computation) and an IT-vs-OOT difference (which is the rejected
+one). Significance is not mentioned.
+
+### PART 0.5 -- DAVE: real, and its centroid test IS method (1)
+
+Verified live, not assumed. DAVE (Discovery And Vetting of Exoplanets, Kostov et
+al.) is real and in active use for TESS vetting. Its centroid module
+**"produces a difference image by subtracting the overall in-transit image from
+the out-of-transit image, then calculates the photocenter of the light
+distribution by fitting the TESS pixel response function"**, and reports the
+statistical significance of the offset.
+
+So DAVE's centroid test is **the same difference-image test already built
+here**. Its two refinements over this project's version are:
+
+| DAVE refinement | status here |
+|---|---|
+| **PRF fitting** instead of `center_of_mass` | **BLOCKED.** `oktopus` NOT INSTALLED, `pyke` NOT INSTALLED, `dave` NOT INSTALLED, and `lightkurve.prf.tpfmodel` raises `ModuleNotFoundError` -- the PRF machinery does not exist in this environment. |
+| **statistical significance** of the offset | = the already-documented untested thread, already deprioritised with reasons. |
+
+**And DAVE has the same blocking data dependency as PLD.** It needs the pixel
+data, and this project **deletes every TPF immediately after the centroid
+check** by design -- `web/job_runner.py:1232` and `:1267`, both
+`os.remove(tpf.path)`. Same feasibility class as PLD; closed on the same
+precedent.
+
+### A NEW measurement, because the baseline moved -- and it REFUTED my own hypothesis
+
+The prior centroid results were measured against a **0.9030** baseline. Production
+is now **0.9402** with `gaia_ruwe`/`gaia_nss` deployed, which target the same
+physical question (is this a blend / unresolved binary?). I expected the Gaia
+pair to have absorbed the centroid's role, which would have made the closure
+easier. **It did not:**
+
+| deployed feature | \|rho\| vs `shift_pixels` |
+|---|---|
+| `gaia_ruwe` | **0.012** |
+| `gaia_nss` | **0.057** |
+| `crowd_flux_ratio_max` | 0.229 |
+| `crowd_nearest_arcsec` | 0.096 |
+
+max \|rho\| against all 33 features: **0.312** (`chi2red_min`). **Centroid
+displacement is essentially INDEPENDENT of the Gaia astrometric pair** --
+astrometric wobble and a transit-time photocentre shift really are different
+channels. Recording this because it is the opposite of what I expected.
+
+Independence is not the same as usefulness, though. Measured at the current
+state (5,494 training rows, coverage 71.8%):
+
+| feature | single-feature AUC | \|AUC-0.5\| |
+|---|---|---|
+| `gaia_ruwe` | 0.4169 | **0.0831** |
+| `gaia_nss` | 0.4383 | **0.0617** |
+| `shift_pixels` | 0.5359 | **0.0359** |
+| `crowd_flux_ratio_max` | 0.5277 | 0.0277 |
+
+`shift_pixels` carries **less than half** the single-feature signal of either
+Gaia column -- and those two, which are far stronger, together moved the model
+by +0.0142. Centroid moved it by +0.0032 with a CI crossing zero **against a
+lower baseline with more headroom**. The case is weaker now, not stronger.
+
+Its missingness is also still class-asymmetric (31.4% of positives vs 16.4% of
+negatives) at 71.8% coverage -- down from 77.6% only because `training.csv` has
+grown past the 5,086 stars the centroid run covered.
+
+### Verdict
+
+**CLOSED AS A DUPLICATE. Do not build. Third time.**
+
+| element of the proposal | reduces to | already-recorded outcome |
+|---|---|---|
+| "centroid shifts from flux-weighted moments" | method (1) | +0.0021 then +0.0032, CI crosses zero both times |
+| "in-transit vs out-of-transit centroid" | method (2) | duplicate, strictly weaker, 0.004 px vs 1.999 px |
+| DAVE centroid module | method (1) + PRF + significance | same test; PRF blocked (no oktopus/pyke/tpfmodel, no retained TPFs) |
+
+**The ONLY untested thread in this space remains the noise-normalised
+significance variant**, and it is *still* not recommended: it inherits a
+71.8% coverage ceiling with class-asymmetric missingness, rescales a feature
+whose single-feature |AUC-0.5| is 0.0359, needs per-star centroid uncertainty
+infrastructure that does not exist (bootstrapping over cadences or propagating
+per-pixel errors through `center_of_mass`), plus a full re-run across all 5,494
+training stars and both pools -- and it would now have to clear the same
+~0.0097 MDE from a **0.9402** baseline rather than 0.9030.
+
+**A fourth centroid proposal should not be entertained unless it (a) is the
+significance variant, (b) arrives with the per-star uncertainty already
+computed, and (c) explains why re-scaling a 0.0359-strength feature should clear
+0.0097 when the raw version twice failed to.**
