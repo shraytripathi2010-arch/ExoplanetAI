@@ -9829,3 +9829,118 @@ information is already in `depth_mean` at rho 0.962.
 +0.0007 with 31.2% coverage. Skewness/kurtosis, Haar energy, trapezoid residual
 and BIC are all now measured and negative. A new shape proposal needs to say
 which of these it is NOT, and why it would not simply restate `depth_mean`.
+
+---
+
+## TWO STELLAR-ROTATION SUB-PROPOSALS -- 1 exact duplicate, 1 NOT subsumed (my first read was wrong) and tested NEGATIVE
+
+**Date: 2026-08-14. Production UNCHANGED: 0.9402 / 33 features / md5
+`c37f9f4bdb252d52b8c1c5487dad9e6d`. Nothing promoted.** MDE ~0.0097, frozen
+test 1,098.
+
+### (1) "Amplitude of the strongest sinusoid in the out-of-transit light curve" -- EXACT DUPLICATE of deployed `var_ls_amp`
+
+`variability_features.py:165-177`, on out-of-transit-masked, 5-sigma-clipped,
+10-minute-binned RAW flux:
+
+```python
+ls  = LombScargle(tb, fb)
+fr, pw = ls.autopower(minimum_frequency=1/min(MAX_P, span/2),
+                      maximum_frequency=1/MIN_P, normalization="standard")
+i = int(np.argmax(pw))                                   # the STRONGEST peak
+out["var_ls_amp"] = float(np.std(ls.model(tb, fr[i]) - np.mean(fb)) * np.sqrt(2))
+```
+
+astropy's `LombScargle.model()` at default `nterms=1` **is the best-fit pure
+sinusoid** at that frequency, and for a sinusoid of amplitude A the standard
+deviation is `A/sqrt(2)` -- so multiplying by `sqrt(2)` recovers **A exactly**.
+
+Same periodogram, same out-of-transit masking, same strongest-peak selection,
+same sinusoid amplitude. **`var_ls_amp` IS "the amplitude of the strongest
+sinusoid in the out-of-transit light curve", and it has been in production
+since 2026-08-06.** Nothing to build.
+
+### (2) "rotation period / candidate period" -- NOT a strict subset. My first reading was WRONG, and the measurement is what corrected it.
+
+The obvious call was "the harmonic-aware `ls_period_match` already failed, so a
+simpler non-harmonic ratio is a strict subset that cannot do better." **That is
+backwards.** `ls_period_match = min over n in {1,2,1/2,3,1/3} of
+|log(P_ls/(n*P_tr))|` is a **deterministic, MANY-TO-ONE function of the raw
+ratio** `r = P_ls/P_tr` -- it collapses which harmonic matched, and the sign and
+size of the offset. **The raw ratio strictly CONTAINS `ls_period_match`.**
+
+Checked rather than argued, including the specific question of whether the
+harmonic search was adding noise:
+
+| statistic | single-feature AUC | \|AUC-0.5\| |
+|---|---|---|
+| **raw ratio `P_ls/P_tr`** | **0.6028** | **0.1028** |
+| min over n (`ls_period_match`, already tested) | 0.5887 | 0.0887 |
+| n=1 only, `\|log r\|` | 0.5596 | 0.0596 |
+
+Which harmonic wins the minimisation: **n=1 only 22.3%** of the time, n=3
+34.6%, n=1/3 15.0%, n=2 16.2%, n=1/2 12.0%. So the harmonic search was **not**
+noise -- collapsing to n=1 alone is measurably worse (0.5596) -- but taking the
+`min` discards information, and `|rho|` between the raw ratio and
+`ls_period_match` is only **0.329**.
+
+**So the exception the brief allowed was actually met**: a specific, measured
+reason the simpler version could differ. It proceeded to a full test.
+
+#### Full battery
+
+Availability, up front: **training 97.65%, main pool 100.00% of Success rows
+(488), widesector 100.00% (69)**.
+
+| check | result |
+|---|---|
+| single-feature AUC | 0.6028 |
+| \|rho\| vs `var_ls_period` | 0.626 |
+| \|rho\| vs `var_ls_amp` | 0.179 |
+| \|rho\| vs `ls_period_match` | 0.329 |
+| **max \|rho\| vs the 33** | **0.667 (`period`)** |
+| class-rate gate | avail 97.35% pos vs 98.79% neg, OR 0.452, p 0.0030, AUC(avail) **0.4928** |
+| \|gal b\| control arm | rho **-0.048**, quartile AUCs **[0.615, 0.670, 0.589, 0.533]** -- stable, no spatial confound |
+
+#### Result: NEGATIVE
+
+12 bootstraps, production's exact recipe, frozen split:
+
+| arm | AUC | mean delta | 95% CI | positive | >= MDE |
+|---|---|---|---|---|---|
+| base (33) | 0.9339 | -- | -- | -- | -- |
+| +ratio | 0.9335 | **-0.0004** | [-0.0017, +0.0010] | 5/12 | **0/12** |
+| +ratio,match | 0.9331 | -0.0009 | [-0.0025, +0.0014] | 3/12 | 0/12 |
+
+2-min-only subset: -0.0006 and -0.0011. Brier 0.0763 -> 0.0762, ECE flat.
+
+**Why the 0.6028 AUC does not translate: `|rho| = 0.667 with `period` itself.**
+`P_ls` is bounded to the 0.2-13 d Lomb-Scargle search window, so the ratio is
+dominated by `1/P_transit` -- it is substantially the deployed `period` column
+restated. **This is the second time in two days that the highest single-feature
+AUC in a batch turned out to be a deployed feature in disguise** (`trap_rmse`,
+AUC 0.6507, `|rho|` 0.962 with `depth_mean`, delta -0.0011).
+
+### Verdict
+
+| sub-proposal | verdict |
+|---|---|
+| strongest-sinusoid amplitude | **EXACT DUPLICATE of deployed `var_ls_amp`.** Nothing built. |
+| rotation/candidate period ratio | **NOT subsumed -- genuinely tested. DON'T PROMOTE:** -0.0004, CI [-0.0017,+0.0010], 0/12 at MDE. |
+
+**Production stays at 0.9402 / 33 features.**
+
+**For any future proposal in the rotation/periodicity space**, the space is now
+mapped end to end: `var_ls_period`, `var_ls_amp`, `var_ls_power` are DEPLOYED;
+`ls_period_match` (harmonic-aware distance) was tested and failed at -0.0006;
+the RAW ratio was tested and failed at -0.0004; the n=1-only distance is
+measurably the weakest of the three formulations (AUC 0.5596). A new proposal
+here must explain what it measures that is not the dominant OOT periodicity,
+its amplitude, its power, or its relationship to the transit period -- and why
+it would not simply restate `period`.
+
+**A methodological note worth keeping.** I expected to close sub-proposal (2)
+as a strict subset and was wrong: the many-to-one direction runs the opposite
+way, and the raw ratio had the higher single-feature AUC. The deduplication
+check has to compare the actual functional relationship, not the apparent
+sophistication of the two formulas.
