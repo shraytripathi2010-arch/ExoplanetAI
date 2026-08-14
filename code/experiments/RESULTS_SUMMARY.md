@@ -10186,3 +10186,117 @@ new information, but the earliest possible date for any is well after Roman's
 **Pattern flag for future proposals.** Three distinct proposals in this
 conversation have now cited ExoMiner++ as evidence for transfer learning. The
 paper states the opposite in one sentence, quoted above. Check that quote first.
+
+---
+
+## ARMSTRONG-STYLE ENSEMBLE (RF / EXTRA TREES / LDA) + THE CLUSTER-1 QUESTION -- both NEGATIVE
+
+**Date: 2026-08-14. Production UNCHANGED: 0.9402 / 33 features / md5
+`c37f9f4bdb252d52b8c1c5487dad9e6d`. Nothing promoted.** MDE ~0.0097.
+
+### PART 0 -- what was genuinely untested
+
+| member | status |
+|---|---|
+| Random Forest | tested ONLY in the original bake-off at **24 features**, pre-crowding/variability/Gaia. **STALE** -- retested fresh, per the CatBoost precedent where a family's edge halved between feature eras. |
+| Extra Trees | **never mentioned anywhere** in this file. Untested. |
+| LDA | **never mentioned anywhere.** Untested, and architecturally distinct from trees / calibrated trees / dense nets. |
+| MLP | **already tested and strongly negative** (-0.0644 / -0.0377, CIs entirely below zero). **Deliberately excluded** from the ensemble -- including a component whose failure is already understood would bias the result down for a known reason rather than test a new question. |
+
+### PART 1-2 -- fresh single models and ensembles at the 33-feature baseline
+
+Production's exact calibration recipe on every arm. Trees get no scaler (they are
+scale-invariant); **LDA gets a StandardScaler** so the comparison cannot be an
+artefact of one model silently receiving unscaled heavy-tailed inputs. 12
+bootstraps, frozen split.
+
+| arm | AUC | mean delta | 95% CI | positive | >= MDE | Brier | ECE |
+|---|---|---|---|---|---|---|---|
+| **hgb (production)** | **0.9339** | -- | -- | -- | -- | 0.0763 | 0.0355 |
+| rf | 0.9215 | **-0.0124** | [-0.0169, -0.0084] | 0/12 | 0/12 | 0.0837 | 0.0426 |
+| et | 0.9126 | **-0.0213** | [-0.0256, -0.0160] | 0/12 | 0/12 | 0.0845 | 0.0325 |
+| lda | 0.8331 | **-0.1008** | [-0.1044, -0.0982] | 0/12 | 0/12 | 0.1161 | 0.0218 |
+| avg_rf_et_lda | 0.9052 | **-0.0288** | [-0.0338, -0.0238] | 0/12 | 0/12 | 0.0861 | 0.0292 |
+| meta_lr | 0.9195 | **-0.0144** | [-0.0195, -0.0085] | 0/12 | 0/12 | 0.0878 | 0.0558 |
+
+2-min subset: -0.0144 / -0.0218 / -0.1092 / -0.0319 / -0.0170. **Every arm is
+negative with the CI entirely below zero. 0/12 positive everywhere.**
+
+**Random Forest's staleness is now resolved and the answer is the same as in the
+24-feature era: HGB still wins**, by 0.0124. The CatBoost pattern (edge shrinks
+between feature eras) did not reverse anything here.
+
+**The ensemble is worse than its own best member.** `avg_rf_et_lda` (0.9052)
+sits below RF alone (0.9215) because averaging drags the two tree models toward
+LDA, which is 0.10 AUC behind. The LR meta-learner recovers some of that
+(0.9195, it can down-weight LDA) but still lands below plain RF and well below
+HGB. This is the same mechanism the GBM-averaging entry recorded: **averaging
+helps only when members are comparably strong, and here they are not.**
+
+### PART 3 -- the cluster-1 question, answered on its own terms
+
+**A methodological correction, recorded because it nearly produced a wrong
+answer.** The first pass validated its re-derived SOM partition against
+`som_cluster1_profile.json`'s **n = 532, 83.46% planet** and declared the
+reproduction FAILED. That reference is over the **full labelled set** (5,486
+rows). The weak subpopulation this question is about is cluster 1 **on the
+frozen test**, recorded in `som_cluster_diagnostic.json` as **n = 108,
+planet 76.85%, AUC 0.8280, ECE 0.0934**. Against the correct target the
+reproduction **succeeded**:
+
+    re-derived cluster 0:  n = 109,  planet 77.06%,  HGB ECE 0.0895     MATCH
+
+Validation was made **behavioural, not just compositional** -- the selected
+cluster had to reproduce production's performance on it, not merely its size and
+class mix.
+
+**An incidental finding worth keeping: the Gaia deployment already improved this
+subpopulation.** Production scores **AUC 0.8790** on cluster 1 today versus the
+**0.8280** recorded in the 31-feature era. The weak spot is still the weakest
+cluster, but it is materially less weak than when it was first identified, and
+nothing in this investigation was aimed at it.
+
+**Does model diversity help there? No.** 12 bootstraps, cluster-1 only (n=109):
+
+| arm | cluster-1 AUC | delta vs HGB | 95% CI | better than HGB | cluster-1 ECE |
+|---|---|---|---|---|---|
+| **hgb** | **0.8660** | -- | -- | -- | 0.1175 |
+| rf | 0.8439 | -0.0221 | [-0.0525, -0.0015] | 0/12 | 0.1356 |
+| et | 0.8427 | -0.0233 | [-0.0515, +0.0081] | 1/12 | 0.1064 |
+| lda | 0.7290 | -0.1370 | [-0.1648, -0.1041] | 0/12 | 0.0896 |
+| avg_rf_et_lda | 0.8137 | -0.0523 | [-0.0809, -0.0206] | 0/12 | 0.0855 |
+| meta_lr | 0.8468 | -0.0192 | [-0.0527, +0.0160] | 2/12 | 0.1526 |
+
+**Nothing beats HGB on cluster 1.** The best alternative (`meta_lr`) is 0.0192
+behind and wins on only 2 of 12 resamples.
+
+**One honest nuance: several arms have BETTER cluster-1 calibration while being
+worse at ranking.** `avg_rf_et_lda` reaches ECE 0.0855 and LDA 0.0896 against
+HGB's 0.1175. That is the averaging effect pulling probabilities toward the base
+rate -- it improves ECE precisely by being less confident, while ranking worse.
+It is not a fix for the calibration problem: a model that discriminates less well
+is not a better model for this subpopulation, and the aggregate cost is -0.0288
+to -0.1008 AUC.
+
+**So cluster-1's weakness is NOT an architecture-diversity problem.** Four model
+families spanning bagged trees, extremely randomised trees, a linear
+discriminant, boosted trees and (from the prior investigation) dense networks
+all do the same or worse there. That is consistent with the information
+available for those stars being the limit, rather than HGB specifically being
+badly suited to them -- though it is not proof, and the SOM partition itself
+remains an unvalidated clustering, as the original investigation noted.
+
+### Verdict
+
+| question | recommendation |
+|---|---|
+| Armstrong-style RF/ET/LDA ensemble, aggregate | **DON'T PROMOTE.** Every arm negative, every CI below zero, 0/12 positive. |
+| RF at the current baseline (staleness resolved) | **DON'T PROMOTE.** -0.0124; HGB still wins as it did at 24 features. |
+| Extra Trees, LDA (first tests) | **DON'T PROMOTE.** -0.0213 and -0.1008. |
+| ensembling to fix cluster-1 | **NO.** Nothing beats HGB there; apparent ECE gains come from being less confident, not more accurate. |
+
+**Production stays at 0.9402 / 33 features.** Armstrong et al.'s composition
+works in their setting; it does not transfer here, and the cluster-1 calibration
+problem remains unexplained after a third distinct line of attack -- now with
+model architecture ruled out alongside RV-discovery label noise and elevated
+candidate-pool false-positive risk.
