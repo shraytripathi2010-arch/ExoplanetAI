@@ -11453,3 +11453,191 @@ Cross-references: the RAVEN-style synthetic-FP closure (also closed at a Part 0
 feasibility gate, on the missing PASTIS population-synthesis dependency -- the
 same shape of finding), the CETRA and PLD closures, and the derived-feature
 pattern above.
+
+# SYSTEM INTEGRITY AUDIT -- 2026-08-15
+
+Full-stack verification after four deployed model changes, ~20 investigated
+proposals and three infrastructure fixes. Not an experiment: the question was
+whether everything is currently consistent and whether a genuinely new candidate
+can complete the pipeline TODAY. **It can -- verified end to end on a fresh
+star.** Five defects were found; two were safe to fix and were fixed, three
+require sign-off and were reported, not touched.
+
+## 1. Production state -- ACCURATE, after two metadata corrections
+
+| property | value |
+|---|---|
+| md5 (artifact == metadata) | `fe3fa82f36cc978396c68be07d6057f9` |
+| frozen-test AUC | 0.9454 |
+| features | 33 |
+| recipe | `CalibratedClassifierCV(Pipeline([SimpleImputer(median), HGB]), cv=5, sigmoid)` |
+| hyperparameters | lr 0.09258, iter 475, leaves 63, depth None, msl 24, l2 0.009013, cw balanced, seed 42 |
+
+Matches the Optuna deployment exactly, read from the live artifact.
+
+**Feature constants are mutually consistent (1.3, clean):** `FEATURE_COLUMNS`
+(33) is byte-identical in content AND ORDER to `best_model_metadata.json`; all 11
+`NON_TLS_FEATURE_COLUMNS` and all 4 `OPTIONAL_FEATURES` are present in it; no
+orphans in either direction. 22 TLS-derived / 11 non-TLS.
+
+**TWO STALE METADATA FIELDS FOUND AND FIXED** (both write-only -- `class_balance`
+is written by `05_train_models` and never read for decisions, `promoted_at` is
+read nowhere, so correcting them changes no behaviour):
+
+| field | was | now |
+|---|---|---|
+| `promoted_at` | `2026-08-06 19:30:16 UTC` -- the **VARIABILITY** deployment | `2026-08-15 02:17:14 UTC` (live artifact mtime) |
+| `class_balance` | `{4336, 1155}` (sum 5,491) | `{4341, 1153}` (sum 5,494) |
+
+`promoted_at` survived THREE deployments untouched -- each deploy script updated
+metrics but never this field. Same drift class as the `"(tuned, ...)"` label.
+Both corrections carry a `_note` recording the old value and why.
+
+**Noted, not changed:** `training_rows` (4,390) + `test_rows` (1,098) = 5,488,
+not 5,494, because `test_rows` records the FROZEN mask while `split_by_host`
+yields 1,104. Consistent with every prior version's convention and the AUC is
+measured on the frozen mask, so this is definitional, not an error.
+
+## 2. Downstream artifacts -- ALL CURRENT
+
+| artifact | status |
+|---|---|
+| `conformal_calibration.json` | `model_md5` = `fe3fa82f...` **CURRENT** |
+| `bootstrap_ensemble/` | 32 members, 33 features, built 02:31 UTC, size-matches the artifact, **members carry the Optuna config** |
+| `multivariate_ood_detector.joblib` | 33 features, 5,494 rows |
+| `training_feature_ranges.json` | 33 features, 5,494 rows |
+
+Systematic search (`joblib.load`/`joblib.dump` and cached JSON across `code/`
+and `web/`, excluding experiments) found **no additional feature-dependent
+cached artifact** beyond those four. Three staged leftovers exist
+(`best_model_variability_staged`, `staged_best_model_gaia33`,
+`staged_best_model_optuna33`) with **zero references in production code** --
+clutter, not a correctness risk.
+
+**STILL BROKEN: the conformal exchangeability diagnostic.** The spawned fix never
+landed on main -- `conformal_prediction.py`'s last commit is still `1112d41e`,
+the section still feeds `ranked_candidates.csv` (37/34 columns) to
+`build_feature_matrix` (33 required), and `conformal_prediction_results.json` is
+**still dated 2026-08-04**. The deployment artifact it writes BEFORE that section
+is current and correct, so only the domain-shift diagnostic is dead.
+
+## 3. END-TO-END LIVE TEST -- FULL PASS on a genuinely fresh star
+
+`TIC_149121385`, checked against all 8,735 hosts known to the project (training
++ both feature tables + both candidate lists) and absent from every one.
+
+| step | result |
+|---|---|
+| 1 fresh-star selection | PASS -- never seen |
+| 2 download (`try_search`/`download_one_star`) | PASS -- `tic_id_spoc`, 74 products, **18,274 cadences**, 3 s |
+| 3 preprocess (`clean_light_curve`) | PASS -- Success, **18,271 cleaned cadences** |
+| 4 TLS (`compute_all_features`) | PASS -- Success, 23 fields, **54 s** |
+| 5a crowding (`add_crowding_features`) | PASS -- resolved 1/1, `crowd_flux_ratio_max` 0.000606, `crowd_nearest_arcsec` 9.016 |
+| 5b variability (`add_variability_features`) | PASS -- 1/1 from RAW, `var_oot_rms` 0.000520, `var_excess` 1.361 |
+| 5c Gaia (`add_gaia_astrometry_features`) | PASS -- matched 1/1 in DR3, `gaia_ruwe` 1.063, `gaia_nss` 0 |
+| 6 all 33 features | **32/33 populated, 0 required NaN, 0 absent**; the single NaN is `FAP`, which is in `OPTIONAL_FEATURES` |
+| 7 model / OOD / conformal | probability **0.9935**; `multivariate_ood_flag` False (score -0.3721); `in_distribution` True; conformal available, returned a real `{Planet}` set at 90% |
+
+**All three post-TLS feature groups fired correctly for a star that had never
+been through them.** Every function called was imported unmodified from the
+production modules.
+
+The harness needed three iterations to find the right production entry points
+(`clean_light_curve`, not `process_one_file`) -- **those were defects in the
+audit script, not the pipeline**, and are recorded as such so the pass is not
+overstated.
+
+**Test residue removed**: the raw and processed light curves this test created
+were deleted; the star was never added to any pool table or to training.csv.
+
+### 3.5 UI -- renders cleanly, but 9 model features are INVISIBLE to reviewers
+
+`/candidates/447400458` returns **HTTP 200, 23.8 KB, zero** Traceback / Internal
+Server Error / `None<` / `nan<` markers. Conformal (14 refs), in-distribution,
+ExoFOP (26), TFOP (5), centroid (8) all render.
+
+**But `grep` across `web/templates/` finds ZERO references to any of:**
+`crowd_flux_ratio_max`, `crowd_nearest_arcsec`, the five `var_*`, `gaia_ruwe`,
+`gaia_nss`.
+
+The model uses all nine; the human reviewer cannot see any of them. Three of the
+four deployed model changes are invisible in the evidence layer. Not a
+correctness bug -- scoring is unaffected -- but it is a real reviewer-facing gap.
+**A UI change needs separate sign-off, so it is reported, not built.**
+
+## 4. Scheduler and operations -- HEALTHY
+
+- **launchd supervision verified by PID/PPID, not by `/health`**: pid 18237,
+  **PPID = 1**, owns 127.0.0.1:5050, up 4h55m, `launchctl` status 0. Genuinely
+  supervised -- this is the exact check that previously exposed an orphaned
+  `nohup` answering `/health`.
+- **Label-append path is COMPLETE**: `retrain_pipeline` calls
+  `_crowding_for_host` (322), `_variability_for_raw` (328) and `_gaia_for_host`
+  (335) after `compute_all_features` -- all 33 features for any newly labelled
+  star.
+- **Promotion gate re-verified NOW**: `_build_challenger` returns
+  `clone of production CalibratedClassifierCV` with **zero mismatches** against
+  the deployed hyperparameters.
+- **Process sweep CLEAN**: no zombies, no stray `nohup`, no leftover pool
+  workers from any investigation in this conversation.
+
+## 5. Data integrity -- CLEAN, with one real gap
+
+**Frozen split re-verified fresh:** 5,494 rows, **5,494 unique hosts (0
+duplicates)**, train 4,390 / test 1,104, **0 straddling hosts**, frozen-test
+1,098 a proper subset of split-test, train+test == all rows.
+
+**Disk: 62 GiB free** (16% used). No repeat of the fork-bomb incident.
+
+**GAP FOUND -- 15 training rows have computable but uncomputed variability.**
+17 rows carry NaN across all five `var_*`. Diagnosed rather than assumed:
+
+* all 17 have a **complete ephemeris** (period, T0, duration)
+* **15 of 17 have a raw light curve on disk** -- so `var_*` is computable for
+  them and simply was never computed
+* only 2 (`TIC_200385493`, `TIC_453789494`) genuinely lack raw data
+
+They sit in a contiguous block (indices 5469-5485), i.e. rows added after the
+variability backfill ran. Impact is small -- 0.27% of training rows, and the
+median imputer absorbs them -- but it is a genuine silent gap.
+
+**NOT FIXED: this writes to `training.csv`**, which every prior modification in
+this project has treated with explicit ceremony (backup, byte-exact prefix
+verification, integrity re-check). It also changes the data the model trains on.
+Reported for sign-off rather than actioned unilaterally.
+
+Gaia/crowding gaps by contrast are **not** backfill failures: `gaia_nss` is 99.29%
+and `gaia_ruwe` 97.62%, with the difference being genuine DR3 non-matches and
+RUWE legitimately undefined for some sources.
+
+## 6. CONSOLIDATED OPEN ITEMS -- complete list, current status
+
+| # | item | status |
+|---|---|---|
+| 1 | **Conformal exchangeability diagnostic** feeds 37/34-column exports to a 33-feature builder; crashes after writing the artifact; results JSON stale since Aug 4 | **STILL OPEN** -- spawned fix never landed |
+| 2 | **15 training rows missing computable `var_*`** | **OPEN, newly found here.** Needs sign-off (writes training.csv) |
+| 3 | **9 model features invisible in the UI** (crowding, variability, Gaia astrometry) | **OPEN, newly found here.** Needs sign-off (UI change) |
+| 4 | `db.mark_watch_label_processed` doesn't clear `error_message`, so recovered rows read `processed` while carrying stale failure text | **STILL OPEN** -- one-line fix, flagged during label recovery, never actioned |
+| 5 | Project lives under `~/Downloads`, whose TCC protection caused the launchd outage | **OPEN by choice** -- structural move offered and not taken; currently working |
+| 6 | SAP-flux fallback pilot | **SCOPED, NOT BUILT** -- measured, recommended as a pilot, needs go-ahead |
+| 7 | True re-download fallback for corrupt cached light curves | **OPEN** -- deliberately not built |
+| 8 | Three staged model leftovers in `models/` | **COSMETIC** -- zero production references |
+| 9 | `promoted_at` / `class_balance` metadata drift | **CLOSED HERE** |
+| 10 | OOD detector + ranges stale at 24 features | **CLOSED** (2026-08-15 refit + load-path guard) |
+| 11 | `NON_TLS_FEATURE_COLUMNS` gate | **CLOSED** |
+| 12 | VESPA integration | **CLOSED** -- infeasible on packaging and on imaging inputs |
+| 13 | Optuna promotion as a deliberate MDE exception | **CLOSED**, documented as an exception |
+
+Items 1-7 are genuinely outstanding. **None of them breaks the live pipeline**,
+which Part 3 proved end to end.
+
+## Verdict
+
+**The system is consistent and the live pipeline works.** Production state,
+every downstream artifact, the scheduler, the promotion gate and the frozen
+split all verify clean. A brand-new candidate completed the entire journey today
+with 0 required-feature gaps. Two metadata defects were corrected; three real
+gaps (conformal diagnostic, 15 variability rows, UI evidence layer) are reported
+with sign-off requested rather than patched unilaterally.
+
+Scripts: `e2e_fresh_star_audit.py`; results `e2e_fresh_star_audit.json`.

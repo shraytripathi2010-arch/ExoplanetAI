@@ -1,0 +1,89 @@
+{
+  "steps": {
+    "download": {
+      "ok": true,
+      "raw_exists": true,
+      "method": "tic_id_spoc"
+    },
+    "preprocess": {
+      "processed_exists": true
+    },
+    "tls": {
+      "status": "Success (imputed, not measured: ['FAP'])",
+      "n_fields": 23
+    },
+    "features": {
+      "populated": 32,
+      "nan_optional": [
+        "FAP"
+      ],
+      "nan_required": [],
+      "absent": []
+    },
+    "scoring": {
+      "probability": 0.9934987572009926,
+      "multivariate_ood_flag": false,
+      "in_distribution": true,
+      "conformal_available": true,
+      "conformal": {
+        "probability": 0.9934987572009926,
+        "sets": [
+          {
+            "alpha": 0.1,
+            "confidence_pct": 90,
+            "set_key": "planet",
+            "set_label": "Planet",
+            "set_notation": "{Planet}",
+            "is_ambiguous": false,
+            "is_empty": false,
+            "plain_language": "At this confidence level the only status still consistent with the model's evidence is PLANET CANDIDATE.",
+            "q_neg": 0.8955832486350122,
+            "q_pos": 0.23797895434987382
+          },
+          {
+            "alpha": 0.05,
+            "confidence_pct": 95,
+            "set_key": "planet",
+            "set_label": "Planet",
+            "set_notation": "{Planet}",
+            "is_ambiguous": false,
+            "is_empty": false,
+            "plain_language": "At this confidence level the only status still consistent with the model's evidence is PLANET CANDIDATE.",
+            "q_neg": 0.9481309951274447,
+            "q_pos": 0.3734224733520224
+          },
+          {
+            "alpha": 0.01,
+            "confidence_pct": 99,
+            "set_key": "planet",
+            "set_label": "Planet",
+            "set_notation": "{Planet}",
+            "is_ambiguous": false,
+            "is_empty": false,
+            "plain_language": "At this confidence level the only status still consistent with the model's evidence is PLANET CANDIDATE.",
+            "q_neg": 0.9900719495252497,
+            "q_pos": 0.6923570609974279
+          }
+        ],
+        "n_calibration": 1104,
+        "n_calibration_pos": 872,
+        "n_calibration_neg": 232,
+        "method": "Mondrian (class-conditional) LAC",
+        "model_md5": "fe3fa82f36cc978396c68be07d6057f9",
+        "guarantee_transfers": false,
+        "domain_auc": 0.9763,
+        "empty_possible": false
+      }
+    }
+  },
+  "star": {
+    "tic_id": 149121385,
+    "host": "TIC_149121385",
+    "st_rad": 14.5739,
+    "st_teff": 4697.0,
+    "st_mass": NaN,
+    "ra": 80.9199706383475,
+    "dec": -63.6149484091092,
+    "n_obs": 75
+  }
+}

@@ -40,8 +40,8 @@
   "training_rows": 4390,
   "test_rows": 1098,
   "class_balance": {
-    "positive": 4336,
-    "negative": 1155
+    "positive": 4341,
+    "negative": 1153
   },
   "test_roc_auc": 0.9454155993948381,
   "test_brier_score": 0.06951368737766925,
@@ -50,7 +50,7 @@
   "previous_test_roc_auc": 0.9401928329263969,
   "previous_model_md5": "c37f9f4bdb252d52b8c1c5487dad9e6d",
   "model_md5": "fe3fa82f36cc978396c68be07d6057f9",
-  "promoted_at": "2026-08-06 19:30:16 UTC",
+  "promoted_at": "2026-08-15 02:17:14 UTC",
   "deployment_path": "manual offline swap",
   "rollback_artifact": "models/versions/best_model_pre_optuna_c37f9f4b.joblib",
   "raw_lightcurve_dependency": "var_* features are computed from RAW pre-flatten light curves (data/known_lightcurves*, data/unknown_lightcurves*, data/retrain_pipeline/raw), NOT data/processed*. 02_preprocess.py savgol-flattens over ~13.4 h, which removes the multi-day rotational signal these features measure. See code/experiments/variability_features.py.",
@@ -85,5 +85,7 @@
     "nested_cv_delta": 0.0032,
     "nested_cv_folds_won": "5/5",
     "reproduces_investigation": true
-  }
+  },
+  "class_balance_note": "Recomputed during the 2026-08-15 system audit. Was {'positive': 4336, 'negative': 1155} (sum 5491), a variability-era count that never tracked the label-recovery rows; training.csv now has 5494 rows.",
+  "promoted_at_note": "Corrected during the 2026-08-15 system audit. Was '2026-08-06 19:30:16 UTC', the VARIABILITY deployment timestamp -- optuna_deploy_retrain.py updated the metrics but not this field, so it survived three deployments. Now taken from the live artifact's mtime."
 }
