@@ -11641,3 +11641,131 @@ gaps (conformal diagnostic, 15 variability rows, UI evidence layer) are reported
 with sign-off requested rather than patched unilaterally.
 
 Scripts: `e2e_fresh_star_audit.py`; results `e2e_fresh_star_audit.json`.
+
+## Conformal exchangeability diagnostic -- FIXED AND LANDED. The work existed; it was never committed.
+
+Closes open item #1 from the 2026-08-15 system audit. **Production untouched:
+model md5 `fe3fa82f...`, training.csv md5 `3bf4a343...`, and
+`models/conformal_calibration.json` verified BYTE-IDENTICAL across the run.**
+
+### What actually happened -- recovered, not re-implemented
+
+The fix was **not lost and not missing**. It was found intact as **uncommitted
+working-tree changes** in `.claude/worktrees/quizzical-aryabhata-fa87b2`, on
+branch `claude/quizzical-aryabhata-fa87b2`.
+
+The branch head was `9997a2ce` -- an ordinary earlier main commit. **Nothing was
+ever committed on that branch.** `git diff main..branch` showed the branch
+*behind* main, and the real work sat only in the worktree's dirty state: three
+modified files, of which `conformal_prediction.py` (+182/-12) was the fix.
+
+The base blob of `conformal_prediction.py` was **identical** in main and in the
+worktree's HEAD, so copying the worktree's working copy applied the fix and
+nothing else -- verified by the resulting diff being exactly +182/-12.
+
+**Only that one file was taken.** The worktree's `RESULTS_SUMMARY.md` is 1,023
+lines BEHIND main (it predates the Optuna deployment, the OOD refit, the GPC and
+VESPA closures and the audit); merging that branch as-is would silently revert
+all of it. Its stale `conformal_prediction_results.json` was also discarded, since
+the run regenerates it.
+
+### A premise worth correcting
+
+The task brief said to read the fix description from RESULTS_SUMMARY.md.
+**RESULTS_SUMMARY.md contains zero occurrences of `load_unknown_candidates`,
+"paired, not pooled" or "unsourceable"** -- that description was never written
+here. It exists only in the recovered source's own docstrings, which is where it
+was read from. The brief's description was accurate; its stated location was not.
+
+### What the recovered fix does
+
+`load_unknown_candidates()` joins the 7 columns missing from the stale ranked
+exports (five `var_*`, two `gaia_*`) out of each pool's OWN feature table:
+
+* **paired, not pooled** -- `CANDIDATE_POOLS` pairs each export with the feature
+  table it was scored from, because a host in both pools has different TLS
+  features in each (different sector baseline)
+* **raises rather than truncates** -- `FileNotFoundError` if the table is absent,
+  `KeyError` naming unsourceable columns, `ValueError` on duplicate hosts, and
+  `validate="many_to_one"` on the merge
+* **a `_matched` sentinel**, not a non-null test, so a host that legitimately
+  matches a row with NaN `gaia_*` (no Gaia source within 3 arcsec) counts as
+  joined rather than as a data problem
+* **`except (Exception, SystemExit)`** -- deliberately not a bare
+  `except Exception`, because `build_feature_matrix` signals schema mismatch
+  with `SystemExit`, which derives from `BaseException`; catching only
+  `Exception` would reproduce the exact silent failure being fixed
+* **results written BEFORE and AFTER** the optional section, so the file can
+  never again be older than the artifact beside it, and a skip is recorded as
+  `skipped: true` rather than leaving a stale verdict looking current
+
+It also correctly declines to "fix" the export writer:
+`score_candidates` builds the ranked frame FROM `unknown_features*.csv` and hard
+-fails on a missing feature column, so a run today would export all 33 columns.
+The CSVs are merely stale (2026-08-05); refreshing them needs a full MAST+TLS
+run that would overwrite the live candidate tables. Making an offline diagnostic
+depend on that is the wrong dependency.
+
+### Clean run against current production
+
+Exit code **0**.
+
+| pool | ranked rows | present | joined | matched |
+|---|---|---|---|---|
+| `unknown_candidates` | 254 | 26/33 | 7 | **254/254** |
+| `unknown_candidates_widesector` | 54 | 26/33 | 7 | **54/54** |
+
+`var_*` 100% non-null in both; `gaia_*` 96.1% (main) and 100% (widesector).
+
+**The diagnostic produced a real verdict that has been invisible since
+2026-08-06:**
+
+    domain classifier (calibration test set vs unknown candidates) AUC = 0.9798
+    VERDICT: NOT exchangeable
+
+Largest standardized mean differences: `FAP` -1.34, `var_ls_power` +0.60,
+`st_rad` +0.55. So the finite-sample coverage guarantee is **valid for stars like
+the frozen test set and NOT valid as stated for unknown candidates**, where it is
+a well-calibrated heuristic. For scale, `synthetic_vs_real` scored 0.9654 and was
+abandoned on that basis; this is higher.
+
+Validation: `conformal_prediction_results.json` regenerated at 2026-08-15 03:53
+with `exchangeability.skipped = false`, `domain_auc 0.9798`, `n_unknown 308` and
+per-pool provenance; `conformal_calibration.json` carries the production md5 and
+is **byte-identical** to its pre-run state, confirming the calibration itself is
+deterministic and untouched. Exactly two files changed:
+`conformal_prediction.py` and its results JSON.
+
+### PROCESS LESSON: work in a worktree is not landed until it is merged
+
+This is the second instance of the same failure mode in this project, and the
+more dangerous one because it is invisible:
+
+1. The **feature-set staleness** class (`NON_TLS_FEATURE_COLUMNS`, the 24-feature
+   OOD detector, the pre-Gaia hyperparameter drift) -- a cached artifact drifting
+   from a grown definition.
+2. **This one: work that was done, validated and then never committed.** No
+   error, no failing test, no stale artifact -- just a file on main that was
+   never touched. It survived undetected until a full-system audit diffed the
+   file against its own history.
+
+What made it detectable was checking the ARTIFACT's date
+(`conformal_prediction_results.json`, still 2026-08-04) rather than trusting that
+a reported fix had landed. **A fix is real when `git log` on main shows it, not
+when a task reports success.** Cheapest general guard: for any delegated or
+worktree-isolated fix, verify with `git log --oneline -- <path>` on main before
+recording it as closed.
+
+**REMAINING HAZARD, flagged and NOT actioned:** the worktree and branch
+`claude/quizzical-aryabhata-fa87b2` still exist, and its `RESULTS_SUMMARY.md` is
+**1,023 lines behind main**. Merging that branch as-is would revert the Optuna
+deployment record, the OOD refit, the GPC/VESPA closures and the audit. It is now
+fully superseded -- the only work it held is landed here. Deleting the branch and
+worktree is the right cleanup but is destructive, so it needs explicit go-ahead:
+
+```bash
+git worktree remove .claude/worktrees/quizzical-aryabhata-fa87b2
+git branch -D claude/quizzical-aryabhata-fa87b2
+```
+
+Script: `conformal_prediction.py`; results `conformal_prediction_results.json`.

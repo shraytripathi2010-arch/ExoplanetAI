@@ -78,6 +78,19 @@ ALPHAS = [0.10, 0.05, 0.01]
 N_SPLITS = 300
 SEED = 42
 
+# (ranked candidate export, the feature table that pool was scored FROM).
+# Paired, not pooled: the wide-sector run has its own feature table and the two
+# must not be crossed -- a host present in both pools has different TLS features
+# in each (different sector baseline), so joining a row against the wrong table
+# would silently attach another run's measurements.
+CANDIDATE_POOLS = [
+    (os.path.join(ROOT, "results", "unknown_candidates", "ranked_candidates.csv"),
+     os.path.join(ROOT, "data", "catalogs", "unknown_features.csv")),
+    (os.path.join(ROOT, "results", "unknown_candidates_widesector",
+                  "ranked_candidates.csv"),
+     os.path.join(ROOT, "data", "catalogs", "unknown_features_widesector.csv")),
+]
+
 
 def _m05():
     spec = importlib.util.spec_from_file_location(
@@ -182,6 +195,123 @@ def summarise(c0, c1, y):
         "pct_ambiguous": float((size == 2).mean() * 100),
         "pct_empty": float((size == 0).mean() * 100),
     }
+
+
+def save_results(out):
+    """Called twice on purpose -- see the call site before the optional
+    exchangeability section."""
+    with open(RESULTS, "w") as f:
+        json.dump(out, f, indent=2, default=float)
+    print(f"  saved {RESULTS}")
+
+
+# --------------------------------------------- unknown candidates, re-joined
+def load_unknown_candidates(m05, verbose=True):
+    """The unknown-candidate pools as a frame carrying all FEATURE_COLUMNS.
+
+    WHY THIS IS A JOIN AND NOT `pd.read_csv`.
+
+    It used to be a bare read, and that is what broke this section for eight
+    days (2026-08-06 -> 2026-08-14, found during the Optuna deployment). The
+    ranked exports on disk were written 2026-08-05 12:37 and carry 37 and 34
+    columns; FEATURE_COLUMNS has since gained the five `var_*` (promoted
+    2026-08-06) and the two `gaia_*` (promoted 2026-08-14), so
+    `build_feature_matrix` raised SystemExit on all seven. Because that happens
+    AFTER models/conformal_calibration.json is written, the deployment artifact
+    kept succeeding and only the exit code complained -- which nobody read.
+
+    *** THE EXPORT WRITER IS NOT THE BUG, SO IT IS NOT WHAT IS FIXED HERE. ***
+    Checked before choosing: `06_download_unknown.score_candidates` builds the
+    ranked frame FROM `unknown_features*.csv` and hard-fails on a missing
+    feature column (`missing_required` -> SystemExit, 06_download_unknown.py
+    ~1686), then writes that whole frame. A run today would export all 33
+    columns unprompted. The CSVs are simply STALE -- the pipeline has not run
+    since 2026-08-05 -- and the only way to refresh them is a fresh MAST
+    download + TLS search that would also overwrite the live candidate tables.
+    Making an offline diagnostic depend on that is the wrong dependency; the
+    columns it needs already exist on disk, keyed identically.
+
+    So the missing columns are joined back from the same per-pool feature table
+    the exports were built from. This also matches the newest precedent in the
+    repo: `cluster1_pool_evidence.py` reads `unknown_features*.csv` as the
+    feature source and merges the stellar params in from ranked_candidates.csv
+    -- the same join, in the other direction.
+
+    The join is `host`-keyed and exact -- 254/254 and 54/54 matched, feature
+    tables unique on `host`, `var_*` 100% present, `gaia_*` 96.1%/100%. Gaia
+    NaNs are left as NaN on purpose: they are OPTIONAL_FEATURES, imputed inside
+    the fitted pipeline at serve time, and `domain_report` imputes with a
+    median inside its own CV pipeline, so this is what production sees too.
+
+    Returns (frame, provenance list). Raises if a column cannot be sourced --
+    a domain-shift number measured on a silently-truncated feature set would be
+    worse than no number at all.
+    """
+    need = list(m05.FEATURE_COLUMNS)
+    frames, prov = [], []
+
+    for ranked_path, feat_path in CANDIDATE_POOLS:
+        if not os.path.exists(ranked_path):
+            continue
+        pool = os.path.basename(os.path.dirname(ranked_path))
+        r = pd.read_csv(ranked_path)
+        missing = [c for c in need if c not in r.columns]
+        info = {"pool": pool, "n_rows": int(len(r)),
+                "export": os.path.relpath(ranked_path, ROOT),
+                "missing_from_export": missing, "joined": []}
+        if verbose:
+            print(f"\n  {pool}: {len(r)} ranked rows, "
+                  f"{len(need) - len(missing)}/{len(need)} feature columns present")
+
+        if missing:
+            if not os.path.exists(feat_path):
+                raise FileNotFoundError(
+                    f"{pool}: the export lacks {missing} and its feature table "
+                    f"{feat_path} does not exist to join them from.")
+            f = pd.read_csv(feat_path)
+            unsourceable = [c for c in missing if c not in f.columns]
+            if unsourceable:
+                raise KeyError(
+                    f"{pool}: {unsourceable} are in neither {os.path.basename(ranked_path)} "
+                    f"nor {os.path.basename(feat_path)}. If these were just promoted into "
+                    f"FEATURE_COLUMNS, the candidate pool has not been re-extracted yet.")
+            if f["host"].duplicated().any():
+                raise ValueError(
+                    f"{pool}: {os.path.basename(feat_path)} has duplicate 'host' values; "
+                    f"a many-to-many join would silently multiply candidate rows.")
+            # many_to_one: strict on the side that supplies the values, tolerant
+            # of the export, which is the object under study rather than the key.
+            # `_matched` rather than "any joined value is non-null": a host CAN
+            # legitimately match a row whose gaia_* are both NaN (no Gaia source
+            # within 3 arcsec), and counting that as a failed join would
+            # under-report the join and over-report a data problem.
+            r = r.merge(f[["host"] + missing].assign(_matched=True), on="host",
+                        how="left", validate="many_to_one")
+            matched = int(r.pop("_matched").eq(True).sum())
+            info["joined"] = missing
+            info["source"] = os.path.relpath(feat_path, ROOT)
+            info["hosts_matched"] = matched
+            info["coverage"] = {c: float(r[c].notna().mean()) for c in missing}
+            if verbose:
+                print(f"    joined {len(missing)} column(s) from "
+                      f"{os.path.basename(feat_path)} on host -- "
+                      f"{matched}/{len(r)} rows matched")
+                for c in missing:
+                    print(f"      {c:<16} {r[c].notna().mean() * 100:5.1f}% non-null")
+
+        frames.append(r)
+        prov.append(info)
+
+    if not frames:
+        raise FileNotFoundError(
+            "no ranked_candidates.csv found in either candidate pool -- "
+            "run 06_download_unknown.py first.")
+
+    u = pd.concat(frames, ignore_index=True)
+    still = [c for c in need if c not in u.columns]
+    if still:
+        raise KeyError(f"after joining, still missing: {still}")
+    return u, prov
 
 
 def main():
@@ -289,6 +419,21 @@ def main():
     print(f"\n  saved {ARTIFACT}")
     out["artifact"] = art
 
+    # ------------------------------------------- results written BEFORE the
+    #                                             optional section below
+    # Everything above this line is what this script exists to produce, and it
+    # is finished. The exchangeability check that follows is a diagnostic over
+    # files this script does not own and cannot regenerate, so it is the part
+    # most likely to break -- and it did, silently, from 2026-08-06 to
+    # 2026-08-14: it raised after the artifact was already on disk, so the run
+    # "worked", while conformal_prediction_results.json sat unchanged from
+    # Aug 4 through two model deployments and was read as current.
+    #
+    # Writing here makes that impossible: the results file is always at least
+    # as fresh as the artifact beside it. It is written a second time at the
+    # end so a successful diagnostic still lands.
+    save_results(out)
+
     # -------------------------------------------------- exchangeability check
     print("\n" + "=" * 92)
     print("DOES THE GUARANTEE TRANSFER TO UNKNOWN CANDIDATES? -- the decisive caveat")
@@ -298,23 +443,24 @@ def main():
     print("  TESS stars (79% planets, TOI-sourced). The app applies it to UNKNOWN")
     print("  candidates. If those are drawn from a different distribution, the")
     print("  guarantee is void -- so it is measured, not assumed.")
-    cand_files = [
-        os.path.join(ROOT, "results", "unknown_candidates", "ranked_candidates.csv"),
-        os.path.join(ROOT, "results", "unknown_candidates_widesector",
-                     "ranked_candidates.csv")]
-    frames = [pd.read_csv(f) for f in cand_files if os.path.exists(f)]
-    if frames:
-        u = pd.concat(frames, ignore_index=True)
+    # `except SystemExit` is deliberate and not redundant with `Exception`:
+    # build_feature_matrix signals a schema mismatch with SystemExit, which
+    # derives from BaseException, so a bare `except Exception` here would
+    # reproduce exactly the silent failure this wrapper exists to end.
+    try:
+        u, prov = load_unknown_candidates(m05)
         Xu, _ = m05.build_feature_matrix(u.assign(label=0))
         Xu = Xu.reset_index(drop=True)[X.columns]
         sys.path.insert(0, SCRIPT_DIR)
         from domain_separability import domain_report
         Xc = pd.concat([X[te].reset_index(drop=True), Xu], ignore_index=True)
         dom = np.r_[np.zeros(int(te.sum()), int), np.ones(len(Xu), int)]
+        print()
         rep = domain_report(Xc, dom, names=("calibration (test set)",
                                             "unknown candidates"), verbose=True)
         out["exchangeability"] = {"domain_auc": rep["domain_auc"],
-                                  "n_unknown": int(len(Xu))}
+                                  "n_unknown": int(len(Xu)),
+                                  "candidate_sources": prov}
         auc = rep["domain_auc"]
         print()
         if auc is not None and auc > 0.90:
@@ -327,10 +473,34 @@ def main():
             print(f"  VERDICT: domain AUC {auc:.4f} -- close enough to exchangeable")
             print("  that the guarantee transfers approximately.")
         out["exchangeability"]["transfers"] = bool(auc is not None and auc <= 0.90)
+        skipped = None
+    except (Exception, SystemExit) as e:
+        skipped = f"{type(e).__name__}: {e}"
+        out["exchangeability"] = {"skipped": True, "error": skipped,
+                                  "domain_auc": None, "transfers": None}
+        print("\n" + "!" * 92)
+        print("DIAGNOSTIC SKIPPED -- the exchangeability check did not run")
+        print("!" * 92)
+        print(f"  {skipped.splitlines()[0]}")
+        for line in skipped.splitlines()[1:]:
+            print(f"  {line}")
+        print("\n  This is the OPTIONAL section. The conformal thresholds, the coverage")
+        print("  validation and the deployment artifact above are complete and were")
+        print("  saved before this ran -- nothing there is affected.")
+        print("  What IS affected: no current measurement of whether the guarantee")
+        print("  transfers to unknown candidates. The last recorded verdict in")
+        print("  conformal_prediction_results.json is now marked skipped, not stale.")
 
-    with open(RESULTS, "w") as f:
-        json.dump(out, f, indent=2, default=float)
-    print(f"  saved {RESULTS}")
+    save_results(out)
+
+    if skipped:
+        # Non-zero AFTER both files are written, not instead of writing them.
+        # The old failure exited non-zero too -- the difference is that the
+        # results file is now complete and self-describing either way, so the
+        # exit code is a second signal rather than the only one.
+        raise SystemExit(
+            "conformal_prediction.py: thresholds + artifact OK, "
+            "exchangeability diagnostic SKIPPED (see above).")
 
 
 if __name__ == "__main__":
