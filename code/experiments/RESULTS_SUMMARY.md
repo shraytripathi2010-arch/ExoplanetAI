@@ -11769,3 +11769,120 @@ git branch -D claude/quizzical-aryabhata-fa87b2
 ```
 
 Script: `conformal_prediction.py`; results `conformal_prediction_results.json`.
+
+## var_* gap backfill -- 3 rows filled, 14 correctly NaN. The audit's diagnosis was WRONG IN BOTH DIRECTIONS.
+
+Closes open item #2 from the 2026-08-15 system audit. **Production model
+untouched (`fe3fa82f...`); frozen-test AUC bit-identical at 0.9454155994 before
+and after.**
+
+### The audit said 15 computable / 2 impossible. The truth is 3 computable / 14 not -- and they are DIFFERENT rows.
+
+Re-checking rather than trusting the audit is what surfaced this, and it went
+wrong twice in opposite directions:
+
+**Error 1 -- the audit missed a raw directory.** It globbed `data/*lightcurve*`,
+which does not match `data/retrain_pipeline/raw`. That directory is named as a
+legitimate raw source by `best_model_metadata.json`'s own
+`raw_lightcurve_dependency` field. So the 2 stars the audit called impossible
+(`TIC_200385493`, `TIC_453789494`) **do** have raw light curves -- 15,687 and
+104,053 cadences -- and are the two that computed cleanly.
+
+**Error 2 -- file existence is not usability.** The audit checked only that a
+file existed. Asking the production function for its `var_status` gives the real
+answer:
+
+    15  non-standard schema
+     2  ok
+
+The 15 in `data/known_lightcurves_negative` are **QLP products**
+(`kspsap_flux`, ~1,200 cadences), not SPOC. `02_preprocess.validate_schema`
+requires `{time, flux, flux_err, pdcsap_flux, pdcsap_flux_err, quality}`; these
+have no `pdcsap_flux` at all, so `variability_for_raw` correctly returns
+`non-standard schema`. **They are not a backfill gap. They are correctly NaN,
+and the original variability backfill was right to skip them.**
+
+### A third row WAS recoverable, from a filename defect
+
+`Teegarden's_Star` exists on disk twice:
+
+| file | rows | schema |
+|---|---|---|
+| `Teegarden's_Star.csv` (matches the host) | 16,276 | **missing `time`** -> rejected |
+| `Teegardens_Star.csv` | 16,276 | valid |
+
+Proven to be the same observation, not assumed: `flux`, `flux_err`,
+`pdcsap_flux`, `quality` and `cadenceno` are **numerically identical across all
+16,276 rows**. The apostrophe is the obvious cause of the truncated write. An
+explicit, documented `RAW_ALIASES` entry reaches the intact file, and only after
+the primary fails `validate_schema` -- so the alias can never mask a good file.
+
+### The three rows filled
+
+| host | source | `var_oot_rms` | `var_excess` | `var_ls_amp` | `var_ls_power` | `var_ls_period` |
+|---|---|---|---|---|---|---|
+| `Teegarden's_Star` | `known_lightcurves` (alias) | 0.001769 | 1.0592 | 0.000328 | 0.0522 | 1.82079 |
+| `TIC_200385493` | `retrain_pipeline/raw` | 0.000321 | 1.3853 | 0.000139 | 0.1700 | 5.32098 |
+| `TIC_453789494` | `retrain_pipeline/raw` | 0.003868 | 1.0638 | 0.000522 | 0.0556 | 0.91835 |
+
+Computed with `web/retrain_pipeline._variability_for_raw` **unmodified** -- the
+same function the label-append path uses -- not a reimplementation.
+
+### Write discipline and verification
+
+Backup `training_BACKUP_pre_var_gap_20260815_044223.csv`, md5-verified identical
+to the pre-write file. **Textual column update, never `read_csv -> to_csv`** --
+the discipline that exists because a prior crowding backfill silently altered 8
+cells of `chi2red_min` in the 16th significant digit.
+
+| check | result |
+|---|---|
+| lines changed | **exactly 3** (5470, 5485, 5486) |
+| every pre-existing byte preserved | **PASS** -- no non-`var_*` column altered, no pre-existing value overwritten |
+| row count / column count | 5,494 / 51 unchanged |
+| non-var columns differing | **NONE** |
+| host order identical | yes |
+| duplicate hosts | 0 |
+| straddling hosts | 0 |
+| **frozen-test AUC** | **0.9454155994 -> 0.9454155994** (bit-identical) |
+| rows still all-var-NaN | 17 -> **14**, as intended |
+
+md5 `3bf4a343...` -> `16d77ded...`.
+
+**One nuance reported rather than glossed:** the brief assumed all affected rows
+were training-side. Two are not:
+
+| host | train | split-test | FROZEN test |
+|---|---|---|---|
+| `Teegarden's_Star` | yes | no | no |
+| `TIC_200385493` | no | yes | **no** |
+| `TIC_453789494` | no | yes | **no** |
+
+Both are post-manifest stars, allocated to `split_by_host`'s test partition by
+the 50/50 post-freeze rule but excluded from the frozen mask (1,104 vs 1,098).
+**The frozen test set is untouched and the AUC of record is unchanged.** This is
+not leakage: `var_*` is computed from the star's own light curve with no label
+and no cross-partition information, exactly as production computes it at serve
+time. The only consequence is that a future retrain-gate evaluation sees two
+test rows with real values instead of imputed ones.
+
+### Not retrained, and no retrain recommended
+
+Three rows out of 5,494 (0.05%), only one of them training-side. That is far
+below anything this project treats as material -- the MDE is 0.0097 and the
+learning curve predicts +0.013 AUC for *doubling* the dataset. **No retrain is
+warranted and none was run.** Production stays at 0.9454 / 33 features.
+
+### Follow-on items, NOT actioned
+
+1. **`Teegarden's_Star.csv` is corrupt on disk** (missing `time`). The alias
+   fixes training data, but the production path still resolves `host + '.csv'`
+   and would fail for this star. Correct fix: re-download or rename, so the
+   normal path works.
+2. **14 QLP-schema negatives can never have `var_*`** under the current
+   SPOC-only schema check. Options are re-downloading them as SPOC where
+   available, or teaching `choose_flux_columns` about `kspsap_flux`. Both change
+   feature values for existing rows and need their own validation cycle.
+
+Script: `variability_gap_backfill.py` (`--apply` to write, dry run by default);
+results `variability_gap_backfill.json`.

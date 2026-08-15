@@ -1,0 +1,89 @@
+{
+  "n_targets": 17,
+  "n_computed": 3,
+  "failed": [
+    [
+      "TIC_1001477809",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_1100766816",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_1400212743",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_161687209",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_1717732429",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_1965256662",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_1976308113",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_1979500576",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_2041563029",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_258777134",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_286696848",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_365683032",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_387664868",
+      "no raw light curve in any RAW_DIRS"
+    ],
+    [
+      "TIC_841226527",
+      "no raw light curve in any RAW_DIRS"
+    ]
+  ],
+  "before_md5": "3bf4a34317acbfcaf42972ee875ac0be",
+  "values": {
+    "Teegarden's_Star": {
+      "var_oot_rms": 0.0017692378869459933,
+      "var_excess": 1.0591929268681022,
+      "var_ls_amp": 0.00032787002696001253,
+      "var_ls_power": 0.05222205923268424,
+      "var_ls_period": 1.8207934804187669
+    },
+    "TIC_200385493": {
+      "var_oot_rms": 0.00032104711355485045,
+      "var_excess": 1.3852891964769056,
+      "var_ls_amp": 0.0001387751301234772,
+      "var_ls_power": 0.1700047046824665,
+      "var_ls_period": 5.320984433908079
+    },
+    "TIC_453789494": {
+      "var_oot_rms": 0.003868291198077627,
+      "var_excess": 1.063846999964469,
+      "var_ls_amp": 0.0005223286149290653,
+      "var_ls_power": 0.05556329913416004,
+      "var_ls_period": 0.9183499412041701
+    }
+  },
+  "after_md5": "16d77ded4ae0ddf0766a54fee53020e9",
+  "backup": "training_BACKUP_pre_var_gap_20260815_044223.csv",
+  "n_changed": 3
+}
