@@ -1,0 +1,66 @@
+{
+  "before": {
+    "detector_features": 24,
+    "detector_threshold": -0.5340611045174187,
+    "detector_rows": 5491,
+    "ranges_features": 24,
+    "model_features": 33
+  },
+  "after": {
+    "detector_features": 33,
+    "detector_threshold": -0.508247339321313,
+    "detector_rows": 5494,
+    "train_flag_rate": 0.02002184200946487,
+    "ranges_features": 33
+  },
+  "guard": {
+    "detector_recomputed": true,
+    "ranges_recomputed": true,
+    "direct_call_raises_named_error": true
+  },
+  "pool_rates": [
+    {
+      "pool": "main",
+      "n": 488,
+      "before": 0.20081967213114754,
+      "after": 0.1987704918032787,
+      "univariate_flag": 0.09836065573770492,
+      "in_distribution": 0.764344262295082
+    },
+    {
+      "pool": "widesector",
+      "n": 69,
+      "before": 0.3333333333333333,
+      "after": 0.3188405797101449,
+      "univariate_flag": 0.6811594202898551,
+      "in_distribution": 0.18840579710144928
+    }
+  ],
+  "cluster1": [
+    {
+      "pool": "main",
+      "n_c1": 164,
+      "rate_c1": 0.08536585365853659,
+      "n_rest": 324,
+      "rate_rest": 0.25617283950617287,
+      "odds_ratio": 0.271004016064257,
+      "p": 3.843875855469515e-06
+    },
+    {
+      "pool": "widesector",
+      "n_c1": 14,
+      "rate_c1": 0.14285714285714285,
+      "n_rest": 55,
+      "rate_rest": 0.36363636363636365,
+      "odds_ratio": 0.2916666666666667,
+      "p": 0.19764455231962982
+    }
+  ],
+  "cluster1_finding_holds": true,
+  "untouched": {
+    "production_model": true,
+    "training_csv": true,
+    "prod_md5": "fe3fa82f36cc978396c68be07d6057f9"
+  },
+  "new_detector_md5": "0fa7f16b230516efd38bf028ea924bd2"
+}

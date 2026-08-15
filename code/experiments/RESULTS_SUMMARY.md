@@ -11199,3 +11199,115 @@ Script: `ood_proposal_assess.py`; results `ood_proposal_assess.json`.
 Cross-references: the multi-sector pools-only OOD-impact measurement, the VAE
 anomaly-detection kill, the GPC/ensemble-diversity investigation, and the
 four-part cluster-1 thread.
+
+## OOD detector refit + staleness guard -- CLOSED. Two stale artifacts, one crash, one silent degradation.
+
+Fixes the crash found by the OOD/novelty investigation above. **Correctness and
+crash-safety only -- no model, training-data or threshold-policy change.**
+Production untouched at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9` (asserted by md5 before and after).
+
+### What was broken -- and it was two things, not one
+
+Both OOD checks cache an artifact derived from `FEATURE_COLUMNS`, and both rotted
+when the feature set grew 24 -> 26 -> 31 -> 33. Only one of them announced it.
+
+| artifact | built | features | failure mode |
+|---|---|---|---|
+| `multivariate_ood_detector.joblib` | 2026-07-11, 5,491 rows | 24 | **CRASH** -- `imputer.transform(X[33])` raises `ValueError: The feature names should match those that were passed during fit` |
+| `training_feature_ranges.json` | 2026-07-11, 5,491 rows | 24 | **SILENT** -- `flag_out_of_distribution` does `if feat not in ranges: continue`, so the 9 newer features were simply never range-checked |
+
+**The second one is the more instructive failure.** The investigation found the
+crash; the silent one only surfaced when the same call site was examined for the
+same bug class. `in_distribution = in_distribution_univariate &
+~multivariate_ood_flag`, so fixing only the crashing half would have left the
+deployed flag quietly degraded.
+
+**Third instance of one bug class in this project** -- a cached artifact versus a
+grown feature list, after `NON_TLS_FEATURE_COLUMNS` (which blocked all scoring
+for a week) and the pre-Gaia hyperparameter drift.
+
+### The durable fix, which is the point
+
+Refitting alone resets the clock until the next feature promotion. The guard
+lives in the LOAD PATH, so it fires automatically for every future one:
+
+```python
+def _check_cached_feature_set(cached_features, current_features, artifact_name):
+    """Returns None if the cache covers the current feature set, else a reason."""
+```
+
+Wired into three places:
+
+1. `load_or_compute_multivariate_detector` -- mismatch prints
+   `STALE OOD DETECTOR -- REFITTING` and recomputes instead of returning an
+   incompatible bundle.
+2. `load_or_compute_feature_ranges` -- same, and it matters more here because
+   the old behaviour degraded silently.
+3. `flag_multivariate_ood` -- defence in depth for any caller that builds a
+   detector dict itself; raises a message naming the fix rather than sklearn's
+   opaque feature-name error.
+
+Both `compute_*` functions now return/record `feature_columns`, and
+`multivariate_ood_meta.json` gained `n_features` + `feature_columns` so
+staleness is visible from the JSON without loading the joblib.
+
+### Refit result
+
+| | before | after |
+|---|---|---|
+| features | 24 | **33** |
+| training rows | 5,491 | **5,494** |
+| threshold (2nd pct, re-derived) | -0.534061 | **-0.508247** |
+| measured training flag rate | 2.0033% | **2.0022%** (target 2.0%) |
+| ranges features | 24 | **33** |
+
+Old artifacts preserved at `models/versions/*_pre33_24feat.*`.
+
+### Behavioural change: minimal, as predicted, on BOTH checks
+
+| pool | n | multivariate before | after | delta | univariate before | after | delta |
+|---|---|---|---|---|---|---|---|
+| main | 488 | 20.08% | 19.88% | **-0.20%** | 9.63% | 9.84% | **+0.20%** |
+| widesector | 69 | 33.33% | 31.88% | **-1.45%** | 68.12% | 68.12% | **+0.00%** |
+
+The three new-feature univariate violations in the main pool are single stars
+(`var_excess` 1, `var_ls_power` 1, `gaia_nss` 1).
+
+**One number that looks alarming and is not caused by this fix:** the widesector
+pool's 68.12% univariate flag rate. Measured against the OLD 24-feature ranges it
+is also 68.12% -- delta exactly 0.00%. It is a pre-existing property of the
+wide-sector-window pool, which by construction contains more extreme candidates,
+and is unrelated to this change. Flagged so it is not later misread as damage
+from the refit.
+
+### Cluster-1 regression check: the qualitative finding holds
+
+Re-measured against the REFIT detector, with the SOM partition re-derived and
+behaviourally validated (n=109, planet 77.06%, AUC 0.8871):
+
+| pool | cluster-1 flagged | rest flagged | odds ratio | p |
+|---|---|---|---|---|
+| main | **8.54%** (n=164) | **25.62%** (n=324) | 0.27 | **3.84e-06** |
+| widesector | 14.29% (n=14) | 36.36% (n=55) | 0.29 | 0.198 |
+
+Identical to the investigation's pre-refit numbers. **Cluster 1 is still flagged
+at a third the rate of the rest**, so the conclusion that feature-space novelty
+is not what makes cluster 1 unreliable survives the refit -- it was never a
+coverage artifact of the stale detector.
+
+### Validation
+
+- Refit detector loads and scores **both pools** with no errors (488 + 69 rows).
+- **Guard tested by simulation**, not by inspection: the 24-feature bundle and
+  ranges were temporarily restored to reproduce the exact pre-fix state. Both
+  loaders detected the mismatch and recomputed; the direct-call path raised the
+  named error. Refit artifacts restored afterwards.
+- Only the OOD flagging step is touched. Classification is unaffected --
+  `score_candidates` runs before OOD flagging and neither loader is on its path.
+- **Production model md5 and training.csv md5 asserted unchanged** across the
+  whole run. Promotion gate and scheduler untouched; the scheduler was not even
+  stopped, because nothing it reads was modified.
+
+Scripts: `ood_detector_refit.py`; results `ood_detector_refit.json`. Closes the
+scoped item raised by the OOD/novelty-detection investigation above.

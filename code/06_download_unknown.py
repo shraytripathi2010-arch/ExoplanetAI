@@ -1783,8 +1783,19 @@ def load_or_compute_feature_ranges(feature_columns, force_recompute=False):
     if not force_recompute and os.path.exists(FEATURE_RANGES_PATH):
         with open(FEATURE_RANGES_PATH) as f:
             saved = json.load(f)
+        # Same guard as the multivariate detector, and it matters MORE here: a
+        # missing range is skipped silently by flag_out_of_distribution()
+        # rather than raising, so staleness degrades the check invisibly.
+        stale = _check_cached_feature_set(list(saved.get("ranges", {}).keys()),
+                                          feature_columns, "Cached feature ranges")
+        if stale:
+            print(f"\n  STALE FEATURE RANGES -- RECOMPUTING. {stale}")
+            print("  (previously the missing features were silently skipped by the "
+                  "univariate check, degrading it with no error)")
+            return compute_training_feature_ranges(feature_columns)
         print(f"Reusing cached training feature ranges from {FEATURE_RANGES_PATH} "
-              f"(computed from {saved.get('training_rows')} training rows). Delete this file "
+              f"(computed from {saved.get('training_rows')} training rows, "
+              f"{len(saved['ranges'])} features). Delete this file "
               f"or pass --recompute-ranges if the model has since been retrained on different data.")
         return saved["ranges"]
     return compute_training_feature_ranges(feature_columns)
@@ -1851,6 +1862,46 @@ MULTIVARIATE_OOD_META_PATH = os.path.join(MODELS_FOLDER, "multivariate_ood_meta.
 ISOLATION_FOREST_CONTAMINATION = 0.02   # nominal target; actual resulting training flag-rate is measured and reported, not assumed
 
 
+# =====================================
+# CACHED-ARTIFACT STALENESS GUARD
+# =====================================
+# Both OOD checks cache an artifact derived from FEATURE_COLUMNS, and both
+# silently rotted when the feature set grew from 24 -> 26 -> 31 -> 33:
+#
+#   multivariate (IsolationForest): the cached bundle was fit on 24 features
+#     while `feature_columns` (read from best_model_metadata.json) carried 33.
+#     `imputer.transform(X[33])` then raised the opaque sklearn error
+#     "The feature names should match those that were passed during fit."
+#     CRASHING the whole OOD step.
+#
+#   univariate (min/max ranges): worse, because it failed QUIETLY --
+#     flag_out_of_distribution() skips any feature missing from the cached
+#     ranges (`if feat not in ranges: continue`), so the 9 newer features were
+#     simply never range-checked and nothing complained.
+#
+# This is the third instance of one bug class in this project: a cached
+# artifact versus a grown feature list (see NON_TLS_FEATURE_COLUMNS above for
+# the first). Refitting alone only resets the clock until the next feature
+# addition, so the check lives HERE, in the load path, where it fires
+# automatically for every future promotion.
+def _check_cached_feature_set(cached_features, current_features, artifact_name):
+    """Returns None if the cached artifact covers the current feature set, or a
+    human-readable reason to recompute. Never raises -- the caller decides."""
+    if cached_features is None:
+        return f"{artifact_name} records no feature list (predates this guard)"
+    missing = [c for c in current_features if c not in set(cached_features)]
+    extra = [c for c in cached_features if c not in set(current_features)]
+    if missing or extra:
+        parts = []
+        if missing:
+            parts.append(f"{len(missing)} feature(s) added since it was built: {missing}")
+        if extra:
+            parts.append(f"{len(extra)} feature(s) no longer used: {extra}")
+        return (f"{artifact_name} was built on {len(cached_features)} features, the model "
+                f"now uses {len(current_features)} -- " + "; ".join(parts))
+    return None
+
+
 def compute_multivariate_ood_detector(feature_columns):
     from sklearn.ensemble import IsolationForest
     from sklearn.impute import SimpleImputer
@@ -1883,6 +1934,10 @@ def compute_multivariate_ood_detector(feature_columns):
         "contamination_target": ISOLATION_FOREST_CONTAMINATION,
         "threshold_score": threshold,
         "actual_training_flagged_fraction": actual_flagged_frac,
+        # Recorded so staleness is visible from the JSON alone, without having
+        # to load the joblib -- the check that was missing when this rotted.
+        "n_features": len(feature_columns),
+        "feature_columns": list(feature_columns),
         "note": "actual_training_flagged_fraction is the measured false-positive baseline: this is "
                 "the fraction of REAL, legitimate training examples (confirmed planets + confirmed "
                 "false positives) that this detector would ALSO flag if scored against itself -- "
@@ -1893,7 +1948,8 @@ def compute_multivariate_ood_detector(feature_columns):
     print(f"Multivariate OOD detector fit on {len(df)} training rows. Measured false-positive "
           f"baseline: {actual_flagged_frac:.1%} of real training examples would themselves be "
           f"flagged (target was {ISOLATION_FOREST_CONTAMINATION:.1%}).")
-    return {"imputer": imputer, "iso_forest": iso_forest, "threshold": threshold}
+    return {"imputer": imputer, "iso_forest": iso_forest, "threshold": threshold,
+            "feature_columns": list(feature_columns)}
 
 
 def load_or_compute_multivariate_detector(feature_columns, force_recompute=False):
@@ -1901,14 +1957,35 @@ def load_or_compute_multivariate_detector(feature_columns, force_recompute=False
         bundle = joblib.load(MULTIVARIATE_OOD_MODEL_PATH)
         with open(MULTIVARIATE_OOD_META_PATH) as f:
             meta = json.load(f)
+        stale = _check_cached_feature_set(bundle.get("feature_columns"),
+                                          feature_columns, "Cached OOD detector")
+        if stale:
+            print(f"\n  STALE OOD DETECTOR -- REFITTING. {stale}")
+            print("  (previously this returned the incompatible bundle anyway and the next "
+                  "imputer.transform() raised an opaque sklearn feature-name error)")
+            return compute_multivariate_ood_detector(feature_columns)
         print(f"Reusing cached multivariate OOD detector from {MULTIVARIATE_OOD_MODEL_PATH} "
-              f"(measured training false-positive rate: {meta['actual_training_flagged_fraction']:.1%}). "
+              f"(measured training false-positive rate: {meta['actual_training_flagged_fraction']:.1%}, "
+              f"{len(bundle['feature_columns'])} features). "
               f"Delete this file or pass --recompute-ranges if the model has since been retrained.")
-        return {"imputer": bundle["imputer"], "iso_forest": bundle["iso_forest"], "threshold": meta["threshold_score"]}
+        return {"imputer": bundle["imputer"], "iso_forest": bundle["iso_forest"],
+                "threshold": meta["threshold_score"],
+                "feature_columns": list(bundle["feature_columns"])}
     return compute_multivariate_ood_detector(feature_columns)
 
 
 def flag_multivariate_ood(ranked_df, feature_columns, detector):
+    # Defence in depth for any caller that builds a detector dict itself rather
+    # than going through load_or_compute_multivariate_detector(). Raises a
+    # message that names the fix, instead of sklearn's opaque
+    # "feature names should match those that were passed during fit".
+    stale = _check_cached_feature_set(detector.get("feature_columns"),
+                                      feature_columns, "This OOD detector")
+    if stale:
+        raise ValueError(
+            f"OOD detector / feature-set mismatch. {stale}. Refit it with "
+            f"compute_multivariate_ood_detector(feature_columns), or re-run with "
+            f"--recompute-ranges.")
     X = ranked_df[feature_columns].replace([np.inf, -np.inf], np.nan).copy()
     if "FAP" in X.columns:
         X["FAP"] = X["FAP"].fillna(1.0)
