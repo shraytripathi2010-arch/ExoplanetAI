@@ -10819,3 +10819,182 @@ separate work rather than fixed inside a production deployment.
 Scripts: `optuna_deploy_retrain.py` (staged retrain + validation),
 `deploy_optuna_model.py` (checksum-verified atomic swap, `--dry-run` capable);
 results `optuna_deploy_retrain.json`.
+
+## GPC as an ensemble member + GPC-inclusive meta-calibrator -- NEGATIVE on every arm
+
+### PREMISE CORRECTION: a real GPC was already built here
+
+The proposal was framed as "the first time a real GP classifier has actually
+been built in this project". **That is not accurate.** `gp_classifier.py` and
+`gp_results.json` are on disk: sklearn `GaussianProcessClassifier` (Laplace),
+kernel `ConstantKernel(1.0) * RBF(length_scale=1.0)`, median-impute +
+StandardScaler, **test AUC 0.8673, fit time 267.9 s on 4,392 rows**, against a
+then-baseline of 0.9032. Part C also already STACKED it (HGB + GP + CNN ->
+0.9018 vs 0.9016 alone), and the bootstrap CI on GP-vs-classical was
+**[0.017, 0.054], entirely above zero** -- the tree model won by a real margin,
+not by noise.
+
+Four things about that run were genuinely stale, which is why a re-test was
+legitimate rather than a duplicate:
+
+1. **24 features**, not the current 33 (no crowding, variability or Gaia)
+2. a **random `train_test_split`, NOT the frozen host split** -- it predates
+   that fix, so it may carry host leakage, which would have FLATTERED the GP
+3. **never calibrated** -- no Brier or ECE on record, and calibration quality is
+   this proposal's entire stated purpose
+4. **single fit, never resampled**, against a baseline now 0.9454
+
+So: partial overlap with real novelty. The re-test below is the new part.
+
+### Part 0: measured cost, and a correction to my own extrapolation
+
+Exact GPC scaling at 33 features, fitted in log space rather than assumed:
+
+| n | fit s | test AUC | Brier | ECE |
+|---|---|---|---|---|
+| 400 | 0.3 | 0.7717 | 0.1674 | 0.0357 |
+| 800 | 3.6 | 0.8691 | 0.1057 | 0.0396 |
+| 1600 | 28.9 | 0.8820 | 0.0986 | 0.0258 |
+| 2400 | 124.3 | 0.8977 | 0.0937 | 0.0243 |
+
+    t = 8.25e-10 * n^3.30   (theory says n^3; hyperparameter optimisation adds the rest)
+
+**That extrapolation was ~3.8x too pessimistic and the error is recorded
+deliberately.** It predicted 14.8 min for a bare fit at 4,390 rows and 35.4 min
+for a calibrated one, projecting ~7 h for the protocol. Measured at full scale:
+**bare 3.9 min, calibrated 15.5 min.** The power law was fitted on small-n
+points where fixed overhead dominates; the prior run's 267.9 s at 4,392 rows was
+the accurate anchor all along and should have outweighed a fitted curve. The
+lesson generalises: extrapolating a cost curve from cheap points over-predicts.
+
+Actual wall clock for the 12-bootstrap protocol: **178 min** (4 workers; per-
+bootstrap time rose from ~15 min serial to ~55 min under contention, which is
+the OTHER direction the estimate can be wrong in).
+
+**Kernel choice: no basis for Matern** (n=1600) -- RBF 0.8865, Matern nu=1.5
+0.8869, Matern nu=2.5 0.8871, a 0.0006 spread, and RBF has the best ECE (0.0293
+vs 0.037-0.038). RBF retained, matching the prior run.
+
+**Approximation fallback, measured not assumed:** `Nystroem(1000)+LR` reaches
+**0.8794 in 1.1 s**, roughly 200x cheaper than exact GPC for ~0.03 less AUC.
+`RBFSampler(1000)+LR` collapses to **0.6470** -- data-dependent Nystroem works
+here, data-independent random Fourier features do not. Nystroem is NOT a
+Gaussian Process (no posterior, no predictive variance), so it is a fair stand-in
+for "another kernel family" and not for "GP-style uncertainty".
+
+### Part 1: fresh single-model GPC at 33 features
+
+| model | AUC | 2-min | Brier | ECE | fit min |
+|---|---|---|---|---|---|
+| **hgb_prod (production)** | **0.9454** | 0.9396 | 0.0695 | 0.0241 | 1.9 |
+| catboost | 0.9402 | 0.9328 | 0.0730 | 0.0270 | 0.4 |
+| gpc_bare | 0.9100 | 0.9086 | 0.0895 | **0.0239** | 3.9 |
+| gpc_cal | 0.9073 | 0.9044 | 0.0904 | 0.0295 | 15.5 |
+| nystroem | 0.8749 | 0.8651 | 0.1008 | 0.0221 | 0.1 |
+
+**The nine added features are worth ~+0.04 to the GP** (0.8673 -> 0.9100), so
+the old number really was stale. It is still **-0.035 below production**.
+
+**A genuine GP property confirmed, and it changes nothing.** Bare GPC's native
+Laplace probabilities are already as well calibrated as production: **ECE 0.0239
+vs 0.0241**. Wrapping GPC in `CalibratedClassifierCV` makes it WORSE on both
+axes (AUC 0.9100 -> 0.9073, ECE 0.0239 -> 0.0295) at 4x the cost, with rho 0.993
+between the two. The GP-calibration premise is real; there is simply nothing
+left to win, because production is already there. **The validated arms therefore
+use BARE GPC** -- using the wrapper "for comparability" would have handicapped
+the arm under test.
+
+### The diagnostic that decided this in advance
+
+An averaging ensemble can only beat its best member if members err differently.
+
+    Spearman rho, member probabilities on the frozen test
+      hgb vs catboost   +0.950   <- near-duplicate
+      hgb vs gpc        +0.814   <- genuinely more diverse
+      hgb vs nystroem   +0.781
+
+**GPC is meaningfully more diverse than CatBoost.** But diversity is necessary,
+not sufficient -- and the sufficiency test fails outright:
+
+    AUC of each member ON THE 109 STARS HGB GETS WRONG   (0.5 = independent info)
+      hgb_prod   0.0000   (inverted by construction)
+      catboost   0.0690
+      gpc_cal    0.2173
+      gpc_bare   0.2234
+      nystroem   0.1891
+
+**Every member is far BELOW 0.5**, meaning they do not merely fail to rescue
+HGB's mistakes -- they rank those same stars in the same inverted direction. The
+models are confidently wrong together. No weighting of them can recover what
+none of them has.
+
+### Part 3: full protocol, 12 bootstraps, vs production 0.9454
+
+| arm | AUC | mean delta | sd | 95% CI | positive | >=MDE | Brier | ECE | 2-min delta |
+|---|---|---|---|---|---|---|---|---|---|
+| **hgb_prod [PRODUCTION]** | **0.9385** | -- | -- | -- | -- | -- | **0.0739** | 0.0338 | -- |
+| gpc_only | 0.8949 | **-0.0436** | 0.0039 | [-0.0491, -0.0368] | 0/12 | 0/12 | 0.0981 | 0.0478 | -0.0426 |
+| catboost_only | 0.9331 | -0.0053 | 0.0028 | [-0.0096, +0.0000] | 1/12 | 0/12 | 0.0794 | 0.0386 | -0.0060 |
+| avg_hgb_cat_gpc | 0.9333 | -0.0052 | 0.0022 | [-0.0092, -0.0019] | 0/12 | 0/12 | 0.0741 | **0.0296** | -0.0052 |
+| avg_hgb_gpc | 0.9311 | -0.0074 | 0.0020 | [-0.0114, -0.0048] | 0/12 | 0/12 | 0.0762 | 0.0376 | -0.0076 |
+| meta_hgb_cat_gpc | 0.9368 | -0.0016 | 0.0018 | [-0.0039, +0.0020] | 1/12 | 0/12 | 0.0788 | 0.0497 | -0.0015 |
+| meta_hgb_gpc | 0.9366 | -0.0019 | 0.0017 | [-0.0043, +0.0012] | 1/12 | 0/12 | 0.0771 | 0.0455 | -0.0018 |
+
+**Nothing clears. Nothing is even positive.** Both averaging arms have CIs
+entirely below zero. The two meta-calibrators are the least-bad arms and still
+sit at -0.0016 / -0.0019, positive on 1 of 12 resamples.
+
+**The meta-learner rediscovers Part C's answer.** Mean out-of-fold weights:
+
+    3-member   hgb +5.29   catboost +1.93   gpc +2.24
+    2-member   hgb +6.61   gpc +2.79
+
+Part C recorded HGB 4.13 / GP 2.18 / CNN 2.33. Two independent fits, four years
+of feature work apart, both conclude the meta-learner should mostly just use
+HGB. Notably GPC out-weighs CatBoost (2.24 vs 1.93) despite scoring far worse
+alone -- the diversity is real and the meta-learner does try to use it. It still
+cannot make it pay.
+
+**The same ECE illusion as the Armstrong ensemble round, and it is not a win.**
+`avg_hgb_cat_gpc` posts the best ECE in the table (0.0296 vs production's
+0.0338) while ranking 0.0052 worse. Averaging heterogeneous models pulls
+probabilities toward the base rate, which improves ECE by being less confident.
+A model that discriminates worse is not better calibrated in any useful sense --
+the identical pattern was recorded for `avg_rf_et_lda` and should not be
+mistaken for a result a second time.
+
+### Was an LR meta-calibrator a different proposition from the dense net?
+
+**Yes, and it deserved its own test rather than inheriting that verdict.** The
+dense-net meta-learner lost **0.0324** given HGB's own output as an input,
+because it had the capacity to overfit it. Logistic regression on 2-3 inputs has
+3-4 parameters and structurally cannot. The measurement confirms the distinction
+is real: LR loses **0.0016**, not 0.0324 -- a 20x smaller loss.
+
+But it still loses. Capacity WAS the variable that differed, and removing the
+overfitting reveals there was no signal underneath it to find. Both the
+test-halves screen (200 splits, -0.0002, CI [-0.0060, +0.0046], 96/200) and the
+proper out-of-fold protocol (12 bootstraps, -0.0016, 1/12) agree.
+
+### Verdict
+
+| sub-proposal | recommendation |
+|---|---|
+| GPC as a standalone model | **DON'T PROMOTE.** -0.0436, CI far below zero, 0/12. |
+| HGB+CatBoost+GPC averaging | **DON'T PROMOTE.** -0.0052, CI entirely below zero, 0/12. |
+| LR meta-calibrator with GPC | **DON'T PROMOTE.** -0.0016, 1/12 positive. The best of the alternatives and still negative. |
+| Nystroem as a cheap GP stand-in | **DON'T PROMOTE.** 0.8749 alone; adding it costs -0.0104. |
+
+**Production stays at 0.9454 / 33 features / Optuna-tuned HGB.** Nothing here is
+a promote-with-sign-off candidate either: the Optuna exception was granted to an
+arm that was **positive on 12/12 resamples with a CI excluding zero**. Every arm
+here is NEGATIVE with CIs at or below zero, so the question of a deliberate
+exception does not arise. **The Optuna precedent must not be read as lowering
+the bar** -- it applies only to results that are positive, robust and merely
+sub-threshold, and nothing in this investigation is any of those.
+
+Scripts: `gpc_feasibility.py`, `gpc_screen.py`, `gpc_ensemble_validate.py`;
+results `gpc_feasibility.json`, `gpc_screen.json`, `gpc_ensemble_validate.json`.
+Cross-references: Part C (HGB+GP+CNN stacking), the small-lift stacking trio,
+the dense-net meta-learner, the CatBoost seed-instability findings, and the
+Armstrong RF/ET/LDA ensemble round (same ECE-from-underconfidence pattern).
