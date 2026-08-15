@@ -1,6 +1,6 @@
 {
   "generated_from": "frozen test split (1,098 stars), production model",
-  "model_md5": "c37f9f4bdb252d52b8c1c5487dad9e6d",
+  "model_md5": "fe3fa82f36cc978396c68be07d6057f9",
   "regenerate_when": "the production model changes, or the frozen test set gains stars -- see RESULTS_SUMMARY",
   "n_calibration": 1104,
   "n_calibration_pos": 872,
@@ -9,19 +9,19 @@
   "prevalence": 0.7898550724637681,
   "thresholds": {
     "0.1": {
-      "q_neg": 0.8869312362076236,
-      "q_pos": 0.26497234827634286,
-      "lac_q": 0.4943546973786548
+      "q_neg": 0.8955832486350122,
+      "q_pos": 0.23797895434987382,
+      "lac_q": 0.5082468323296079
     },
     "0.05": {
-      "q_neg": 0.9363442417706856,
-      "q_pos": 0.40841282947515256,
-      "lac_q": 0.7251941022796093
+      "q_neg": 0.9481309951274447,
+      "q_pos": 0.3734224733520224,
+      "lac_q": 0.71748620050435
     },
     "0.01": {
-      "q_neg": 0.9977508653485729,
-      "q_pos": 0.6926050415096374,
-      "lac_q": 0.9363442417706856
+      "q_neg": 0.9900719495252497,
+      "q_pos": 0.6923570609974279,
+      "lac_q": 0.9500038821323873
     }
   }
 }

@@ -1,6 +1,17 @@
 # Model architecture experiments -- honest results summary
 
-**DEPLOYED 2026-08-05: the number of record is now 0.9208.**
+> **CURRENT PRODUCTION (2026-08-15): AUC 0.9454, 33 features, md5
+> `fe3fa82f36cc978396c68be07d6057f9`.** Everything in this header block below is
+> the 2026-08-05 state and is retained as history, NOT as current fact. Four
+> deployments have happened since: crowding (0.9208), variability (0.9300), Gaia
+> DR3 astrometry (0.9402), and the Optuna hyperparameter change (0.9454).
+>
+> **The most recent one did NOT clear the standing promotion bar and was
+> deployed as an explicit, user-authorised exception.** See the section
+> `>>> DEPLOYED 2026-08-15: A DELIBERATE EXCEPTION TO THE PROMOTION RULE <<<`
+> at the end of this document before citing it. The bar itself is unchanged.
+
+**DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
 `models/best_model.joblib` (HistGradientBoosting + sigmoid calibration, **26
 features**, md5 `0c996a41a76cc765895d3013830a536b`) replaced the long-standing
 0.9031 model (md5 `341f1a3907e77f6ec294f182833e613c`, kept at
@@ -10454,7 +10465,14 @@ Script: `crowding_stratified_calibration.py`; results
 investigation (arm C) and the calibration/ensembling sweep (`sigmoid cv=3`, the
 first measurement of the same variance mechanism on the fold-count axis).
 
-## Optuna Bayesian hyperparameter search -- the strongest sub-MDE result on record. NOT PROMOTED.
+## Optuna Bayesian hyperparameter search -- the strongest sub-MDE result on record. NOT PROMOTED (SUPERSEDED -- see below)
+
+> **STATUS UPDATE 2026-08-15: this configuration WAS subsequently deployed**, as
+> an explicit user-authorised EXCEPTION to the promotion rule, not because it
+> ever cleared it. The verdict table at the end of this section says "DON'T
+> PROMOTE" and was correct under the standing rule at the time it was written.
+> See `>>> DEPLOYED 2026-08-15: A DELIBERATE EXCEPTION TO THE PROMOTION RULE <<<`
+> at the end of this document.
 
 ### Two things the deduplication check established first
 
@@ -10620,3 +10638,184 @@ here), installed for this experiment and deliberately NOT added to
 `requirements.txt` -- same treatment as CatBoost, LightGBM and XGBoost, which are
 also experiment-only and absent from it. Nothing in the production path imports
 it.
+
+# >>> DEPLOYED 2026-08-15: A DELIBERATE EXCEPTION TO THE PROMOTION RULE <<<
+
+## READ THIS BEFORE CITING THE OPTUNA RESULT
+
+**The Optuna hyperparameter configuration was promoted to production on
+2026-08-15 even though IT DID NOT CLEAR THE STANDING EVIDENTIARY BAR.** This is
+the only promotion in this project's history that did not clear, and it must
+never be summarised later as "a result that cleared the bar", because it did
+not.
+
+### What the bar is, and exactly how this failed it
+
+    clearing requires:  ci_lo > 0  AND  mean delta >= MDE (0.0097)
+
+| leg | required | measured | verdict |
+|---|---|---|---|
+| `ci_lo > 0` | > 0 | **+0.0024** | **PASSED** |
+| `mean delta >= MDE` | >= 0.0097 | **+0.0045** | **FAILED** |
+
+No single one of the 12 resamples reached the MDE either (**0/12**, largest
++0.0075 against a 0.0097 threshold).
+
+### Why it was promoted anyway
+
+Promoted on the user's explicit, informed instruction, with the shortfall stated
+in advance. The supporting evidence, none of which is sufficient on its own:
+
+- **12/12 resamples positive**, deltas +0.0024..+0.0075, never touching zero
+- **95% CI [+0.0024, +0.0070] excludes zero**
+- **Brier AND ECE improve simultaneously** (0.0763 -> 0.0739, 0.0355 -> 0.0338),
+  so it is not buying ranking at the cost of probability quality
+- **no evidence of search overfitting**: the nested-CV delta (+0.0022) is
+  SMALLER than the resampled-test delta (+0.0045), the opposite of what an
+  overfit search produces
+- **host-disjoint nested CV agrees**: pooled out-of-fold 0.9471 -> 0.9503
+  (+0.0032), winning **5/5** outer folds
+
+### THE RULE HAS NOT CHANGED
+
+**CatBoost (+0.0080, 12/12 positive, clearing on only 4-6 of 12) and
+`trap_vshape` remain correctly NOT promoted, and every future near-miss stays
+unpromoted by default.** The bar was not lowered, retired, or reinterpreted --
+it was overridden once, deliberately, in writing, for this specific change.
+Anything of this shape in future requires the same explicit sign-off; it does
+not inherit this precedent automatically. If a later reader finds a sub-MDE
+result cited as justification for skipping the bar, that reader should treat it
+as an error.
+
+**A caveat that belongs next to the decision:** the per-fold instability in the
+search (five outer folds produced five substantially different "best" configs)
+indicates a FLAT objective surface. The gain is real-but-small, not a robust
+global optimum. A different seed would likely select a different configuration
+of comparable performance.
+
+## Deployment record
+
+| | before | after |
+|---|---|---|
+| md5 | `c37f9f4bdb252d52b8c1c5487dad9e6d` | **`fe3fa82f36cc978396c68be07d6057f9`** |
+| frozen-test AUC | 0.9402 | **0.9454** |
+| features | 33 | 33 (**unchanged**) |
+| `learning_rate` | 0.1 | 0.09258475971800786 |
+| `max_iter` | 100 | 475 |
+| `max_leaf_nodes` | 31 | 63 |
+| `max_depth` | None | None |
+| `min_samples_leaf` | 20 | 24 |
+| `l2_regularization` | 0.0 | 0.009012660266897076 |
+| `class_weight` | None | **balanced** |
+
+Hyperparameters were read from `optuna_hpo_nested.json` at deploy time and
+asserted against the live artifact after the swap -- never retyped.
+
+**WHICH OF THE THREE CONFIGURATIONS IS DEPLOYED**, stated explicitly because
+this project has already had one silent drift on exactly this point:
+
+| config | status |
+|---|---|
+| sklearn defaults (lr 0.1 / 100 / 31 / l2 0.0 / cw None) | what the Gaia swap silently left deployed 2026-08-14 to 2026-08-15. **NO LONGER DEPLOYED.** |
+| pre-Gaia "legacy tuned" (lr 0.1 / 500 / 63 / l2 0.5 / balanced) | tested at 33 features, +0.0016, CI spanning zero. **NEVER RE-DEPLOYED.** |
+| **Optuna-tuned (lr 0.0926 / 475 / 63 / l2 0.0090 / balanced)** | **DEPLOYED NOW.** |
+
+The metadata inaccuracy from the same investigation is fixed in the same swap:
+`model_name` previously read `"(tuned, ...)"` while defaults were running. It
+now reads `"(OPTUNA-TUNED hyperparameters, 33 features ...)"` and carries an
+explicit `hyperparameters` block plus `hyperparameter_provenance`.
+
+### Validation at deploy scale reproduced the investigation EXACTLY
+
+The 12 bootstrap draws were replayed from the identical seed stream, so this is
+an exact reproduction rather than a close one:
+
+| quantity | investigation | deploy-scale rerun | |
+|---|---|---|---|
+| mean delta | +0.0045 | +0.0045 | MATCH |
+| ci_lo | +0.0024 | +0.0024 | MATCH |
+| ci_hi | +0.0070 | +0.0070 | MATCH |
+| positive | 12/12 | 12/12 | MATCH |
+
+Headline single fit: prod **0.9402** (reproducing the deployed metric of record
+to four decimals, a harness validity check) -> optuna **0.9454**, delta +0.0052.
+2-min-only subset delta +0.0037.
+
+### Deployment mechanics, and why the gate could not do this itself
+
+Manual offline swap, as with crowding/variability/Gaia -- but for a **different
+reason**, worth recording because the usual one does not apply here. Feature
+additions needed a manual swap because the gate raises `ValueError` across a
+column-count change. **This change is feature-set-neutral, so it does NOT break
+the gate at all.** It still cannot be done by the gate, because the gate's
+challenger is `clone(prod_model)` -- production's OWN configuration refit on more
+data. A gate built to answer "is the same model better with more data?" is
+structurally incapable of proposing a DIFFERENT configuration. Hyperparameter
+changes must come from outside it by construction.
+
+Swap safety: staged artifact verified to load, predict, reproduce its recorded
+AUC and carry the study's exact hyperparameters; outgoing model verified against
+its expected md5; rollback copied and verified byte-identical BEFORE any write;
+model and metadata replaced atomically via `os.replace`; live md5 and
+hyperparameters re-asserted after. Rollback:
+`models/versions/best_model_pre_optuna_c37f9f4b.joblib`.
+
+### Downstream artifacts regenerated
+
+| artifact | status |
+|---|---|
+| `models/conformal_calibration.json` | regenerated, `model_md5` = `fe3fa82f...` |
+| `models/bootstrap_ensemble/` (32 members) | rebuilt 02:31 UTC, members carry the Optuna config, manifest size matches the new artifact |
+
+### Operational cost, measured rather than estimated
+
+- **Training ~9.7x**: 3.5 s -> 34.1 s for one full-training fit on a clean
+  8-core machine. (An earlier ~15x figure was measured under CPU contention and
+  was too high.)
+- **A retrain tick costs ~30 s more, NOT 10x.** The gate's 2,000 bootstraps
+  resample TEST PREDICTIONS, not refit models, so only the single challenger fit
+  gets more expensive. A forced dry-run tick completed in **174 s**.
+- **Bootstrap ensemble rebuild: 4.4 min** for 32 members -- the most expensive
+  downstream job, and still cheap.
+- **Inference 4.7x relatively, negligible absolutely**: 0.0659 s -> 0.307 s to
+  score 1,098 rows = **0.28 ms/star**, so the full 254-candidate ranked pool
+  costs ~0.07 s versus ~0.015 s. Serving latency is not a practical concern at
+  this scale, but it is NOT unchanged, and the ratio would matter if the scored
+  pool grew by orders of magnitude.
+
+### Scheduler verification
+
+`launchctl bootout` before touching artifacts (next retrain tick was ~18.8 h
+away, so there was margin, but precedent was followed), `bootstrap` after.
+Verified live: pid 18237 supervised, `/health` ok, thread alive, real loop tick
+`{"retrain": "not_due", "tick": 1}`, and the web UI serving `OPTUNA-TUNED` /
+0.9454.
+
+**Future auto-retrains correctly inherit the new baseline** -- verified directly
+rather than assumed: `_build_challenger(prod)` returns
+`clone of production CalibratedClassifierCV` carrying lr 0.0926 / 475 / 63 /
+msl 24 / l2 0.0090 / balanced, with **zero mismatches** against the saved study.
+A forced dry-run retrain then ran the whole path end to end: challenger 0.9435
+vs production 0.9435, delta +0.0000, CI [+0.0000, +0.0000], **not promoted**,
+production md5 unchanged. Delta of exactly zero is the correct result when the
+challenger IS production's recipe on the same data.
+
+### A pre-existing bug found during this deployment, NOT caused by it
+
+`conformal_prediction.py`'s final exchangeability section has been **crashing
+since 2026-08-06** and nobody noticed, because it runs AFTER the deployment
+artifact is written -- so the artifact succeeds and the script exits non-zero at
+the very end. It feeds `results/unknown_candidates*/ranked_candidates.csv`
+(37 and 34 columns) to `build_feature_matrix`, which now requires the 33
+FEATURE_COLUMNS including the five `var_*` (added Aug 6) and two `gaia_*` (added
+Aug 14) that those exports never gained. Evidence it is stale:
+`conformal_prediction_results.json` is dated **Aug 4** and has not been rewritten
+by any run since, through TWO prior deployments.
+
+**`conformal_calibration.json` -- the artifact production actually uses -- is
+current and correct.** Only the domain-shift diagnostic is dead. Flagged as
+separate work rather than fixed inside a production deployment.
+
+Scripts: `optuna_deploy_retrain.py` (staged retrain + validation),
+`deploy_optuna_model.py` (checksum-verified atomic swap, `--dry-run` capable);
+results `optuna_deploy_retrain.json`.
