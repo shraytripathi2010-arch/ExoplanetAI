@@ -10300,3 +10300,323 @@ works in their setting; it does not transfer here, and the cluster-1 calibration
 problem remains unexplained after a third distinct line of attack -- now with
 model architecture ruled out alongside RV-discovery label noise and elevated
 candidate-pool false-positive risk.
+
+## Temperature scaling -- NEGATIVE. The missing bias term is the whole story.
+
+The calibration sweep and the prefit round together covered
+`{sigmoid, isotonic, bag-only} x cv={3,5,10,20}` plus dedicated holdouts at
+5/10/20%. **Temperature scaling was never tested**, and it is a genuinely
+different calibrator rather than another point on that grid:
+
+    Platt / sigmoid      p = expit(a*z + b)     TWO parameters
+    temperature scaling  p = expit(z / T)       ONE parameter, NO bias
+
+### The design, which makes this an isolation rather than a survey
+
+`CalibratedClassifierCV(cv=k)` fits k base models on (k-1)/k of the data and
+averages their calibrated outputs. The harness reproduces that structure exactly
+and uses the same `StratifiedKFold(k, shuffle=False)` sklearn uses for an integer
+`cv`, so **the k base models are identical between `sigmoid cv=k` and
+`temp cv=k`** and only the logit-to-probability map differs. HGB's
+`decision_function` supplies the raw log-odds temperature scaling is defined on.
+
+### RESULT: no arm clears, and the cross-fit arms are worse where it counts
+
+12 training bootstraps, frozen test, production recipe.
+
+| arm | AUC | mean delta | 95% CI | positive | Brier | d Brier | ECE | d ECE | mean T |
+|---|---|---|---|---|---|---|---|---|---|
+| **sigmoid cv=5 [PRODUCTION]** | **0.9339** | -- | -- | -- | **0.0763** | -- | **0.0355** | -- | -- |
+| sigmoid cv=10 | 0.9341 | +0.0001 | [-0.0021, +0.0029] | 6/12 | 0.0762 | -0.0001 | 0.0361 | +0.0006 | -- |
+| temp cv=3 | 0.9332 | -0.0007 | [-0.0026, +0.0016] | 5/12 | 0.0770 | +0.0007 | 0.0398 | +0.0043 | 1.264 |
+| temp cv=5 | 0.9339 | +0.0000 | [-0.0002, +0.0001] | 6/12 | 0.0772 | +0.0009 | 0.0411 | +0.0056 | 1.125 |
+| temp cv=10 | 0.9340 | +0.0001 | [-0.0021, +0.0028] | 6/12 | 0.0775 | +0.0012 | 0.0440 | +0.0085 | 1.054 |
+| temp prefit 20% | 0.9287 | -0.0052 | [-0.0098, -0.0017] | 0/12 | 0.0797 | +0.0034 | 0.0454 | +0.0099 | 1.131 |
+| temp prefit 10% | 0.9289 | -0.0051 | [-0.0092, -0.0002] | 1/12 | 0.0794 | +0.0031 | 0.0439 | +0.0085 | 1.096 |
+| temp prefit 5% | 0.9293 | -0.0047 | [-0.0088, -0.0019] | 0/12 | 0.0799 | +0.0036 | 0.0478 | +0.0123 | 1.013 |
+
+**`temp cv=5` is AUC-identical to production to four decimals, CI
+[-0.0002, +0.0001].** That is the tightest interval measured anywhere in this
+project, and it is a harness validity check passing rather than a finding: the
+two arms share base models and differ only by a monotone map, so AUC *cannot*
+move except through the averaging of k different curves.
+
+**Where a calibrator is actually judged, temperature loses: ECE +0.0056 and
+Brier +0.0009 at matched folds.** The mechanism is the missing bias term. Every
+fitted T is **above 1** (1.01-1.26), so HGB is overconfident and needs
+flattening -- which a temperature can do. What it cannot do is SHIFT. On a 79%
+positive training set the calibration curve needs an offset as well as a slope,
+and Platt has both parameters where temperature has one. Trading the bias term
+for variance-robustness is a bad trade at this sample size.
+
+**The prediction stated before running was half right, and the right half does
+not rescue it.** Temperature was predicted to survive small calibration slices
+better than isotonic, because one parameter is cheaper to estimate than a step
+function. It does: at a 220-row slice `temp prefit 5%` is **-0.0047** where
+`isotonic prefit 5%` was **-0.0146**, a 3x smaller collapse on the same slice.
+But every prefit arm still loses to production by -0.0047..-0.0052, so being the
+most robust small-slice calibrator only means losing by less. The prefit family
+stays dead for the reason already established: the expensive part is giving up
+the 5-model averaging, not the calibrator.
+
+**Verdict: DO NOT PROMOTE.** Nothing clears; the cross-fit arms are AUC-neutral
+and calibration-negative, the prefit arms are negative on everything.
+
+Script: `temperature_scaling_validate.py`; results
+`temperature_scaling_validate.json`.
+
+## Subpopulation-specific calibration on HIGH CROWDING -- NEGATIVE, and a random control closes the whole family
+
+Arm C of the giant-star investigation fitted a per-group Platt sigmoid for
+giants vs dwarfs and made calibration worse (giant ECE 0.0956 -> 0.1094, overall
+-0.0020, 0/12 clearing). The stated mechanism was variance, not bias: a per-group
+scaler sees ~900 giant rows where the global one sees 4,386. **That mechanism was
+argued from arithmetic and never measured against a null.** This round tests the
+same idea on the crowding axis and adds the control.
+
+### Prediction, stated before running
+
+High crowding is a comparably small slice of the same training set, so the
+variance arithmetic is nearly identical and the arm should fail the same way.
+
+| subpopulation | train rows | share | ~distinct under bootstrap | test rows |
+|---|---|---|---|---|
+| giants (`st_rad>=1.5`) | 1,002 | 22.8% | ~633 | 229 |
+| high crowding (`crowd_flux_ratio_max>=1.0`) | 920 | 21.0% | ~581 | 216 |
+| high crowding (`crowd_flux_ratio_max>=0.5`) | 1,238 | 28.2% | ~782 | 290 |
+
+### There is barely a defect to fix -- checked BEFORE fitting any arm
+
+Deployed model, frozen test:
+
+| group | n | planet % | AUC | ECE |
+|---|---|---|---|---|
+| high crowding >=1.0 | 216 | 85.65 | 0.9365 | **0.0421** |
+| low crowding <1.0 | 882 | 77.32 | 0.9382 | **0.0322** |
+| giants >=1.5 (reference) | 229 | 55.02 | 0.9219 | **0.0942** |
+| dwarfs <1.5 (reference) | 869 | 85.27 | 0.9340 | **0.0254** |
+
+Giants were a **3.7x** ECE gap -- a real defect specialisation could in principle
+repair. High crowding is **1.3x**, with an AUC gap of -0.0017. The arm was dead
+on arrival for a second, independent reason: there is nothing for a per-group
+calibrator to buy.
+
+### Spatial control: correlated, but NOT segregated by class
+
+    corr(crowd_flux_ratio_max, |galactic b|)   -0.4947
+    AUC of |gal b| alone, within high crowding  0.3787   (|0.5-a| = 0.121)
+    AUC of |gal b| alone, within low crowding   0.3511   (|0.5-a| = 0.149)
+
+Crowding is strongly correlated with galactic latitude, exactly as physics
+requires. But unlike giants -- where position alone reached 0.7092 *inside* the
+target group against 0.5482 outside it -- the spatial signal here is comparable
+in both groups. Crowding is spatially correlated without being spatially
+segregated by class, which is a cleaner situation than the giant axis. It simply
+does not help.
+
+### RESULT: all arms negative, and the RANDOM CONTROL matches them exactly
+
+12 bootstraps, production recipe, one base model with per-group Platt from OOF.
+
+| arm | AUC | mean delta | 95% CI | positive | ECE | crowd AUC | d crowd | crowd ECE | d crowd ECE |
+|---|---|---|---|---|---|---|---|---|---|
+| **base** | **0.9339** | -- | -- | -- | **0.0355** | **0.9430** | -- | **0.0487** | -- |
+| C: crowd-stratified >=1.0 | 0.9303 | -0.0036 | [-0.0096, +0.0025] | 1/12 | 0.0416 | 0.9392 | -0.0039 | 0.0483 | -0.0003 |
+| C-alt: crowd >=0.5 | 0.9304 | -0.0036 | [-0.0085, +0.0022] | 1/12 | 0.0407 | 0.9392 | -0.0039 | 0.0490 | +0.0004 |
+| **CONTROL: random group** | 0.9303 | -0.0036 | [-0.0087, +0.0021] | 1/12 | 0.0409 | 0.9395 | -0.0035 | 0.0478 | -0.0009 |
+
+**The control IS the finding.** A randomly chosen group of matched size, given
+the identical stratified treatment, costs **-0.0036** -- indistinguishable from
+the crowding split's -0.0036 to four decimals, at both thresholds. The damage
+has nothing to do with which subpopulation was selected. **Splitting the
+calibration set is itself the cost**, and the giant investigation's asserted
+mechanism is now measured directly against a null.
+
+One honest difference from the giant case: crowd ECE did NOT degrade (-0.0003)
+the way giant ECE did (+0.0138). That is consistent rather than contradictory --
+giants had a real defect a bad specialised calibrator could make worse, while
+crowding has essentially none and the global calibrator was already doing fine
+there. Crowding loses ranking without the compensating story, which is a cleaner
+null.
+
+**Verdict: DO NOT PROMOTE.** The prediction was stated before the test and the
+test confirmed it.
+
+**Subpopulation-specific calibration is now closed as a FAMILY, not per-axis.**
+It has failed on an axis with a large calibration defect (giants), on an axis
+with essentially none (crowding), and against a random control demonstrating
+that the split alone explains the entire loss. Future proposals of this shape
+should be routed here rather than re-tested, unless they come with a
+substantially larger subpopulation than ~20% of the training set.
+
+Script: `crowding_stratified_calibration.py`; results
+`crowding_stratified_calibration.json`. Cross-references: the giant-star
+investigation (arm C) and the calibration/ensembling sweep (`sigmoid cv=3`, the
+first measurement of the same variance mechanism on the fold-count axis).
+
+## Optuna Bayesian hyperparameter search -- the strongest sub-MDE result on record. NOT PROMOTED.
+
+### Two things the deduplication check established first
+
+**1. Every prior search here was `RandomizedSearchCV`, never Bayesian.**
+`05b_model_analysis.py` (n_iter=30), `tabular_bakeoff.py` (12), `gbm_ensemble.py`,
+`validate_multisector.py`, `retrain_with_new_features_full_suite.py` (15-30).
+Nothing conditions on previous trials. The HGB grid was 5 discrete dimensions --
+`{max_iter, max_depth, learning_rate, l2_regularization, max_leaf_nodes}`, 2,000
+combinations sampled 30 times = **1.5% coverage** -- and never varied
+`min_samples_leaf` or `class_weight` at all. "We did some random tuning" was
+accurate; "we did a thorough Bayesian search" was not.
+
+Nested CV, however, is NOT new: `05b_model_analysis.py:150` already ran outer-5
+/ inner-3 with the search inside the inner loop. What changed is that the guard
+matters far more at 120 TPE trials than at 30 random draws.
+
+**2. PRODUCTION IS NOT RUNNING THE TUNED HYPERPARAMETERS. It has not since the
+Gaia swap.**
+
+| | pre-crowding | pre-variability | pre-Gaia | **deployed now** |
+|---|---|---|---|---|
+| `learning_rate` | 0.1 | 0.1 | 0.1 | 0.1 |
+| `max_iter` | 500 | 500 | 500 | **100** |
+| `max_leaf_nodes` | 63 | 63 | 63 | **31** |
+| `l2_regularization` | 0.5 | 0.5 | 0.5 | **0.0** |
+| `class_weight` | balanced | balanced | balanced | **None** |
+
+`gaia_deploy_retrain.py` builds from `HistGradientBoostingClassifier(
+random_state=42)` under a docstring reading *"Production's exact recipe,
+unchanged"*. It was not: four tuned hyperparameters plus `class_weight` reverted
+to sklearn defaults in that swap.
+
+What this does NOT invalidate: the **+0.0142 Gaia feature delta** (both arms of
+that comparison were at defaults, so the feature effect is clean), the deployed
+**0.9402** (a real measurement of the artifact that exists), and the **retrain
+gate** (`clone(prod_model)`, so it defends whatever is deployed -- self-
+consistent). What it does mean is that `best_model_metadata.json`'s
+`model_name` still says `"(tuned, ...)"`, which is now false, and that the tuned
+configuration had never been measured at 33 features. It is measured below as
+the `legacy` arm.
+
+### Design and cost
+
+Outer 5-fold / inner 3-fold, **120 TPE trials per outer fold**, median pruning
+across inner folds. The inner objective scores the BARE pipeline (AUC is
+invariant under each fold's sigmoid, and this is what the historical
+`RandomizedSearchCV(pipe, ...)` calls did); the OUTER evaluation uses
+production's full calibrated recipe, so the reported number is for the config as
+it would actually deploy. Space: `learning_rate` log-uniform 0.01-0.3,
+`max_iter` 50-500, `max_leaf_nodes` log 8-128, `max_depth` {None,2,3,4,6,8,12},
+`min_samples_leaf` log 5-100, `l2_regularization` log 1e-4..10,
+`class_weight` {None, balanced}.
+
+**Wall clock, 8-core M-series, OMP_NUM_THREADS=2:** nested stage **36.3 min**
+(5 outer folds in parallel), final full-training study **14.4 min**, total
+**50.7 min** for the search. The 12-bootstrap validation cost a further **91
+min**, because the selected config runs 475 iterations at 63 leaves against
+production's 100 at 31 -- roughly **15x the fit cost**. That is a real
+deployment consideration, not just a lab number.
+
+### Nested CV
+
+| config | nested-CV AUC | sd | delta vs prod | folds positive |
+|---|---|---|---|---|
+| production (defaults) | 0.9465 | 0.0073 | -- | -- |
+| **Optuna-searched** | **0.9487** | 0.0091 | **+0.0022** | **4/5** |
+| legacy tuned | 0.9464 | 0.0086 | -0.0001 | 1/5 |
+
+### The per-fold winners are the most informative output of the whole search
+
+| fold | lr | max_iter | leaves | depth | min_leaf | l2 | class_weight |
+|---|---|---|---|---|---|---|---|
+| 1 | 0.083 | 375 | 70 | None | 9 | 0.0023 | balanced |
+| 2 | 0.164 | 250 | 48 | 12 | 12 | 0.0028 | None |
+| 3 | 0.096 | 475 | 48 | 8 | 26 | 0.1169 | None |
+| 4 | 0.073 | 375 | 42 | None | 5 | 0.0190 | None |
+| 5 | 0.097 | 275 | 43 | 12 | 7 | 0.0012 | None |
+
+**Five folds, five substantially different "best" configurations.**
+`min_samples_leaf` spans 5-26, `l2` spans 0.0012-0.1169, `max_depth` flips
+between None and 8/12, and `class_weight` disagrees with the final selection on
+4 of 5. That is what a flat objective surface looks like: the search resolves
+noise, not structure.
+
+The final full-training study nonetheless landed close to the LEGACY config on
+six of seven dimensions -- `lr` 0.0926 vs 0.1, `max_iter` 475 vs 500,
+`max_leaf_nodes` **63 vs 63**, `max_depth` None vs None, `min_samples_leaf` 24 vs
+20, `class_weight` balanced vs balanced -- differing mainly in `l2` (0.0090 vs
+0.5). A 120-trial TPE search over a continuous space independently rediscovered
+the region a 30-draw random search found years earlier.
+
+### RESULT: 12 training bootstraps, frozen test
+
+Harness validity check first: the single fit reproduces the deployed model at
+**0.9402**, matching `best_model_metadata.json` to four decimals.
+
+| arm | AUC | mean delta | sd | 95% CI | positive | >=MDE | Brier | ECE | 2-min delta |
+|---|---|---|---|---|---|---|---|---|---|
+| **prod [PRODUCTION]** | **0.9339** | -- | -- | -- | -- | -- | **0.0763** | **0.0355** | -- |
+| **optuna** | **0.9385** | **+0.0045** | 0.0015 | **[+0.0024, +0.0070]** | **12/12** | **0/12** | **0.0739** | **0.0338** | +0.0037 |
+| legacy tuned | 0.9355 | +0.0016 | 0.0023 | [-0.0025, +0.0052] | 9/12 | 0/12 | 0.0746 | 0.0344 | +0.0002 |
+
+**The Optuna arm is positive on all 12 resamples, its CI excludes zero, and it
+improves Brier AND ECE simultaneously. It still does not clear.** The bar is
+`ci_lo > 0 AND mean delta >= MDE`, and at +0.0045 against an MDE of 0.0097 the
+second leg fails -- no single resample even reached 0.0097 (0/12), the largest
+being +0.0074.
+
+**Why passing `ci_lo > 0` is not a contradiction of the MDE, which matters for
+reading every table in this document.** These are two different intervals. The
+CI here is over TRAINING bootstraps against a FIXED test set: it measures whether
+the effect survives the training draw. The MDE was measured against TEST-SET
+sampling error on 1,098 stars. Passing the first says the effect is stable;
+it says nothing about the second. Both legs exist precisely because either alone
+is insufficient.
+
+**This is the strongest sub-MDE result this project has produced** -- stronger
+than the CatBoost arms (+0.0080, 12/12 positive but clearing on only 4-6 of 12),
+because it is 12/12 positive AND has a CI excluding zero AND improves
+calibration rather than costing it. It is the same verdict for the same reason:
+*"That is the correct outcome under the rule, and the rule should not be bent
+because the result is finally interesting."*
+
+### Search overfitting: no evidence of it
+
+| arm | nested-CV delta | resampled-test delta | agree? |
+|---|---|---|---|
+| optuna | +0.0022 | +0.0045 | yes |
+| legacy | -0.0001 | +0.0016 | sign flip on ~zero |
+
+The resampled delta is LARGER than the nested-CV estimate, which is the opposite
+of what search overfitting produces. The `legacy` sign flip is between -0.0001
+and +0.0016 -- two numbers that are both zero to within their spread, so the
+harness's automatic "DISAGREE" flag is over-reading noise there, not detecting
+anything.
+
+**A label in `optuna_hpo_validate.py` to distrust:** it prints inner-CV best
+(0.9435) minus outer (0.9487) as "optimism from the search itself" and the sign
+comes out backwards. That comparison is confounded -- inner fits see 2/3 of the
+outer-train rows BARE, while the outer evaluation refits on all of it inside the
+5-model calibrated wrapper, so more data plus bagging swamps the selection bias.
+The valid measure of search overfitting is the nested-vs-resampled table above.
+
+### Verdict
+
+| sub-proposal | recommendation |
+|---|---|
+| Optuna Bayesian search | **DON'T PROMOTE -- but POSITIVE AND REAL.** +0.0045, 12/12 positive, CI [+0.0024, +0.0070], better Brier and ECE. Fails the MDE leg (0/12 >= 0.0097). |
+| restoring the legacy tuned config | **DON'T PROMOTE.** +0.0016, CI spans zero, 9/12. The hyperparameters lost in the Gaia swap were worth approximately nothing. |
+
+**Production stays at 0.9402 / 33 features / sklearn-default HGB.** What would
+change the verdict is the same thing three other investigations converged on: a
+larger test set, not a better configuration. At +0.0045 with this test set's
+noise, certifying it needs roughly 4x the current 1,098 held-out stars.
+
+**Open item, deliberately NOT actioned:** `best_model_metadata.json`'s
+`model_name` field still describes the deployed model as `"(tuned, ...)"`. It is
+a production artifact, so it is flagged rather than edited.
+
+Scripts: `optuna_hpo_nested.py`, `optuna_hpo_validate.py`; results
+`optuna_hpo_nested.json`, `optuna_hpo_validate.json`. Requires `optuna` (4.9.0
+here), installed for this experiment and deliberately NOT added to
+`requirements.txt` -- same treatment as CatBoost, LightGBM and XGBoost, which are
+also experiment-only and absent from it. Nothing in the production path imports
+it.
