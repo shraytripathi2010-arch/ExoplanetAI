@@ -1,0 +1,138 @@
+{
+  "deployed_detector": {
+    "n_features": 24,
+    "features": [
+      "SDE",
+      "SDE_raw",
+      "FAP",
+      "period",
+      "period_uncertainty",
+      "duration",
+      "depth",
+      "depth_mean",
+      "depth_mean_std",
+      "depth_mean_even",
+      "depth_mean_odd",
+      "odd_even_mismatch",
+      "rp_rs",
+      "snr",
+      "transit_count",
+      "distinct_transit_count",
+      "empty_transit_count",
+      "st_rad",
+      "st_teff",
+      "chi2red_min",
+      "depth_consistency_std",
+      "secondary_eclipse_depth",
+      "transit_shape_ratio",
+      "depth_duration_ratio"
+    ],
+    "missing_vs_current": [
+      "crowd_flux_ratio_max",
+      "crowd_nearest_arcsec",
+      "var_oot_rms",
+      "var_excess",
+      "var_ls_amp",
+      "var_ls_power",
+      "var_ls_period",
+      "gaia_ruwe",
+      "gaia_nss"
+    ],
+    "contamination": 0.02,
+    "threshold": -0.5340611045174187,
+    "measured_train_flag_rate": 0.020032780914223274,
+    "fit_rows": 5491,
+    "stale": true,
+    "crash_on_33": "ValueError: The feature names should match those that were passed during fit."
+  },
+  "pool_availability": {
+    "main": {
+      "n": 488,
+      "cols_present": 33
+    },
+    "widesector": {
+      "n": 69,
+      "cols_present": 33
+    }
+  },
+  "cluster1": {
+    "supercluster": 0,
+    "n_test": 109,
+    "planet_pct": 77.06422018348624,
+    "auc": 0.8871428571428571,
+    "validated": true
+  },
+  "cluster1_flag_rates": [
+    {
+      "pool": "main",
+      "detector": "deployed 24-feat",
+      "n_c1": 164,
+      "flag_rate_c1": 0.08536585365853659,
+      "n_rest": 324,
+      "flag_rate_rest": 0.25925925925925924,
+      "odds_ratio": 0.26666666666666666,
+      "p": 2.4459922402223552e-06
+    },
+    {
+      "pool": "main",
+      "detector": "fresh 33-feat",
+      "n_c1": 164,
+      "flag_rate_c1": 0.08536585365853659,
+      "n_rest": 324,
+      "flag_rate_rest": 0.25617283950617287,
+      "odds_ratio": 0.271004016064257,
+      "p": 3.843875855469515e-06
+    },
+    {
+      "pool": "widesector",
+      "detector": "deployed 24-feat",
+      "n_c1": 14,
+      "flag_rate_c1": 0.21428571428571427,
+      "n_rest": 55,
+      "flag_rate_rest": 0.36363636363636365,
+      "odds_ratio": 0.4772727272727273,
+      "p": 0.3563636081813384
+    },
+    {
+      "pool": "widesector",
+      "detector": "fresh 33-feat",
+      "n_c1": 14,
+      "flag_rate_c1": 0.14285714285714285,
+      "n_rest": 55,
+      "flag_rate_rest": 0.36363636363636365,
+      "odds_ratio": 0.2916666666666667,
+      "p": 0.19764455231962982
+    }
+  ],
+  "mahalanobis": {
+    "Mahalanobis (empirical)": {
+      "spearman_vs_if": 0.8394444205877597,
+      "jaccard_top2pct": 0.345679012345679,
+      "shared": 56,
+      "k": 109
+    },
+    "Mahalanobis (robust MCD)": {
+      "spearman_vs_if": 0.8566424441038072,
+      "jaccard_top2pct": 0.1657754010695187,
+      "shared": 31,
+      "k": 109
+    }
+  },
+  "disagreement": {
+    "HGB own confidence  |p-0.5|": 0.8706319978478864,
+    "disagree |hgb-cat|": 0.7383141158245285,
+    "disagree |hgb-gpc|": 0.710512889490821,
+    "disagree sd(3 members)": 0.7623955250878934,
+    "deployed OOD score (24f, neg)": 0.4532703778258087
+  },
+  "disagreement_incremental": {
+    "conf alone": 0.8686283058598715,
+    "conf + disagreement": 0.8717080546562648
+  },
+  "galactic_b": {
+    "main": {
+      "auc": 0.5442876391745266,
+      "rho": -0.06113420805196541
+    }
+  }
+}

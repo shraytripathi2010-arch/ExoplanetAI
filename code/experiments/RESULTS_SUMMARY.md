@@ -10998,3 +10998,204 @@ results `gpc_feasibility.json`, `gpc_screen.json`, `gpc_ensemble_validate.json`.
 Cross-references: Part C (HGB+GP+CNN stacking), the small-lift stacking trio,
 the dense-net meta-learner, the CatBoost seed-instability findings, and the
 Armstrong RF/ET/LDA ensemble round (same ECE-from-underconfidence pattern).
+
+## OOD/novelty proposals -- ALL THREE CLOSED. Plus a live crash bug in the deployed detector.
+
+Three pieces (autoencoder reconstruction error, isolation-forest/density detection,
+Mahalanobis distance / ensemble disagreement), assessed against the OOD detector
+**already in production** and against the just-closed GPC finding.
+
+### Part 0.1 -- the deployed detector, exact spec, AND IT IS BROKEN
+
+`06_download_unknown.py` fits `IsolationForest(n_estimators=200,
+contamination=0.02, random_state=42)`, thresholds at the 2nd percentile of its
+own training scores, and a flag sets `in_distribution=False`, which
+`split_and_rerank` uses to DROP the candidate from the human-review shortlist
+(`keep = in_distribution & ~below_triage_floor`).
+
+| property | value |
+|---|---|
+| features | **24** (model now uses 33) |
+| missing | `crowd_flux_ratio_max`, `crowd_nearest_arcsec`, the five `var_*`, `gaia_ruwe`, `gaia_nss` |
+| contamination target | 0.02 |
+| threshold score | -0.534061 |
+| measured train flag rate | 2.0033% |
+| fit on | 5,491 rows, 2026-07-11 (training.csv now has 5,494) |
+
+**It is not merely stale -- the call path RAISES.** `feature_columns` comes from
+`best_model_metadata.json` (line 2171), which is now 33 columns, while
+`load_or_compute_multivariate_detector` returns the CACHED 24-feature bundle. The
+next line calls `detector["imputer"].transform(X[33 cols])`. Reproduced:
+
+    ValueError: The feature names should match those that were passed during fit.
+
+**This is the same failure mode as the 31-vs-24 FEATURE_COLUMNS gate bug** -- a
+cached artifact versus a grown feature list -- and it is live in
+`06_download_unknown.py`, which `job_runner.py:222` runs as a subprocess for the
+Update job.
+
+**Currently DORMANT, not firing:** `scheduler_config.enabled = 0` and `/health`
+reports `"update": "disabled"`, so no automatic run reaches it. It would fire on
+a manual Update press or on re-enabling the Update scheduler. Consistent with
+the stale outputs: `ranked_candidates.csv` is 2026-08-05 and
+`ranked_candidates_in_distribution.csv` is 2026-08-01, both predating the
+variability (Aug 6) and Gaia (Aug 14) deployments.
+
+### Part 0.2 -- THE DECISIVE FINDING: the detector already sees cluster 1, and calls it NORMAL
+
+The proposal's motivation was that "cluster 1 suggests an unusual regime". That
+had never been checked. Using the behaviourally-validated SOM partition
+(re-derived cluster matched the recorded profile: n=109, planet 77.06% vs the
+recorded n=108 / 76.85%):
+
+| pool | detector | cluster-1 flag rate | rest-of-pool flag rate | odds ratio | p (Fisher) |
+|---|---|---|---|---|---|
+| main (n=488) | deployed 24-feat | **8.54%** (n=164) | **25.93%** (n=324) | **0.27** | **2.45e-06** |
+| main | fresh 33-feat | **8.54%** | 25.62% | 0.27 | 3.84e-06 |
+| widesector (n=69) | deployed 24-feat | 21.43% (n=14) | 36.36% (n=55) | 0.48 | 0.356 |
+| widesector | fresh 33-feat | 14.29% | 36.36% | 0.29 | 0.198 |
+
+**Cluster-1 candidates are flagged at roughly ONE THIRD the rate of everything
+else, at p ~ 2e-6.** The detector is not blind to cluster 1; it actively judges
+cluster-1 candidates to be MORE in-distribution than the pool average.
+
+**This refutes the proposal's premise by measurement.** Cluster 1's problem is
+not feature-space novelty -- in density terms it is more typical than average. A
+better OOD detector would flag it LESS, not more. Upgrading to 33 features does
+not change this (8.54% either way), so the staleness is not what is hiding a
+cluster-1 signal.
+
+**This narrows the four-times-unexplained cluster-1 question**, which is the most
+valuable output here. Ruled out so far: RV-discovery label noise, elevated
+candidate-pool false-positive risk, model-architecture diversity, and now
+**feature-space novelty**. Cluster 1 is a region where the model is badly
+calibrated while the data look perfectly ordinary.
+
+### Part 0.4 -- Mahalanobis vs IsolationForest: same idea, no stated mechanism
+
+Measured on the identical 33-feature training space:
+
+| method | Spearman rho vs IF score | top-2% flagged overlap (Jaccard) |
+|---|---|---|
+| Mahalanobis (empirical covariance) | **+0.839** | 0.346 (56/109 shared) |
+| Mahalanobis (robust MCD) | **+0.857** | 0.166 (31/109 shared) |
+
+Both exceed this project's 0.80 redundancy threshold as SCORES. The honest
+nuance: the top-2% flagged SETS overlap only weakly, so the two methods disagree
+about which points are most extreme -- that disagreement is real. But there is no
+ground truth of "should have been flagged", so nothing here shows either
+ordering is better, and the proposal supplies no mechanism for why Mahalanobis
+would win. If anything the assumption runs the wrong way: Mahalanobis presumes a
+single ellipsoidal (Gaussian-ish) bulk, while these 33 features are heavy-tailed
+and multi-modal; IsolationForest assumes no distributional shape at all.
+**Redundant re-implementation. Don't build.**
+
+### Part 0.5 -- ensemble disagreement: the GPC closure does NOT transfer, but it still fails
+
+Thinking this through rather than assuming, as asked: the GPC finding was about
+CLASSIFICATION errors (members are confidently wrong on the SAME stars).
+"Disagreement signals unreliability" is a different claim and deserved its own
+test. The right target is not planet-vs-not; it is **"is this prediction
+wrong?"**, and the right baseline is not 0.5 -- it is HGB's OWN confidence,
+which costs nothing.
+
+Frozen test, target = HGB wrong at 0.5 (109/1,098 stars):
+
+| signal | AUC for predicting HGB's error |
+|---|---|
+| **HGB own confidence \|p-0.5\| (free baseline)** | **0.8706** |
+| disagreement sd(HGB, CatBoost, GPC) | 0.7624 |
+| disagreement \|HGB - CatBoost\| | 0.7383 |
+| disagreement \|HGB - GPC\| | 0.7105 |
+| deployed OOD score | 0.4533 |
+
+**Disagreement is genuinely informative** -- 0.76 is far above chance, so the GPC
+closure does NOT transfer automatically and it was right not to assume it. It is
+simply **dominated by a free baseline**. The incremental test settles it
+(5-fold out-of-fold logistic regression):
+
+    conf alone            0.8686
+    conf + disagreement   0.8717     delta +0.0031
+
+**+0.0031 AUC**, bought at the price of fitting a GPC (~4 min) and a CatBoost on
+every scoring run. Not worth building.
+
+**A separate result worth keeping: OOD-ness and model unreliability are close to
+orthogonal.** The deployed OOD score predicts HGB's errors at **AUC 0.4533** --
+no better than chance, marginally inverted. The OOD flag is doing a different
+job (is this candidate weird?) from reliability estimation (is this prediction
+wrong?), and should not be reinterpreted as the latter.
+
+### Part 0.6 -- autoencoder: closed, and precisely why
+
+The VAE pilot is already closed with a **pre-registered kill criterion that
+fired**: reconstruction error correlated **+0.830** with `var_oot_rms`, and
+transit-vs-no-transit AUC was 0.6806 against a 0.75 threshold. The mechanism was
+predicted before building: reconstruction error tracks whatever carries the most
+variance, which in a TESS light curve is stellar variability, not an 84-5,000
+ppm transit.
+
+Checking the framing precisely, as asked -- an "autoencoder for OOD flagging"
+differs from the closed VAE only in what it is fed:
+
+- **on light curves** -> identical to the closed pilot. Closed.
+- **on the 33 tabular features** -> a reconstruction-based density model on
+  exactly the space IsolationForest already occupies, i.e. it collapses into the
+  Part 0.4 redundancy question, with the added handicap that an autoencoder on
+  4,390 rows x 33 columns is a far heavier way to estimate density than an
+  isolation forest.
+
+Either way, closed. No third framing survives.
+
+### Part 2 -- availability and spatial control
+
+| pool | n (Success) | 33/33 columns present | min per-column coverage |
+|---|---|---|---|
+| main | 488 | yes | 52.05% (`st_rad`) |
+| widesector | 69 | yes | 78.26% (`st_rad`) |
+
+**|galactic b| control on the deployed OOD flag: clean.** AUC of |gal b| for
+predicting the flag is **0.5443**, rho **-0.061** -- no meaningful spatial
+exposure, unlike the crowding and giant-star axes.
+
+**A bug in this analysis, caught and fixed rather than shipped:** the first run
+joined the candidate list on a bare integer `tic_id` against the feature table's
+`host` ("TIC_231620255"), producing an all-NaN merge that silently
+median-imputed `st_rad`/`st_teff` -- the exact "computed somewhere, dropped
+before use" pattern this project has hit before. Fixed, an assertion added so
+coverage below 50% now aborts, and every number above is post-fix. The cluster-1
+result was unchanged by the fix (8.54% vs 25.93% after, 8.54% vs 24.07% before),
+which is why it is trustworthy rather than merely unrefuted.
+
+### Verdicts
+
+| piece | verdict |
+|---|---|
+| autoencoder reconstruction error | **CLOSED.** Duplicate of the killed VAE pilot on light curves; collapses into IsolationForest redundancy on features. |
+| isolation forest / density detection | **ALREADY DEPLOYED.** Not a gap. |
+| Mahalanobis distance | **CLOSED as redundant.** rho +0.84/+0.86 vs the deployed score, no mechanism offered, and its distributional assumption suits this data less well. |
+| ensemble disagreement | **CLOSED, on its own merits.** Real signal (0.76) but dominated by a free baseline; +0.0031 incremental. |
+| cluster-1 motivation | **REFUTED.** The deployed detector already flags cluster 1 at 1/3 the pool rate; cluster 1 is more in-distribution, not less. |
+
+**Nothing to build. Production stays at 0.9454 / 33 features.**
+
+### The one real item: SCOPED, NOT BUILT, needs explicit go-ahead
+
+The 24-feature detector is stale and its call path crashes. That is a genuine
+maintenance gap, entirely independent of this proposal, and it is NOT fixed here
+because it touches the production candidate pipeline.
+
+Scope if approved: refit `IsolationForest` on the current 33 features and 5,494
+rows, re-derive the 2nd-percentile threshold, overwrite
+`multivariate_ood_detector.joblib` + `multivariate_ood_meta.json`, and add a
+guard so a cached bundle whose `feature_columns` disagree with the caller's is
+recomputed rather than returned (the missing piece that turned staleness into a
+crash). Cost: seconds to fit. Expected behavioural impact, already measured
+above: **essentially none on the cluster-1 question** (8.54% either way) and a
+pool-wide flag rate of 25.62% vs 25.93% -- so this is a correctness and
+crash-safety fix, not a performance change.
+
+Script: `ood_proposal_assess.py`; results `ood_proposal_assess.json`.
+Cross-references: the multi-sector pools-only OOD-impact measurement, the VAE
+anomaly-detection kill, the GPC/ensemble-diversity investigation, and the
+four-part cluster-1 thread.
