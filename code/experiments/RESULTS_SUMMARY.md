@@ -11311,3 +11311,145 @@ coverage artifact of the stale detector.
 
 Scripts: `ood_detector_refit.py`; results `ood_detector_refit.json`. Closes the
 scoped item raised by the OOD/novelty-detection investigation above.
+
+## VESPA as an independent FPP cross-check -- CLOSED AT THE PART 0 FEASIBILITY GATE
+
+Nothing was built. **Production untouched at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.** The decision rests on a measured install
+attempt and on VESPA's own source, not on argument.
+
+### Two premises in the brief could NOT be verified from this file
+
+Recorded because this project's standard is that cited prior findings are
+checked, not assumed:
+
+1. The brief attributes to "the RAVEN comparison" a claim that VESPA is *"the
+   dominant non-ML validation method historically... most currently-known
+   validated planets used vespa specifically"*. **RESULTS_SUMMARY.md contains
+   zero occurrences of "vespa".** The only mentions anywhere in the repo are two
+   passing docstring references (`stellar_density_checks.py:24`,
+   `stellar_density_fetch.py:27`) noting that stellar density is "the core of how
+   vespa ... reason[s]". The claim may well be true of the field -- it is simply
+   not a finding this project ever recorded, and is not treated as one here.
+2. The cited RV 2.7% / imaging 0.7% coverage figures are likewise **not in this
+   file**. They appear to come from the Phase 2/3 accessibility investigations
+   whose numbers were never written up here. Rather than cite them, the imaging
+   dependency below is established **directly from VESPA's own source**, which is
+   stronger evidence anyway.
+
+### Part 0.1 -- VESPA installs, and then does not run
+
+`vespa` 0.6 is real and on PyPI (versions 0.0 through 0.6). Tested in an
+**isolated venv** specifically so a dependency cascade could not damage the
+project environment -- which turned out to matter.
+
+A plain `pip install vespa` fails immediately:
+
+    NameError: name 'cythonize' is not defined     (in its own setup.py)
+
+With `Cython` pre-installed and `--no-build-isolation`, **it does build and
+install**, pulling `isochrones`, `simpledist`, `plotutils`, `batman`, `emcee`,
+`corner`. So "uninstallable" would be the wrong verdict. The wall is at import:
+
+| step | failure |
+|---|---|
+| `import vespa` | `ModuleNotFoundError: numba` -- installable |
+| then | `AttributeError: np.recfromtxt was removed in the NumPy 2.0 release` -> needs `numpy<2` |
+| `numpy<2` | `astropy 8.0.1 requires numpy>=2.0` -> needs `astropy<7` |
+| `astropy 6.1.7` + `numpy 1.26` | `AttributeError: module 'numpy' has no attribute 'float'` -- raised from **`vespa/_transitutils.pyx` line 8**, a COMPILED Cython extension, so not source-patchable without a rebuild. `np.float` was removed in numpy 1.24 -> needs `numpy<1.24` |
+| `numpy 1.23.5` | `matplotlib 3.11 requires numpy>=1.25`; `scipy 1.17 requires >=1.26.4`; `pandas 3.0.5 requires >=1.26` |
+| full legacy stack attempt (`numpy 1.23.5`, `scipy 1.9.3`, `pandas 1.5.3`, `matplotlib 3.6.3`, `astropy 5.2.2`, `tables 3.8.0`) | `tables` build fails: `ModuleNotFoundError: pkg_resources` (removed from modern setuptools); pandas C extension left broken |
+
+**VESPA requires an entire ~2022-era scientific stack that is mutually
+incompatible with this project's** (numpy 2.4.6, scipy 1.17.1, pandas 2.3.3).
+It is not a version pin or two; it is a second environment, and the blocking
+`np.float` call sits inside a compiled extension.
+
+### Part 0.2 -- per-candidate cost COULD NOT BE MEASURED, and that is the honest answer
+
+The brief asked for measured per-candidate wall-clock. **No number is reported,
+because none could be obtained** -- `FPPCalculation` never imported, so no
+candidate was ever scored. Reporting an estimate here would be inventing the
+one figure the brief specifically asked to measure. Two further requirements,
+both confirmed from the installed source, would gate cost even with a working
+import:
+
+* **MultiNest.** `isochrones/starmodel.py:27` logs *"PyMultiNest not imported.
+  MultiNest fits will not work."* `pymultinest` itself pip-installs, but it is a
+  wrapper: the actual sampler is a **FORTRAN library** (`libmultinest`) needing a
+  separate cmake + gfortran + LAPACK build. The stellar-model fit underpinning
+  every FPP scenario runs through it.
+* **MIST isochrone grids**, downloaded from
+  `waps.cfa.harvard.edu/MIST/data/tarballs_v1.2/...` (multi-GB, per
+  `isochrones/mist/models.py:119-123`).
+
+### Part 0.4 -- BLOCKED BY AN ALREADY-CLOSED CONSTRAINT, verified from VESPA's source
+
+This is the finding that would matter even if every packaging problem above were
+solved. From `vespa/fpp.py`:
+
+    line 111:  maxrad = 10        # exclusion radius [arcsec]
+    line 306:  maxrad = float(config['constraints']['maxrad']); fpp.set_maxrad(maxrad)
+    line 334:  cc = ContrastCurveFromFile(ccfile, band, name=name)
+
+**`maxrad` and `ContrastCurveFromFile` are first-class inputs, and both are
+high-resolution-imaging products.** `maxrad` is the radius inside which a
+blended eclipsing binary could still be hiding; a contrast curve is what
+converts an imaging non-detection into that constraint. They are the dominant
+lever on the BEB/HEB scenario priors -- which is precisely what makes VESPA a
+*validation* tool rather than a classifier.
+
+Without them VESPA silently falls back to `maxrad = 10 arcsec`, i.e. "assume a
+blend could hide anywhere within 10 arcsec". For TESS at ~21 arcsec/pixel that
+assumption is close to worthless, and an FPP computed under it is not the
+quantity the literature validates planets with. **This is the same
+follow-up-observation-tier input this project already closed as unavailable** --
+the identical constraint, reached independently, and it is structural rather
+than a packaging inconvenience.
+
+### Parts 1 and 2 -- not run, and why
+
+**Part 1 (selective veto pilot) could not run**: no working import, so no FPP for
+any candidate. Had it run, the cost analysis would still have forced the
+selective top-N framing the brief anticipated -- but that is now moot.
+
+**Part 2 (FPP as a trainable feature) is explicitly skipped**, as the brief
+instructed if Part 0 failed. Two independent reasons, either sufficient:
+computing FPP for a meaningful fraction of 5,494 training stars is impossible
+when it cannot be computed for one; and the prior is poor regardless. **Eight
+prior derived-astrophysical-statistic features** -- `trap_vshape`, secondary
+eclipse depth and significance, odd-even significance, stellar density,
+depth/duration ratio, transit shape ratio, trapezoid residual -- have all shown
+the same pattern: real, physically-correct, low-correlation signal that the tree
+model does not convert into performance. `trap_vshape` produced the largest
+single-feature separation ever measured here (AUC 0.3595, |AUC-0.5| = 0.1405)
+and still moved the model by nothing. A VESPA FPP would be the ninth instance of
+a now well-established rule, not a surprising failure.
+
+### Recommendation: DO NOT INTEGRATE. Not worth it, and blocked besides.
+
+| framing | verdict |
+|---|---|
+| VESPA as a selective advisory/veto tool on top-N candidates | **NOT FEASIBLE.** Requires a second, mutually-incompatible Python environment plus a FORTRAN sampler plus multi-GB grids -- and would still need imaging contrast curves this project does not have. |
+| VESPA FPP as a trainable feature | **SKIPPED** per the brief; infeasible, and the 8-for-8 derived-feature prior argues against it independently. |
+| the underlying *idea* -- an independent physical FP cross-check | **Not closed by this.** What is closed is VESPA specifically, on packaging and on inputs. |
+
+**What would change this:** not effort, but data. VESPA becomes meaningful for a
+candidate only when that candidate has a high-resolution imaging contrast curve,
+which in practice means it has already entered the TFOP follow-up process. At
+that point the community runs VESPA-class validation itself, and the existing
+ExoFOP/TFOP evidence layer already surfaces that status. **The tool is most
+useful exactly where this project's own contribution has already ended.**
+
+No UI work was done and none is proposed; any evidence-layer change would need
+separate sign-off regardless, and there is nothing here to surface.
+
+Environment note: the install attempt lives in a throwaway venv under the
+session scratchpad, deliberately isolated. **The project environment was
+verified intact afterwards** (numpy 2.4.6, scipy 1.17.1, pandas 2.3.3) -- the
+isolation held, which given the cascade above was not a formality.
+
+Cross-references: the RAVEN-style synthetic-FP closure (also closed at a Part 0
+feasibility gate, on the missing PASTIS population-synthesis dependency -- the
+same shape of finding), the CETRA and PLD closures, and the derived-feature
+pattern above.
