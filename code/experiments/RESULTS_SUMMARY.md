@@ -11886,3 +11886,131 @@ warranted and none was run.** Production stays at 0.9454 / 33 features.
 
 Script: `variability_gap_backfill.py` (`--apply` to write, dry run by default);
 results `variability_gap_backfill.json`.
+
+## Evidence layer: crowding / variability / Gaia now visible -- CLOSED
+
+Closes open item #3 from the 2026-08-15 system audit. **Presentation only.**
+Production model untouched (`fe3fa82f...`), training data untouched, promotion
+gate and scheduler untouched.
+
+### The gap
+
+The audit found **zero** templates referencing `crowd_*`, `var_*`, `gaia_ruwe`
+or `gaia_nss`. Nine of the model's thirty-three inputs -- three of the four
+deployed model improvements -- drove the score at the top of every candidate
+page while being invisible to the person reading it. A reviewer could not audit
+the reasoning behind the number they were being shown.
+
+### What was added
+
+`web/model_features.py`, deliberately mirroring `exofop_vetting.py`: one cached
+index over the per-pool feature tables, `lookup(tic_id, transit_period)`, never
+raises, no model call and no network on render. Values are **read, never
+recomputed** -- the same numbers the classifier was given.
+
+A new `Contamination & blend checks` card sits ABOVE the TFOP panel, and the
+attribution is the point of the ordering: this is **model input** derived by
+this project, the panel below it is **external expert opinion**. Each group gets
+a plain-language verdict plus the raw values in monospace for anyone who wants
+them.
+
+**The most useful thing on the panel is not a raw feature.** It is the derived
+rotation/transit period ratio: if the star's strongest brightness cycle sits at
+1x, 2x or 1/2x the transit period, that is the starspot-masquerading-as-transit
+signature, and the panel says so in those words. 30 of 296 live candidates trip
+it.
+
+### The NaN-versus-zero distinction, which the brief had slightly wrong
+
+The task described `crowd_nearest_arcsec == 0.0` as the genuine-zero case.
+Measured, it is not: that column has **2 NaN and zero zeros**. The genuine-zero
+lives in `crowd_flux_ratio_max` (17 candidates at exactly 0.0). The real
+structure is three-way, and all three render distinctly:
+
+| case | n | rendered as |
+|---|---|---|
+| `ratio > 0` | 279 | "Some neighbour flux in the aperture" / "Neighbour outshines the target" |
+| `ratio 0.0`, distance present | 15 | "**Neighbour present, but contributes no flux** — a real measurement of zero, not an absent one" |
+| `ratio 0.0`, distance NaN | 2 | "**No catalogued neighbour** — there is no distance to report because there is no neighbour; a clean result, not missing data" |
+
+Gaia NaN (10 candidates) is a fourth, different absence and says so: *"No Gaia
+source within 3 arcsec, so the astrometric checks could not run. Both values are
+optional model inputs and the classifier imputes them, so the score is still
+valid."*
+
+### Live verification
+
+Five real candidates, each chosen for a specific edge case, all **HTTP 200, zero
+Traceback / Internal Server Error / jinja2 markers**:
+
+| TIC | case | crowding | variability | Gaia |
+|---|---|---|---|---|
+| 447400458 | typical | caution | pass | pass |
+| 314017939 | ratio 0.0 **with** a neighbour + **NaN Gaia** | pass | caution | **unknown** |
+| 101949434 | **no neighbour at all** | pass | caution | pass |
+| 345087856 | Gaia **NSS binary flag** | neutral | neutral | **caution** |
+| 149594966 | RUWE > 1.4, NSS 0 | neutral | pass | caution |
+
+Rendered text, verbatim from the live page:
+
+    Nearby-star contamination — Neighbour present, but contributes no flux
+      The nearest catalogued star sits 44.3 arcsec away and contributes no
+      measurable flux to the aperture. A real measurement of zero, not an absent one.
+      [crowd_flux_ratio_max 0.0000 · crowd_nearest_arcsec 44.33"]
+
+    Nearby-star contamination — No catalogued neighbour
+      No TIC neighbour was found inside the search radius at all ...
+      [crowd_flux_ratio_max 0.0000 · crowd_nearest_arcsec none within search radius]
+
+    Gaia DR3 companion check — Gaia flags this as a non-single star
+      Gaia's own analysis classifies this source as an astrometric binary ...
+      [gaia_ruwe 3.279 (threshold 1.4) · gaia_nss 1 (astrometric)]
+
+**Legacy/coverage check:** all **296 of 296** live candidates resolve in the
+feature tables, so every page renders the populated panel. The `available=False`
+branch is a safety net for a future or legacy star and was verified separately
+against a non-existent TIC.
+
+Status distribution across all 296: crowding 17 pass / 239 neutral / 40 caution;
+variability 196 / 70 / 30; Gaia 229 pass / 10 unknown / 57 caution.
+
+### Two copy defects caught by reading the rendered output
+
+Neither would have shown up in a pass/fail test:
+
+* *"which is **the same period of** the 1.40 d transit signal"* -- the phrasing
+  worked for "twice"/"half" and not for the 1:1 case. Now "**the same as**".
+* *"as **a astrometric** binary"* -- article computed from the flag name.
+
+Also corrected during build: the caution icon. The first draft mapped caution to
+`status-icon--fail` (a red "x"), which does not exist in the design system as a
+caution and overstates the finding -- **none of these checks can rule a
+candidate out on its own**. Now `status-icon--caution` ("!"), with neutral and
+unknown on `status-icon--skip`.
+
+### Scope confirmation
+
+`git diff --stat`: `web/app.py` **+10** (one import, one `lookup` call, one
+template variable) and `web/templates/candidate_detail.html` **+97**, plus the
+new `web/model_features.py`. **Zero deletions, zero modifications to any
+scoring, ranking, tier or filter path.** The panel closes with the point stated
+plainly to the reader: these values are *inputs* to the score above, not an
+additional penalty applied after it.
+
+**The evidence layer now surfaces all four deployed model improvements** --
+crowding (2026-08-05), variability (2026-08-06), Gaia astrometry (2026-08-14)
+and the Optuna hyperparameters (2026-08-15, visible via the score itself) --
+alongside the pre-existing TFOP, centroid, multi-sector, RV and conformal
+layers.
+
+### Recurrence worth recording
+
+Restarting the app for this change hit **launchd exit 78 (EX_CONFIG)** again --
+`com.apple.macl` extended attributes had re-accumulated on the log files, the
+same root cause as the earlier TCC outage. Rotating the logs aside and
+re-bootstrapping fixed it (pid 18665, PPID 1). **This is the second occurrence**,
+which strengthens the standing open item about the project living under
+`~/Downloads`: the fix is reliable but it is a recurring manual step, not a
+solved problem.
+
+Files: `web/model_features.py` (new), `web/app.py`, `web/templates/candidate_detail.html`.

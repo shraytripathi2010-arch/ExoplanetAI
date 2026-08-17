@@ -203,6 +203,103 @@
 </section>
 {% endif %}
 
+{# pass/caution/skip are the existing design-system icons. A blend risk is a
+   CAUTION ("!"), never a fail ("x") -- none of these checks can rule a
+   candidate out on its own, and an x would overstate what they measure. #}
+{% macro ev_icon(status) -%}
+  {%- if status == 'pass' -%}status-icon--pass
+  {%- elif status == 'caution' -%}status-icon--caution
+  {%- else -%}status-icon--skip{%- endif -%}
+{%- endmacro %}
+
+<section class="card" id="model-evidence-section">
+  <h2>Contamination &amp; blend checks</h2>
+  <p class="muted">Three groups of measurements the <strong>model itself uses</strong> when it
+    scores this star &mdash; nine of its thirty-three inputs. Unlike the TFOP panel below, this is
+    <strong>not</strong> external expert opinion: it is derived by this project's own pipeline.
+    Each one asks a version of the same question &mdash; <em>could something other than a planet
+    produce this dip?</em>
+    {% if model_evidence.available %}Read from the {{ model_evidence.pool }} feature table, the
+    same values the classifier was given.{% endif %}</p>
+
+  {% if not model_evidence.available %}
+    <div class="evidence-item">
+      <span class="status-icon status-icon--neutral" aria-hidden="true"></span>
+      <div class="evidence-item-body">
+        <p class="evidence-item-label">Not available for this star</p>
+        <p class="evidence-item-value">{{ model_evidence.reason }}</p>
+      </div>
+    </div>
+  {% else %}
+    {% set cr = model_evidence.crowding %}
+    <div class="evidence-item">
+      <span class="status-icon {{ ev_icon(cr.status) }}" aria-hidden="true"></span>
+      <div class="evidence-item-body">
+        <p class="evidence-item-label">Nearby-star contamination &mdash; {{ cr.headline }}</p>
+        <p class="evidence-item-value">{{ cr.detail }}</p>
+        <p class="muted" style="margin-top: var(--sp-1); font-family: var(--font-mono);
+                                font-size: var(--text-sm);">
+          crowd_flux_ratio_max
+          {% if cr.ratio is not none %}{{ '%.4f'|format(cr.ratio) }}{% else %}not measured{% endif %}
+          &middot; crowd_nearest_arcsec
+          {% if cr.arcsec is not none %}{{ '%.2f'|format(cr.arcsec) }}&Prime;
+          {%- else %}none within search radius{% endif %}
+        </p>
+      </div>
+    </div>
+
+    {% set vr = model_evidence.variability %}
+    <div class="evidence-item">
+      <span class="status-icon {{ ev_icon(vr.status) }}" aria-hidden="true"></span>
+      <div class="evidence-item-body">
+        <p class="evidence-item-label">Stellar activity &mdash; {{ vr.headline }}</p>
+        <p class="evidence-item-value">{{ vr.detail }}</p>
+        {% if vr.period_ratio is not none %}
+          <p class="evidence-item-value" style="margin-top: var(--sp-1);">
+            Rotation / transit period ratio: <strong>{{ '%.2f'|format(vr.period_ratio) }}</strong>
+            {% if vr.harmonic_note %}&mdash; a near-exact match, which is the warning sign
+            {% else %}&mdash; not a harmonic match, so the two signals look independent{% endif %}.
+          </p>
+        {% endif %}
+        <p class="muted" style="margin-top: var(--sp-1); font-family: var(--font-mono);
+                                font-size: var(--text-sm);">
+          var_ls_period {{ '%.3f'|format(vr.var_ls_period) }} d &middot;
+          var_ls_power {{ '%.3f'|format(vr.var_ls_power) }} &middot;
+          var_ls_amp {{ '%.5f'|format(vr.var_ls_amp) }} &middot;
+          var_oot_rms {{ '%.5f'|format(vr.var_oot_rms) }} &middot;
+          var_excess {{ '%.2f'|format(vr.var_excess) }}
+        </p>
+        <p class="muted" style="margin-top: var(--sp-1);">Measured on the <strong>raw</strong>
+          light curve, before flattening &mdash; the smoothing step used for transit search
+          deliberately removes exactly this multi-day signal.</p>
+      </div>
+    </div>
+
+    {% set ga = model_evidence.gaia %}
+    <div class="evidence-item">
+      <span class="status-icon {{ ev_icon(ga.status) }}" aria-hidden="true"></span>
+      <div class="evidence-item-body">
+        <p class="evidence-item-label">Gaia DR3 companion check &mdash; {{ ga.headline }}</p>
+        <p class="evidence-item-value">{{ ga.detail }}</p>
+        <p class="muted" style="margin-top: var(--sp-1); font-family: var(--font-mono);
+                                font-size: var(--text-sm);">
+          gaia_ruwe
+          {% if ga.ruwe is not none %}{{ '%.3f'|format(ga.ruwe) }}
+            (threshold {{ ga.ruwe_threshold }}){% else %}no Gaia match{% endif %}
+          &middot; gaia_nss
+          {% if ga.nss is not none %}{{ ga.nss|int }}
+            {%- if ga.nss_flags %} ({{ ga.nss_flags|join(' + ') }}){% endif %}
+          {%- else %}no Gaia match{% endif %}
+        </p>
+      </div>
+    </div>
+
+    <p class="muted" style="margin-top: var(--sp-4);">These values are shown for transparency and
+      are already reflected in the score at the top of this page &mdash; they are inputs to it, not
+      an additional penalty applied afterwards.</p>
+  {% endif %}
+</section>
+
 <section class="card" id="tfop-vetting-section">
   <h2>TFOP follow-up record</h2>
   <p class="muted">A cross-check against the ExoFOP-TESS catalogue of TESS Objects of Interest.

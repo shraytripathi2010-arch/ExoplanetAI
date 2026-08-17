@@ -23,6 +23,7 @@ import sync
 import job_runner
 import scheduler_log
 import exofop_vetting
+import model_features
 import conformal
 
 app = Flask(__name__)
@@ -153,6 +154,14 @@ def candidate_detail(tic_id):
     # ExoFOP cannot make candidate pages hang.
     tfop = exofop_vetting.lookup(tic_id)
 
+    # The model's OWN contamination/blend inputs -- crowding, stellar
+    # variability and Gaia astrometry. Read from the same cached feature table
+    # the candidate was scored from; no model call and no network, so this
+    # cannot slow a page render. Presentation only: nothing here feeds scoring,
+    # ranking or the confidence tier.
+    model_evidence = model_features.lookup(
+        tic_id, transit_period=(char or {}).get("period"))
+
     # Conformal prediction sets. Pure arithmetic over a cached calibration
     # artifact -- no model call, no network, so this cannot slow a page render.
     conformal_view = conformal.summary(candidate.get("predicted_probability"))
@@ -164,6 +173,7 @@ def candidate_detail(tic_id):
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
                             transit_anim=transit_anim, evidence_items=evidence_items,
                             conformal_view=conformal_view,
+                            model_evidence=model_evidence,
                             tfop=tfop)
 
 
