@@ -12128,3 +12128,121 @@ zero errors in the new log so far.**
 `/Users/anujtripathi/Downloads/ExoplanetAI` **is gone** -- the `mv` consumed it.
 Nothing to delete; no cleanup decision remains. `~/Downloads` still contains the
 user's unrelated personal files, untouched.
+
+## Retrain-tick timeout -- FIXED. Plus two corrections to my own diagnosis.
+
+Pre-existing bug, **surfaced by the migration restart, not caused by it**. The
+migration only mattered because restarting made a due tick fire immediately.
+Production model `fe3fa82f...` and the promotion gate untouched; this changes
+only the scheduler's calling code.
+
+### The bug
+
+`_scheduler_loop` called `retrain_pipeline.scheduler_tick()` **bare**, with no
+bound, at `job_runner.py:396`. The same file already had `_call_with_timeout`
+and already used it for the reverify path (30s) and `fetch_fresh_exclusion_data`
+(60s) -- its own docstring describes the identical failure mode ("called plain
+`pd.read_csv(url)`, which has no timeout of its own"). The retrain tick simply
+never got the guard.
+
+### CORRECTION 1: it was NOT hung. I called that wrong.
+
+I reported the tick as "genuinely hung, not slow", from an ESTABLISHED-but-idle
+MAST socket with empty send AND receive queues, one port held 18+ minutes, and
+~0% CPU. That evidence is consistent with a hang -- and it was still the wrong
+conclusion.
+
+**Proof it was working:** the tick had appended a complete row for
+`TIC_73448352` -- label 1, all 33 features populated, **zero required-NaN and
+zero optional-NaN**. The file parsed clean afterwards at 5,497 rows, 51 columns,
+0 duplicate hosts and **0 rows with a wrong field count**. No truncation, no
+partial write, despite my restarting it mid-flight.
+
+The idle socket was the gap *between* per-star operations, not a dead
+connection. `process_and_append_new_examples` runs a full download -> preprocess
+-> TLS -> crowding/variability/Gaia pipeline per star, and most of that is not
+network time.
+
+### CORRECTION 2: my first timeout value (600s) was too short and would have caused harm
+
+Sized against the wrong model of the problem. The real numbers:
+
+* `PER_TICK_MAX_NEW = 25` -- one tick processes up to 25 stars
+* measured per-star cost (`e2e_fresh_star_audit`): TLS alone **54s**, ~60-90s
+  end to end
+* so a full batch is legitimately **25-37 minutes**
+* there are currently **51 pending watch labels**, i.e. real backlog -- full
+  batches are the expected case, not the exception
+
+600s would have truncated a legitimate batch at roughly star 8 of 25. Because
+the work is resumable via `label_watch_queue` that loses no data, but it would
+have silently throttled throughput to ~10 stars per 24h cycle instead of 25 --
+a self-inflicted regression dressed as a safety fix.
+
+**`RETRAIN_TICK_TIMEOUT = 3600`** (1 hour): ~2x headroom over the worst
+legitimate batch, while still converting an indefinite stall into a logged,
+recoverable event.
+
+### The fix, following the existing convention exactly
+
+```python
+result = _call_with_timeout(retrain_pipeline.scheduler_tick,
+                            timeout=RETRAIN_TICK_TIMEOUT,
+                            default=_TICK_TIMED_OUT)
+db.set_last_retrain_tick_at(db.now_iso())
+if result is _TICK_TIMED_OUT:
+    retrain_status = "timeout"
+    log.error("RETRAIN    tick TIMED OUT after %ss and was abandoned; ...")
+    raise _TickTimeout()
+```
+
+Three details that are deliberate:
+
+* **A sentinel object, not `None`.** `_call_with_timeout` signals a timeout by
+  *returning* `default`, not by raising. `scheduler_tick()` returns `None` on
+  success, so a `None` default would make a successful tick indistinguishable
+  from a timed-out one.
+* **The timestamp is written on BOTH paths.** If a timed-out tick left it unset,
+  the tick would stay due and re-fire every 60s, each retry abandoning another
+  thread against the same stalled endpoint -- turning one stall into a thread
+  leak. (`_call_with_timeout` uses `shutdown(wait=False)`, and the abandoned
+  threads are not daemon threads; a test process would not even exit while one
+  was alive.) The cost is at most one skipped 24h cycle, logged at ERROR.
+* **A private `_TickTimeout`** so the timeout skips the post-tick counter read
+  without being logged as an unexpected exception by the generic handler.
+
+### Tested, not just reviewed
+
+| test | result |
+|---|---|
+| forward references resolve (constants defined *below* their use site) | PASS |
+| timeout FIRES on a function that sleeps 3600s, bound 2s | returned in **2.01s**, sentinel returned |
+| normal path unchanged -- fast call returning `None` | 0.0003s, correctly **not** treated as a timeout |
+| loop RECOVERS -- 3 consecutive timed-out cycles | 3/3 completed, exception never escaped |
+
+Then live: service restarted (**PID 34017, PPID 1, launchctl status 0**), health
+ok, `RETRAIN_TICK_TIMEOUT = 3600` confirmed in the running module, and the next
+due tick fired and began real per-star work against MAST.
+
+### STILL OPEN and now MORE important: `/health` "stalled" semantics
+
+`/health` returns **503 `stalled`** whenever `seconds_since_last_tick` exceeds
+its threshold. But the scheduler loop legitimately blocks inside a 25-37 minute
+batch, so **a perfectly healthy tick now reports `stalled` for most of its
+duration** -- observed climbing past 217s on the very next tick.
+
+Previously I called this low-priority because it flagged a genuine problem. With
+the correct understanding it is worse: it will fire on every full batch, i.e.
+routinely. It conflates "the loop has not ticked recently" with "the loop is
+broken". The fix is to report an in-progress tick distinctly (a
+`retrain_in_progress` state, or refresh the heartbeat from inside the batch).
+**Not fixed here** -- it is a behaviour change to a health endpoint and wants its
+own decision.
+
+### Data integrity
+
+`training.csv` is now 5,497 rows: the 2 rows from before plus `TIC_73448352`
+appended by the interrupted tick. All three are complete and well-formed; 0
+duplicate hosts. **They remain UNCOMMITTED local state** by standing
+instruction -- committing them is a separate decision. Model, metadata,
+conformal, ensemble, OOD detector and promotion gate all untouched.

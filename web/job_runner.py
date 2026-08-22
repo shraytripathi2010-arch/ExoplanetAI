@@ -393,8 +393,22 @@ def _scheduler_loop():
             if _retrain_tick_due():
                 import retrain_pipeline
                 log.info("RETRAIN    tick due -- querying archives, processing labels")
-                retrain_pipeline.scheduler_tick()
+                result = _call_with_timeout(retrain_pipeline.scheduler_tick,
+                                            timeout=RETRAIN_TICK_TIMEOUT,
+                                            default=_TICK_TIMED_OUT)
+                # The timestamp is written on BOTH paths on purpose. If a timed-out
+                # tick left it unset the tick would stay due and re-fire every 60s,
+                # each retry abandoning another thread against the same hung
+                # endpoint -- turning one stall into a thread leak. Recording it
+                # costs at most one skipped 24h cycle, which is logged loudly.
                 db.set_last_retrain_tick_at(db.now_iso())
+                if result is _TICK_TIMED_OUT:
+                    retrain_status = "timeout"
+                    log.error("RETRAIN    tick TIMED OUT after %ss and was abandoned; "
+                              "the scheduler loop continues and will retry on the next "
+                              "due cycle. Nothing was written by the abandoned call.",
+                              RETRAIN_TICK_TIMEOUT)
+                    raise _TickTimeout()
                 retrain_status = "ran"
                 try:
                     n = db.count_processed_watch_labels_since("2000-01-01 00:00:00 UTC")
@@ -403,6 +417,8 @@ def _scheduler_loop():
                              n, getattr(retrain_pipeline, "RETRAIN_THRESHOLD", "?"))
                 except Exception:
                     log.exception("RETRAIN    post-tick counter read failed")
+        except _TickTimeout:
+            pass          # already logged above; status already set to "timeout"
         except Exception:
             retrain_status = "error"
             log.exception("RETRAIN    tick raised (does not affect Update jobs)")
@@ -451,6 +467,34 @@ def _load_08():
 
 
 REVERIFY_CALL_TIMEOUT = 30
+
+# The retrain tick is bounded for the same reason every other external call
+# here is bounded -- see _call_with_timeout's own root-cause note. But the
+# SIZING here is driven by legitimate work, not by the hang that prompted it,
+# and getting that backwards would be worse than having no timeout at all.
+#
+# What one tick can legitimately do: process_and_append_new_examples runs up to
+# PER_TICK_MAX_NEW = 25 stars, and each star is a full download -> preprocess ->
+# TLS -> crowding/variability/Gaia pipeline. Measured end-to-end on one fresh
+# star (e2e_fresh_star_audit): TLS alone 54s, ~60-90s all in. So a FULL batch is
+# legitimately 25-37 MINUTES, and on 2026-08-22 a tick ran 24 minutes while
+# correctly appending a complete 33-feature row.
+#
+# 3600s therefore leaves roughly 2x headroom over the worst legitimate batch
+# while still converting an indefinite stall into a logged, recoverable event.
+# A shorter bound would silently throttle throughput: the work is resumable via
+# label_watch_queue, so a premature timeout does not lose data, but it would cap
+# the batch partway and leave the rest waiting a full 24h cycle.
+RETRAIN_TICK_TIMEOUT = 3600
+# Sentinel: _call_with_timeout signals a timeout by RETURNING `default`, it does
+# not raise. scheduler_tick() returns None on success, so None cannot be the
+# sentinel -- it would make a normal tick indistinguishable from a timeout.
+_TICK_TIMED_OUT = object()
+
+
+class _TickTimeout(Exception):
+    """Internal control-flow only: skips the post-tick counter read after a
+    timeout without logging it as an unexpected error."""
 
 
 def _call_with_timeout(fn, *args, timeout=REVERIFY_CALL_TIMEOUT, default=None):
