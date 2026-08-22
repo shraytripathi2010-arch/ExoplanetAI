@@ -1,5 +1,5 @@
 {
-  "source": "/Users/anujtripathi/Downloads/ExoplanetAI/code/../data/training_dataset/training.csv",
+  "source": "/Users/anujtripathi/Developer/ExoplanetAI/code/../data/training_dataset/training.csv",
   "training_rows": 5494,
   "contamination_target": 0.02,
   "threshold_score": -0.508247339321313,

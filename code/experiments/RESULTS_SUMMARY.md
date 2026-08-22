@@ -12014,3 +12014,117 @@ which strengthens the standing open item about the project living under
 solved problem.
 
 Files: `web/model_features.py` (new), `web/app.py`, `web/templates/candidate_detail.html`.
+
+# >>> PROJECT RELOCATED 2026-08-22 <<<
+
+## CANONICAL PATH IS NOW `/Users/anujtripathi/Developer/ExoplanetAI`
+
+**The project no longer lives under `~/Downloads`.** Every future task, script,
+plist and doc reference must use:
+
+    /Users/anujtripathi/Developer/ExoplanetAI
+
+The old path `/Users/anujtripathi/Downloads/ExoplanetAI` **no longer exists**.
+
+### Why: three identical launchd failures, not two
+
+`com.apple.macl` extended attributes accumulated on the launchd log files under
+`~/Downloads`, and launchd then failed to open them, exiting **78 (EX_CONFIG)**.
+Occurrences: the original TCC/Full-Disk-Access incident, the recurrence during
+the UI evidence-layer deployment, and a **third, found during this migration's
+own pre-flight** -- the service was already dead on arrival (last tick
+2026-08-21 00:39 UTC), so this was not a healthy service being taken offline.
+
+macOS TCC protects exactly three user folders: **Desktop, Documents,
+Downloads**. `~/Developer` is outside that set.
+
+### The move
+
+`mv` on the **same filesystem** (device 16777230 both sides), so a rename, not a
+copy -- it completed in **0.003 s**. This mattered: the tree is **96 GB**
+(71 GB `data/`, 24 GB `.git`) against **65 GiB free**, so a copy-based move
+would have failed outright. A fresh `git clone` was never an option either: most
+of the bulk is gitignored light curves.
+
+Verified after: source directory gone, 96 GB at the destination, all 17
+top-level entries byte-identical, `git fsck` clean, 111 commits intact.
+
+**Integrity was a pure location change.** Every checksum matched the
+pre-migration snapshot:
+
+| artifact | status |
+|---|---|
+| `best_model.joblib` | `fe3fa82f...` MATCH |
+| `best_model_metadata.json` | MATCH |
+| `conformal_calibration.json` | MATCH |
+| `multivariate_ood_detector.joblib` | MATCH |
+| `bootstrap_ensemble` manifest + 32 members | MATCH |
+| `training.csv` | md5 AND **sha256** `28b70225...` MATCH |
+
+### Paths updated -- found by repo-wide grep, not by guessing
+
+`grep -rl "/Downloads/ExoplanetAI"` returned 8 files. Four were updated, four
+were deliberately left alone:
+
+| file | action |
+|---|---|
+| `~/Library/LaunchAgents/com.exoplanetai.app.plist` | **updated** (3 refs: WorkingDirectory, StandardOutPath, StandardErrorPath); `plutil -lint` OK |
+| `web/com.exoplanetai.app.plist` | **updated** (3 refs); verified identical to the live copy |
+| `.claude/settings.local.json` | **updated** (2 permission entries) |
+| `models/multivariate_ood_meta.json`, `models/training_feature_ranges.json` | **updated** (informational `source` field only -- verified by grep that no code ever reads it as a path) |
+| `models/versions/*_pre33_24feat.json` (2) | **NOT touched** -- preserved historical artifacts; rewriting them would falsify where they were actually built |
+| `code/k2_pilot/download_run.log`, `tls_run.log` | **NOT touched** -- historical run logs, same reasoning |
+
+No virtualenv exists (system Python 3.11), so there were no baked-in venv paths.
+The stale `claude/quizzical-aryabhata-fa87b2` worktree and branch did not survive
+the move and **that is the desired outcome** -- its only work was already landed
+in `be4794ce`, and it was recorded as a merge hazard (1,023 lines behind main).
+`git worktree list` now shows one clean entry; `git worktree prune --dry-run` is
+empty.
+
+### THE XATTR EXPERIMENT -- the reason this migration exists
+
+The moved log files carried their `com.apple.macl` attributes with them (xattrs
+travel with the file), so they were rotated aside to force launchd to create
+**fresh** files at the new path. That makes the comparison clean: same process,
+same filenames, only the location differs.
+
+| file | location | xattrs |
+|---|---|---|
+| `launchd_stderr.log` (fresh) | `~/Developer` | **NONE** |
+| `launchd_stdout.log` (fresh) | `~/Developer` | **NONE** |
+| `launchd_stderr_preMigration_*.log` | was `~/Downloads` | `com.apple.macl` **and** `com.apple.provenance` |
+
+Re-checked after real activity: still **no `com.apple.macl` anywhere**.
+`scheduler.log` carries `com.apple.provenance` alone, which was never the
+failure signature -- the Downloads files carried both.
+
+**What this rules out vs. what it does not.** It confirms the immediate
+mechanism is location-specific: the OS is not applying `com.apple.macl` at the
+new path. It does **not** yet confirm the long-term fix. That requires observing
+at least one more natural restart cycle -- a reboot, a sleep/wake, or several
+days of uptime -- without the exit-78 signature returning. **Zero EX_CONFIG and
+zero errors in the new log so far.**
+
+### Verified working from the new location
+
+* launchd-supervised: **PID 32129, PPID 1**, `launchctl` status **0** (not 78),
+  cwd `/Users/anujtripathi/Developer/ExoplanetAI/web`, port 5050 owned by the
+  same PID -- no orphan.
+* Frozen-test AUC recomputed from the new path: **0.9454155994**, bit-identical
+  to the metadata of record.
+* Full end-to-end on a genuinely fresh star, **TIC_179583882**: download ->
+  preprocess -> TLS Success -> all 33 features (**0 required NaN, 0 absent**;
+  `FAP` and `transit_shape_ratio` optional-NaN) -> scored **p = 0.9598** -> OOD
+  flag False, in-distribution True, conformal set returned.
+* Candidate pages render HTTP 200 with zero errors, all evidence layers present
+  including the new contamination/blend panel.
+* Frozen split re-verified: 5,496 rows, 5,496 unique hosts, **0 duplicates, 0
+  straddling**, frozen test still 1,098.
+* Git fully functional: remote intact, `fetch` reachable, history complete.
+
+### Old location
+
+`/Users/anujtripathi/Downloads/ExoplanetAI` **is gone** -- the `mv` consumed it.
+Nothing to delete; no cleanup decision remains. `~/Downloads` still contains the
+user's unrelated personal files, untouched.

@@ -31,7 +31,7 @@
     <!-- app.py resolves sibling modules and ../code relative to its own
          directory, but the DB and logs/ are opened relative to CWD. -->
     <key>WorkingDirectory</key>
-    <string>/Users/anujtripathi/Downloads/ExoplanetAI/web</string>
+    <string>/Users/anujtripathi/Developer/ExoplanetAI/web</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -59,8 +59,8 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/anujtripathi/Downloads/ExoplanetAI/web/logs/launchd_stdout.log</string>
+    <string>/Users/anujtripathi/Developer/ExoplanetAI/web/logs/launchd_stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/anujtripathi/Downloads/ExoplanetAI/web/logs/launchd_stderr.log</string>
+    <string>/Users/anujtripathi/Developer/ExoplanetAI/web/logs/launchd_stderr.log</string>
 </dict>
 </plist>
