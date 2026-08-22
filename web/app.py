@@ -593,11 +593,48 @@ def health():
 
     Returns HTTP 503 (not 200) when the scheduler looks stalled, so a plain
     `curl -f` or any uptime monitor treats it as down without parsing JSON.
-    A tick is expected every 60s; 300s of silence is unambiguous.
+    A tick is expected every 60s; 300s of silence is unambiguous -- EXCEPT
+    while a retrain tick is legitimately in flight, which blocks the loop for
+    25-37 minutes by design. Three states:
+
+        ok      idle and ticking normally                       200
+        busy    a retrain tick is in flight and within its
+                RETRAIN_TICK_TIMEOUT bound -- healthy           200
+        stalled thread dead, heartbeat stale with no tick in
+                flight, or a tick past its own bound            503
     """
     hb, age = scheduler_log.read_heartbeat()
     thread_alive = job_runner.scheduler_is_alive()
-    stalled = (age is None) or (age > 300) or (not thread_alive)
+
+    # A RETRAIN TICK IN FLIGHT IS NOT A STALL.
+    # The loop writes its heartbeat once per iteration, at the end, so a tick
+    # that legitimately runs 25-37 minutes (PER_TICK_MAX_NEW = 25 stars at a
+    # measured 60-90s each) necessarily makes the heartbeat go stale. Judging
+    # that by age alone reported "stalled" on healthy work -- daily, once a
+    # backlog exists -- which is worse than no signal at all.
+    #
+    # This does NOT blindly trust the flag. The tick is bounded by
+    # RETRAIN_TICK_TIMEOUT, so a tick still marked in-flight past that bound
+    # plus a margin means the bound itself failed to fire: a real problem, and
+    # still reported as stalled. The true positive that matters is preserved;
+    # only the false positive during normal long work is removed.
+    busy, busy_secs = job_runner.retrain_in_progress()
+    try:
+        tick_bound = job_runner.RETRAIN_TICK_TIMEOUT
+    except Exception:
+        tick_bound = 3600
+    busy_grace = tick_bound + 300
+    busy_overdue = busy and (busy_secs is None or busy_secs > busy_grace)
+
+    if not thread_alive:
+        status, stalled = "stalled", True
+    elif busy_overdue:
+        status, stalled = "stalled", True
+    elif busy:
+        status, stalled = "busy", False
+    else:
+        stalled = (age is None) or (age > 300)
+        status = "stalled" if stalled else "ok"
 
     # Two different label counts, and only one of them gates a retrain.
     # `processed_watch_labels` is all-time; the retrain trigger compares the
@@ -624,8 +661,11 @@ def health():
         threshold = 50
 
     body = {
-        "status": "stalled" if stalled else "ok",
+        "status": status,
         "scheduler_thread_alive": thread_alive,
+        "retrain_in_progress": busy,
+        "retrain_running_seconds": None if busy_secs is None else round(busy_secs, 1),
+        "retrain_tick_timeout_seconds": tick_bound,
         "last_tick_at": (hb or {}).get("last_tick_at"),
         "seconds_since_last_tick": None if age is None else round(age, 1),
         "hours_since_last_tick": None if age is None else round(age / 3600.0, 2),

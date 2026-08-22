@@ -393,9 +393,18 @@ def _scheduler_loop():
             if _retrain_tick_due():
                 import retrain_pipeline
                 log.info("RETRAIN    tick due -- querying archives, processing labels")
-                result = _call_with_timeout(retrain_pipeline.scheduler_tick,
-                                            timeout=RETRAIN_TICK_TIMEOUT,
-                                            default=_TICK_TIMED_OUT)
+                # Marked in flight for /health's benefit ONLY -- this changes no
+                # scheduling, retry or timeout behaviour. Cleared in `finally`
+                # so a timeout or an exception cannot leave it stuck on, which
+                # would suppress a genuine stall indefinitely.
+                _retrain_state["started_at"] = time.time()
+                _retrain_state["in_progress"] = True
+                try:
+                    result = _call_with_timeout(retrain_pipeline.scheduler_tick,
+                                                timeout=RETRAIN_TICK_TIMEOUT,
+                                                default=_TICK_TIMED_OUT)
+                finally:
+                    _retrain_state["in_progress"] = False
                 # The timestamp is written on BOTH paths on purpose. If a timed-out
                 # tick left it unset the tick would stay due and re-fire every 60s,
                 # each retry abandoning another thread against the same hung
@@ -490,6 +499,30 @@ RETRAIN_TICK_TIMEOUT = 3600
 # not raise. scheduler_tick() returns None on success, so None cannot be the
 # sentinel -- it would make a normal tick indistinguishable from a timeout.
 _TICK_TIMED_OUT = object()
+
+# WHY /health NEEDS THIS AT ALL.
+# The scheduler loop writes its heartbeat once per iteration, at the END. A
+# retrain tick legitimately blocks that loop for 25-37 minutes (PER_TICK_MAX_NEW
+# = 25 stars at a measured 60-90s each), so during every full batch the
+# heartbeat goes stale and /health reported "stalled" -- a false positive on
+# healthy work, firing daily once there is a backlog. Elapsed heartbeat age is
+# simply not evidence of a stall while a tick is known to be in flight.
+#
+# In-memory rather than a file: start_scheduler_thread() runs in the SAME
+# process as the Flask app (app.py:644), so /health reads this directly. A
+# restart clears it, which is correct -- a restart also kills the tick.
+_retrain_state = {"in_progress": False, "started_at": None}
+
+
+def retrain_in_progress():
+    """(in_progress, seconds_running) for /health. Never raises."""
+    try:
+        if not _retrain_state["in_progress"]:
+            return False, None
+        started = _retrain_state["started_at"]
+        return True, (None if started is None else time.time() - started)
+    except Exception:
+        return False, None
 
 
 class _TickTimeout(Exception):

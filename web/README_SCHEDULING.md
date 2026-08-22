@@ -157,5 +157,25 @@ always-on host.
 curl -sf http://127.0.0.1:5050/health || echo "scheduler stalled"
 tail -f web/logs/scheduler.log
 ```
-`/health` returns **503** when the last tick is more than 300s old, so plain
+`/health` returns **503** when the scheduler is genuinely stalled, so plain
 `curl -f` is enough for any uptime monitor -- no JSON parsing needed.
+
+It reports three states, because "the loop has not ticked recently" and "the
+loop is broken" are not the same thing:
+
+| `status` | HTTP | meaning |
+|---|---|---|
+| `ok` | 200 | idle and ticking normally (a tick is expected every 60s) |
+| `busy` | 200 | a retrain tick is in flight and still inside its `RETRAIN_TICK_TIMEOUT` bound -- **healthy** |
+| `stalled` | 503 | scheduler thread dead, OR the heartbeat is >300s old with no tick in flight, OR a tick has run past its own bound + 300s margin |
+
+The `busy` state exists because a retrain tick legitimately blocks the scheduler
+loop for **25-37 minutes** (`PER_TICK_MAX_NEW = 25` stars at a measured 60-90s
+each), during which the loop cannot write its heartbeat. Judging that by
+heartbeat age alone reported `stalled` on entirely healthy work -- daily, once a
+label backlog exists. `busy` is still bounded: a tick that outlives
+`RETRAIN_TICK_TIMEOUT` plus a margin means the bound itself failed, and that is
+reported as `stalled`.
+
+Useful fields: `retrain_in_progress`, `retrain_running_seconds`,
+`retrain_tick_timeout_seconds`.

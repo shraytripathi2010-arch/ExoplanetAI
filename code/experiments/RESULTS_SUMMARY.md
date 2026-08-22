@@ -12246,3 +12246,106 @@ appended by the interrupted tick. All three are complete and well-formed; 0
 duplicate hosts. **They remain UNCOMMITTED local state** by standing
 instruction -- committing them is a separate decision. Model, metadata,
 conformal, ensemble, OOD detector and promotion gate all untouched.
+
+## /health "stalled" false positive -- FIXED. Closes the last open item from the migration thread.
+
+Monitoring-only change. **Production model `fe3fa82f...`, training data, promotion
+gate and the `RETRAIN_TICK_TIMEOUT` fix are all untouched** -- this changes what
+`/health` *reports*, not what the scheduler *does*.
+
+### The defect
+
+`stalled = (age is None) or (age > 300) or (not thread_alive)`
+
+The scheduler loop writes its heartbeat once per iteration, **at the end**. A
+retrain tick legitimately blocks that loop for **25-37 minutes**
+(`PER_TICK_MAX_NEW = 25` stars at a measured 60-90s each), so the heartbeat
+necessarily goes stale during every full batch. With 51 labels pending, full
+batches are the routine case -- meaning a healthy system would have reported
+`stalled` / HTTP 503 **daily**. A monitor that cries wolf every day is worse
+than no monitor.
+
+### Chosen: Option A (in-flight state). Option B deliberately NOT implemented.
+
+**A covers the whole tick; B cannot.** `scheduler_tick()` calls
+`find_new_labeled_examples()` -- archive queries -- *before* the per-star loop
+ever starts. A per-star heartbeat would still go stale during that phase, so B
+alone does not eliminate the false positive. A does, for every phase.
+
+**B's only unique benefit is detection latency on a single stuck star**, and
+that is already covered: such a star is bounded by `RETRAIN_TICK_TIMEOUT`, the
+work is resumable via `label_watch_queue` so nothing is lost, and nothing
+downstream is waiting on it. B would buy ~300s detection instead of ~3600s, in
+exchange for coupling `retrain_pipeline` to `scheduler_log` (or threading a
+progress callback through two signatures). **Not worth it**, so it was not
+built. `retrain_running_seconds` gives the duration signal without the coupling.
+
+### Implementation
+
+An in-memory flag in `job_runner`, set immediately before the bounded call and
+cleared in a `finally` so a timeout or exception can never leave it stuck on
+(which would suppress a genuine stall forever). In-memory is correct rather than
+lazy: `start_scheduler_thread()` runs in the **same process** as the Flask app
+(`app.py:644`), so `/health` reads it directly with no file I/O; a restart
+clears it, which is right, because a restart also kills the tick.
+
+`/health` now reports three states:
+
+| `status` | HTTP | meaning |
+|---|---|---|
+| `ok` | 200 | idle, ticking normally |
+| `busy` | 200 | tick in flight, inside its bound -- healthy |
+| `stalled` | 503 | thread dead, OR heartbeat >300s stale with no tick in flight, OR a tick past `RETRAIN_TICK_TIMEOUT + 300s` |
+
+**The third clause is what keeps this honest.** The flag is not blindly trusted:
+a tick still marked in-flight past its own bound means the bound failed to fire,
+which is a real problem and still reports 503. The false positive is removed;
+the true positive is not.
+
+New fields: `retrain_in_progress`, `retrain_running_seconds`,
+`retrain_tick_timeout_seconds`.
+
+### Tested in both directions
+
+Unit, driving the real endpoint via a test client with a controlled heartbeat age:
+
+| case | result |
+|---|---|
+| idle, heartbeat 30s | `ok` / 200 / busy=False |
+| **(a)** tick in flight 25 min, heartbeat 1500s stale | **`busy` / 200** (was `stalled`/503) |
+| **(a)** tick in flight 37 min (worst legit batch) | **`busy` / 200** |
+| **(b)** tick past bound + margin | **`stalled` / 503** |
+| **(b)** not busy, heartbeat 900s stale | `stalled` / 503 (classic stall, unchanged) |
+| **(b)** thread dead while "in flight" | `stalled` / 503 -- thread death outranks busy |
+| exception mid-tick | `in_progress` back to False via `finally` |
+
+**Live, against a real tick** (not simulated) after a real restart -- the
+decisive evidence:
+
+    +45s   status=busy  running=23.7    heartbeat_age=84
+    +270s  status=busy  running=249.1   heartbeat_age=309   <-- OLD logic: stalled/503
+    +450s  status=busy  running=429.5   heartbeat_age=490   <-- OLD logic: stalled/503
+    HTTP 200
+
+The heartbeat crossed the old 300s threshold at +270s and kept climbing to 490s.
+The old logic would have reported 503 from that point on; the new logic
+correctly reports `busy` / 200 throughout, while the tick appended real rows to
+`training.csv`.
+
+### Documentation
+
+`web/README_SCHEDULING.md` stated the old contract verbatim ("returns **503**
+when the last tick is more than 300s old"). Updated with the three-state table,
+why `busy` exists, and the new fields -- the doc is the external contract, so
+leaving it stale would have been its own defect.
+
+### Unchanged, confirmed
+
+Fast ticks -- the common case with no backlog -- behave exactly as before
+(`ok`/200, `retrain_in_progress: false`). `scheduler_tick()`, the retry logic and
+`RETRAIN_TICK_TIMEOUT = 3600` are byte-identical; the only edit inside
+`_scheduler_loop` wraps the existing call in try/finally to set and clear the
+flag. Service verified after a real restart: **PID 34536, PPID 1, launchctl
+status 0**.
+
+**This closes the last open item from the migration / retrain-timeout thread.**
