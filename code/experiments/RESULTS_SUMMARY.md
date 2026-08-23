@@ -12542,3 +12542,197 @@ Cross-references: both synthetic-injection closures, the pseudo-labelling
 investigation, all three cross-mission closures, the OOD/novelty closure, the
 positive-class exhaustion finding, the `var_*` backfill schema wall, and the
 real-data learning curve.
+
+## KEPLER-TRANSFER BUNDLE -- all closed. Plus ACTIVE LEARNING, assessed here for the first time.
+
+Production verified live and untouched: **0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`**, Optuna hyperparameters, 5,503 training
+rows, post-migration path.
+
+### THE ExoMiner++ PREMISE IS FALSE. Third verification. Read this before citing it again.
+
+This proposal opens with "ExoMiner++ demonstrates that transfer learning from
+Kepler can improve performance." **The paper says the opposite.** Verbatim from
+the full PDF of arXiv:2502.09790, Section 6.2 *Multi-Source Learning*:
+
+> "Due to the lack of gold-standard labels for TESS, we leveraged Kepler data to
+> enhance performance. **Initially, we experimented with various transfer learning
+> approaches (Ng 2016), such as training on Kepler data and fine-tuning certain
+> layers of the model using TESS data. However, as TESS data grew in size and
+> label quality, a simpler approach of combining Kepler and TESS data to create a
+> larger training set proved more effective.** In this approach, we incorporated
+> Kepler data into the training set of all cross validation iterations, ensuring
+> that the validation and testing were performed only on TESS data."
+
+The authors **tried transfer learning and abandoned it.** They adopted pooled
+joint training -- which is the K2 pooling experiment already run here, measured
+inert (+0.0030 / +0.0044, neither clearing).
+
+**This exact factual error has now recurred across three separate proposals in
+this project.** It is not a matter of interpretation: the paper describes trying
+the technique and rejecting it, in one paragraph, unambiguously.
+
+The paper independently corroborates this project's own domain-shift finding,
+too: it removed transit depth from a branch "due to the significant difference in
+transit depth distributions between the two missions, which could lead to
+challenges in transfer and multi-source learning caused by **distribution
+shift**" -- the same effect measured here as domain AUC 0.9973 (K2) and 0.97
+(Kepler).
+
+### PART 0 -- the three model-side sub-proposals
+
+**1. "Pretrain a deep network on Kepler, extract embeddings, feed into the GBM"
+-- SAME CLASS as the closed late-fusion hybrid, with one fair distinction.**
+
+The closed assessment covered `[CNN embedding + tabular features]` combined by a
+dense fusion head. This proposal changes the combiner to HGB. That is a
+*genuinely better* combiner choice, and worth saying: the closed assessment's
+extra argument -- that the fusion head itself destroys information, measured at
+**-0.0324** for a dense net over `[HGB output + 33 features]` -- does **not**
+apply when HGB is the combiner.
+
+But the bottleneck is untouched and identical. The closed CNN's failure was
+**the embedding itself**: 0.68-0.70 learning a light-curve representation from
+~5k examples, against a model now at 0.9454 -- a gap of ~0.25 AUC that has
+*widened* since it was first measured. Swapping the combiner adds **zero
+training data to the branch that failed**. A better consumer of a
+representation that cannot be learned is still no representation.
+
+**2. "Domain-adaptive ensemble: Kepler model + TESS model, combined by
+stacking/blending" -- closed by TWO findings that compose, with no gap between
+them.**
+
+    (a) cross-mission:  a Kepler-trained member faces domain AUC ~0.97-0.9973
+                        separability, so its "knowledge" does not transfer cleanly
+    (b) multi-model:    AUC of each alternative member ON THE 109 STARS HGB GETS
+                        WRONG (0.5 = independent information):
+                          catboost 0.0690   gpc 0.2173   nystroem 0.1891
+                        ALL FAR BELOW 0.5 -- members are confidently wrong on the
+                        SAME stars, so no weighting can recover what none has
+
+Asked explicitly whether these leave a gap: **they do not, and (b) is the
+stronger of the two.** Even granting a Kepler member that transferred perfectly,
+blending only helps if members err differently. The measured finding is that they
+err *identically and in the same direction*. (a) makes the member weak; (b) makes
+the combination unable to exploit it even if it weren't. The proposal needs both
+to fail, and both do.
+
+**3. "Self-training on unlabeled TESS after Kepler+TESS training" -- the closed
+pseudo-labelling mechanism, and the Kepler addition cannot change it.**
+
+The closure rests on three independent lines: a feature-level red flag on
+confident predictions, resampling significance **t = -2.63, p = 0.0165**, and
+subpopulation degradation *exactly where predicted* -- confident pseudo-positives
+concentrated on the then-known giant-star blind spot, with performance dropping
+on the low-SNR subpopulation.
+
+Does seeding the base model with Kepler labels change that? **No, and the reason
+is arithmetic rather than argument.** Error amplification is driven by *where the
+base model is confidently wrong*. Pooling Kepler/K2 into training was measured
+**inert** (+0.0030 / +0.0044, neither clearing). A change that does not measurably
+move the model cannot measurably move which stars it is confidently wrong about.
+The base would be the same model, so the amplification would be the same
+amplification.
+
+### PART 1 -- ACTIVE LEARNING: assessed here for the first time
+
+Genuinely distinct and correctly separated from the above. Pseudo-labelling
+*generates* labels from the model; active learning *queries a human* for them.
+Nothing in this project has evaluated it before.
+
+**What already exists.** More than expected -- the model-side machinery is
+essentially complete:
+
+| capability | state |
+|---|---|
+| calibrated probabilities | yes, `CalibratedClassifierCV` sigmoid |
+| conformal prediction sets | yes, Mondrian LAC at alpha = 0.10 / 0.05 / 0.01 |
+| per-candidate uncertainty | 32-member bootstrap ensemble -> `uncertainty_std` |
+| stored per candidate | yes, `candidates.uncertainty_std` column |
+
+So an uncertainty queue exists **implicitly**. Measured on the live 296
+candidates:
+
+    probability in [0.4, 0.6]              9   ( 3.0%)
+    probability in [0.3, 0.7]             21   ( 7.1%)
+    conformal AMBIGUOUS at 90%            24   (22.9% of the 105 scored)
+    uncertainty_std populated            105/296 (35.5%)   <- infrastructure gap
+    uncertainty_std median 0.0529, p90 0.1311
+
+**The decisive fact, which is about workflow and not modelling:**
+
+    current_status of all 296 candidates:  unknown_candidate  (296)
+    confidence tiers:                      Low 278, Medium 18, High 0
+
+**No candidate has ever been submitted for follow-up.** The labelling queue is not
+oversubscribed -- it is *empty*. Active learning is a solution to an *allocation*
+problem: which items to spend scarce, contended labelling capacity on. Here the
+labelling throughput is currently zero, so there is no allocation problem to
+optimise.
+
+**The imported assumption that does not hold.** Classical active learning assumes
+labels are cheap and fast, closing a query -> label -> retrain loop in minutes.
+This project's labelling pathway is **TFOP follow-up via ExoFOP** -- ground-based
+photometry, RV, speckle imaging -- where "getting a label" is real telescope time
+taking **weeks to years**. The retrain gate needs 50 new labels to fire. At TFOP
+latency the loop period is measured in *years*, not iterations.
+
+**Three further reasons the classical form does not fit, each measured here:**
+
+1. **The objective is wrong.** This tool exists to *find planets*, not to
+   minimise model loss. A follow-up slot spent on a p = 0.5 case is a slot not
+   spent on a likely planet. Active learning optimises label efficiency for the
+   model; the user's objective function is discovery.
+2. **The uncertainty estimates are least trustworthy exactly where they would be
+   used.** The conformal work measured calibration stars vs unknown candidates at
+   **domain AUC 0.9798 -- NOT exchangeable**, so on pool candidates the sets are
+   "a well-calibrated heuristic", not a guarantee. Ranking follow-up by an
+   uncertainty measure whose validity is void on that population is a weak
+   foundation.
+3. **The arithmetic forecloses the payoff.** The learning curve needs roughly
+   **+4,494 rows** to clear the 0.0097 MDE. Active learning improves label
+   *efficiency*; when the required N is ~4,500 and the achievable N via TFOP is
+   single digits per year, efficiency gains on a number that small cannot reach
+   the threshold. This is the same wall the K2 extrapolation hit from the other
+   direction.
+
+**Is there a meaningful version? Yes -- one, and it is not an ML technique.**
+
+Strip away the model-improvement premise and a real question remains: *given a
+follow-up slot, is resolving genuine ambiguity worth more than confirming a
+confident prediction?* Information-theoretically the case is real -- a label at
+p = 0.5 carries ~1 bit, at p = 0.98 about 0.03 bits.
+
+But the sharper version costs nothing at all. **This tool already has free
+instruments for resolving ambiguity that do not consume telescope time**, all
+wired per candidate: `reverify`, `multi_sector` strengthening, `centroid`
+difference-imaging, and `exofop_refresh`. The genuinely useful scoped proposal is
+therefore:
+
+> Surface the **24 conformal-ambiguous candidates** as a distinct queue, and
+> point the EXISTING free evidence-gathering actions at them first -- multi-sector
+> strengthening and the centroid check especially, since both can move a
+> borderline case decisively without a single telescope minute. Only after those
+> are exhausted does TFOP submission come into play.
+
+That is a **prioritisation/UX change, not a model change**, its value proposition
+is *better use of the tool's own free diagnostics* rather than model improvement,
+and it would first need `uncertainty_std` backfilled from 35.5% to full coverage.
+
+**Nothing was built**, per instruction. It is recorded as a scoped future task.
+
+### Verdict
+
+| sub-proposal | verdict |
+|---|---|
+| ExoMiner++ premise | **FALSE, third verification.** The paper tried transfer learning and abandoned it for pooling. |
+| Kepler-pretrained embeddings into the GBM | **CLOSED.** Same class as the late-fusion hybrid; HGB is a fairer combiner, but the unlearnable ~0.25-AUC-behind embedding is the untouched bottleneck. |
+| domain-adaptive Kepler/TESS ensemble | **CLOSED by two composing findings, no gap between them.** Members are confidently wrong on the *same* stars (0.069 / 0.217 / 0.189 vs 0.5). |
+| self-training after Kepler+TESS | **CLOSED.** Pooling is inert, so it cannot change where the base model is confidently wrong. |
+| **active learning** | **NEW, assessed, and NOT recommended in its classical form** -- it imports a cheap-fast-label assumption that TFOP violates by orders of magnitude. One narrow, genuinely useful version survives, and it is a UX/prioritisation change worth its own decision. |
+
+Cross-references: the ExoMiner++ verifications, the domain-adaptation and
+warm-start closure, the CNN and late-fusion closures, the GPC/multi-model
+calibration closure, the three-part pseudo-labelling closure, the K2 and full-
+Kepler cross-mission closures, the conformal exchangeability measurement, and the
+real-data learning curve.
