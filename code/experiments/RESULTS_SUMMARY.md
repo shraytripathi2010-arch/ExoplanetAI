@@ -12349,3 +12349,196 @@ flag. Service verified after a real restart: **PID 34536, PPID 1, launchctl
 status 0**.
 
 **This closes the last open item from the migration / retrain-timeout thread.**
+
+## FOUR-PART AUGMENTATION PROPOSAL -- 3 duplicates, 1 citation misread. Plus a REAL coverage audit.
+
+Production verified live and untouched: **0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`**, Optuna hyperparameters, post-migration
+path. training.csv is now 5,503 rows (the retrain tick has been working the
+backlog since the timeout fix).
+
+### PART 0 -- the citation is REAL, and it says something different from the claim
+
+The proposal cites "a recent ML pipeline using semi-supervised learning
+identified 50 new high-probability candidates and **3 new exoplanets** from
+previously unlabeled TESS data."
+
+**Found and verified:** Cuellar et al., *"Automated identification of transiting
+exoplanet candidates in NASA TESS data with machine learning methods"*
+(arXiv:2102.10326, Acta Astronautica). Two material corrections:
+
+1. **They are 3 new exoplanetary CANDIDATES, not 3 new exoplanets** -- the paper
+   says "identified as exoplanetary candidates by further **manual vetting**".
+2. **The method is anomaly detection, not pseudo-labeling.** ThetaRay is, in the
+   paper's own words, a platform "commercially developed for anomaly detection
+   (financial crimes) in financial institutions, cyber security and IoT", which
+   "processes high dimensional big data to identify anomalous behavior **in
+   comparison to a normal profile**." It builds a normal profile from labelled
+   Kepler TCEs and RANKS unlabelled TESS TCEs against it. **It never adds its own
+   predictions back into training.**
+
+So this is **not** a duplicate of this project's closed pseudo-labelling work --
+and saying so matters, because the two fail for different reasons. It maps onto
+two *other* closures instead:
+
+* **Anomaly detection against a normal profile** is structurally the
+  `IsolationForest` **already deployed here** (contamination 0.02, a flag demotes
+  a candidate off the review shortlist). The OOD investigation closed Mahalanobis
+  as redundant at |rho| 0.84-0.86 against exactly that score.
+* **Kepler-trained, TESS-applied** is the cross-mission question closed three
+  times -- most recently with a full Kepler pull projecting **+0.0061, below the
+  0.0097 MDE**.
+* Its feature representation is Shallue & Vanderburg's **2,202 raw flux values**
+  (201 local + 2,001 global views) from 15,737 Kepler TCEs -- the phase-folded
+  CNN representation closed here at 0.6964 against a then-0.9032 classical model.
+
+**Third consecutive citation in this project where the headline number did not
+survive checking** (ExoNet's 0.955 matched nothing in its source; PlanetNet-MMG's
+0.973 was unverifiable; this one softens from "3 exoplanets" to "3 candidates").
+
+### PART 1 -- the other three sub-proposals
+
+**1. "Inject Earth-to-Neptune transits with realistic noise and limb darkening"
+-- CLOSED TWICE. Verified from `injection.py`, not assumed:**
+
+    line 2    "synthetic transit injection into REAL processed light curves"
+    line 123  params.limb_dark = "quadratic"
+    line 124  params.u = DEFAULT_LIMB_DARKENING
+    line 62   parameters drawn "by resampling from the real positive-class
+              training data's own empirical distribution", explicitly
+              "not an assumed parametric distribution"
+    line 137  inject_eclipsing_binary(): grazing V-shape + secondary eclipse
+
+Every element the proposal asks for already exists. v1 measured domain AUC
+**0.9654** (harmful); v2/RAVEN-style closed at the Part 0 gate on 0.95-0.97
+separability across detection AND shape features independently, with 7 of the
+33 features uncomputable for synthetic rows.
+
+**2. "Cluster features / self-training / label propagation on unlabeled TCEs" --
+DUPLICATE of the closed pseudo-labelling investigation**, which found real
+error-amplification: a feature-level red flag, resampling significance
+**p = 0.0165**, and subpopulation degradation *exactly where predicted*.
+One honest distinction: **clustering-based selection is a genuinely different
+selection mechanism** from confidence-based selection, and the closure does not
+formally cover it. But the downstream mechanism is identical -- pseudo-labels
+inherit the model's own errors -- and the SOM clustering already run here found
+its partition does not isolate the model's weak spots, so cluster-based selection
+has no demonstrated advantage in picking safe rows.
+
+**3. "Cross-match K2 / CHEOPS for extra training rows"** -- K2 is closed (domain
+AUC 0.9973, arms +0.0030 / +0.0044, neither clearing). **CHEOPS assessed fresh,
+since only Kepler and K2 had been examined: it is structurally unlike TESS's use
+case.** CHEOPS is a *pointed follow-up photometer*, not a blind survey -- it
+observes bright, **already-known** planet hosts to refine parameters. It
+therefore supplies almost no negatives, and its positives are systems already
+confirmed (and largely already in the positive class). The blind-survey
+population this model is trained to triage does not exist in CHEOPS by design.
+
+### PART 2 -- THE COVERAGE AUDIT (the real deliverable)
+
+5,503 training rows (4,347 positive / 1,156 negative) against 557 scored pool
+candidates. **A caveat that governs axes 1-3:** the pools are SDE-selected
+survivors, not a random star sample, so pool-vs-training differences are partly
+selection and not purely coverage gaps. SDE makes this visible -- 0.00% of the
+pool sits below training's 5th percentile, because the pool was cut on SDE.
+
+| axis | training | pool | gap |
+|---|---|---|---|
+| **SDE** | pos med 5.58 / neg med 9.10 | med 7.29 | **none** -- 0.00% of pool below training p05 |
+| **snr** | pos med 4.73 | med 8.02 | 9.87% of pool below training p05 (3.01) |
+| **depth_mean** | pos med 0.9979 | med 0.9985 | 18.5% below training p05, 9.3% above p95 |
+| **rp_rs** | pos med 0.0421 | med 0.0412 | **23.3% of pool ABOVE training p95 (0.125)** |
+| **period < 0.5 d** | 2.85% (157) | **9.87%** (55) | 3.5x enriched in the pool |
+| **period < 1.0 d** | 18.83% (1,036) | **34.83%** (194) | 1.8x enriched |
+| **var_excess** | pos med 0.993 | med 1.408 | **30.2% of pool above training p95** |
+| **var_oot_rms** | pos med 0.0055 | med 0.0062 | 21.9% above training p95 |
+| **var_ls_power** | pos med 0.0317 | med 0.0907 | 18.5% above training p95 |
+
+**The coherent reading of axes 2-3:** the pools are markedly richer in
+**short-period, large-`rp_rs`, high-variability** objects than training. That is
+not a random gap -- it is the classic eclipsing-binary / contact-binary /
+variable-star corner that survives an SDE cut. The model is extrapolating there.
+
+**4. MULTI-PLANET SYSTEMS -- NO GAP. Previously uninvestigated, now closed.**
+
+    confirmed-planet catalog      4,738 hosts, 1,055 with >=2 planets = 22.3%
+    training positives matched    4,332/4,332 within 5 arcsec = 100.0%
+    of those, multi-planet hosts  1,014 = 23.4%
+    catalog baseline              22.3%
+
+Training positives are multi-planet hosts at **23.4%** against a catalog baseline
+of **22.3%** -- representative to within a point. This angle is closed with a
+clean negative.
+
+**5. NEGATIVE-CLASS COMPOSITION -- THE PROPOSAL'S PREMISE IS REFUTED.**
+
+The proposal supposes current negatives are "boring" single stars rather than
+Gaia-flagged binaries. Measured, using the deployed `gaia_ruwe` / `gaia_nss`:
+
+| population | n | RUWE > 1.4 | NSS > 0 | either |
+|---|---|---|---|---|
+| training POSITIVE | 4,347 | 8.2% | 0.8% | 8.5% (367) |
+| **training NEGATIVE** | **1,156** | **24.5%** | **13.1%** | **30.1% (343)** |
+| candidate pool | 557 | 14.9% | 5.7% | 16.5% (89) |
+
+The negative class is **already enriched 3.6x over positives** on the Gaia
+binary flags, and **1.8x over the candidate pool itself**. It is not short of
+astrometric-binary-like negatives; it over-represents them relative to what
+production actually scores.
+
+### PART 3 -- is there real labelled data to close the short-period / variable gap?
+
+Checked the real data first, per standing discipline. **The answer is a wall, not
+an opportunity.**
+
+    toi_false_positives.csv   1,243 unique TICs   1,152 already in training (92.7%)
+                                                     91 absent
+      of those 91: 88 SKIPPED "Non-standard schema (missing ...)" at preprocessing
+                    3 passed preprocessing AND transit search
+      -> REALISTIC YIELD: 3 rows (TIC 158555987, 207468071, 441738827)
+
+    toi_false_alarms.csv        99 unique TICs       0 in training (0.0%)
+      FA is a DOCUMENTED OPTIONAL expansion (04_build_training_dataset.py:235-240),
+      a deliberate un-taken choice, NOT an oversight. Never downloaded, so yield
+      is unknown and would face the same schema wall.
+
+The 88 blocked rows hit **the same QLP-vs-SPOC schema wall** that limited the
+`var_*` backfill to 3 of 17 rows: `02_preprocess.validate_schema` requires
+`pdcsap_flux`, and QLP products do not have it.
+
+Scale check against this project's own learning curve:
+
+    +3 rows      0.05% of 5,503 -- far below anything measurable
+    +99 rows     1.8%  -- the K2 work put +1,000 rows at +0.0038, still below MDE
+    +4,494 rows  the doubling the learning curve says is needed to clear 0.0097
+
+**Nothing was added.** Even the maximum conceivable yield here (190 rows, if the
+schema wall vanished and FA were adopted) is ~20x too small to be measurable, and
+adopting FA changes what the negative class *means* -- instrumental artifacts
+rather than astrophysical false positives -- which is a modelling decision, not a
+coverage fix.
+
+### Recommendation
+
+| sub-proposal | verdict |
+|---|---|
+| semi-supervised on unlabeled TESS (the citation) | **CLOSED.** Real paper, but it is anomaly detection -- structurally the deployed IsolationForest -- plus closed cross-mission Kepler and the closed CNN representation. "3 exoplanets" is really 3 candidates. |
+| synthetic injection with limb darkening | **CLOSED TWICE.** Verified feature-by-feature against `injection.py`. |
+| clustering / self-training / label propagation | **CLOSED.** Cluster-based *selection* is formally novel; the error-amplification mechanism it feeds is not. |
+| K2 / CHEOPS cross-match | **CLOSED.** K2 measured inert; CHEOPS is a pointed follow-up mission, structurally unable to supply the blind-survey population. |
+| **the coverage audit** | **Two genuinely new findings**, one negative and one positive-but-unactionable. |
+
+The audit's value is not a fix -- it is two things now known that were not:
+**multi-planet representation is fine (23.4% vs 22.3%)**, and **the negative
+class already over-represents Gaia-flagged binaries (30.1%, 3.6x positives)**, so
+the two most specific worries in the proposal are answered with numbers. The real
+coverage difference -- short-period, large-`rp_rs`, high-variability pool objects
+-- is genuine, but the labelled data that would close it does not exist on disk
+in usable form (3 rows), and at 190 rows maximum it is far below what this test
+set can detect.
+
+Script: `coverage_gap_audit.py`; results `coverage_gap_audit.json`.
+Cross-references: both synthetic-injection closures, the pseudo-labelling
+investigation, all three cross-mission closures, the OOD/novelty closure, the
+positive-class exhaustion finding, the `var_*` backfill schema wall, and the
+real-data learning curve.
