@@ -9966,6 +9966,12 @@ sophistication of the two formulas.
 
 ### PART 0 -- the two cited numbers, re-verified. NEITHER can be used as evidence.
 
+> **[!] SUPERSEDED BY A DEFINITIVE VERIFICATION -- see "THE ExoNet 0.955 FIGURE:
+> FINAL, DEFINITIVE CORRECTION" at the end of this file. The provenance of the
+> number is now known exactly, and one statement in the paragraph below ("matches
+> nothing in the source") is WRONG. 0.955 IS in the paper -- as ASTRONET's
+> AVERAGE PRECISION, not ExoNet's AUC.]**
+
 **ExoNet (Ansdell et al. 2018, arXiv:1810.13434) -- the "~0.955 AUC" DOES NOT
 EXIST.** Fetched the abstract and the ar5iv fulltext:
 
@@ -12736,3 +12742,179 @@ warm-start closure, the CNN and late-fusion closures, the GPC/multi-model
 calibration closure, the three-part pseudo-labelling closure, the K2 and full-
 Kepler cross-mission closures, the conformal exchangeability measurement, and the
 real-data learning curve.
+
+# >>> THE ExoNet 0.955 FIGURE: FINAL, DEFINITIVE CORRECTION <<<
+
+## STOP. Before citing "ExoNet ~0.955 AUC" again, read this. The number is real, and it is not what it is claimed to be.
+
+This figure has now been restated as fact in **three separate proposals** in this
+project. It has been checked three times. This entry ends it by giving the exact
+provenance, which the earlier checks did not establish.
+
+**Verified from the full PDF of arXiv:1810.13434 (8 pages, extracted and searched
+in full):**
+
+    occurrences of "AUC" or "area under" in the entire paper : 0
+    occurrences of "confusion matrix"                        : 0
+    occurrences of "receiver operating"                       : 0
+
+**Where 0.955 actually comes from -- Table 1, "Ensembled Results on Test Set":**
+
+    Model          Accuracy   Avg. Precision
+    Astronet         0.958        0.955      <-- THIS is the 0.955
+    Exonet           0.975        0.980
+    Astronet-XS      0.953        0.936
+    Exonet-XS        0.966        0.963
+
+So 0.955 is **Astronet's AVERAGE PRECISION** -- the *baseline* model's number, on
+the *wrong metric*. ExoNet's own figures are **0.975 accuracy / 0.980 average
+precision**. The paper states its metrics explicitly: *"we use three key metrics:
+accuracy, average precision, and precision-recall curves."* **No AUC is computed
+anywhere in the paper.**
+
+**CORRECTING THIS PROJECT'S OWN EARLIER RECORD:** the previous entry said the
+cited 0.955 "matches nothing in the source." **That was wrong.** It matches
+something precisely -- the wrong model's average precision. Misattribution across
+two axes at once is a more useful diagnosis than absence, because it explains how
+the error keeps regenerating: the number is findable in the paper, so a careless
+read confirms it.
+
+### The proposal's described figures are FABRICATED
+
+The proposal describes viewing "a confusion matrix favoring planet recall" and an
+ROC/PR curve carrying the 0.955. The paper contains **four figures**, and none is
+either of those:
+
+    Figure 1  local/global views of light curves and centroids (a planet and a BEB)
+    Figure 2  the CNN architectures (Astronet vs Exonet)
+    Figure 3  PRECISION-RECALL curve -- not ROC, and no AUC annotated
+    Figure 4  recall and precision as a function of MES
+
+There is no confusion matrix in the paper at all -- zero occurrences of the word.
+A described visual that does not exist is a fabrication, not a misreading, and it
+is a direct reason to discount the proposal's other unverified technical claims.
+
+### And the comparison was never like-for-like anyway
+
+    ExoNet                          this project
+    Kepler Q1-Q17 DR24 TCEs         TESS, end-to-end detection + classification
+    pre-filtered by the mission     no mission pre-filtering
+    15,737 labelled examples        5,503
+    centroid TIME SERIES as input   no raw pixel data retained (TPFs deleted by design)
+    vetting-only task               detection AND vetting together
+
+## THE FIFTH NEURAL-ARCHITECTURE REFORMULATION -- closed, with one genuinely new sub-claim tested
+
+Production verified live and untouched: **0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`**, 5,503 training rows.
+
+### PART 1 -- time-series foundation models: REAL, and the benchmark that settles it already exists
+
+Unlike the ExoNet figure, **this claim is real.** Chronos, TimesFM and Moirai are
+genuine transformer-based time-series foundation models with an active
+calibration literature. Two qualifications matter before it can be applied here.
+
+**(a) Forecasting calibration is not classification calibration.** These models
+are trained to predict *future values*; "well-calibrated" there means a 90%
+predictive *interval* contains the realised value 90% of the time. This project
+needs *class-probability* calibration -- does p = 0.7 mean 70% of such stars are
+planets. These are different quantities with different failure modes, and
+interval coverage on a continuous forecast does not transfer to a binary
+posterior. The claim is being used outside its domain. (Even within forecasting
+the literature is not uniform -- reported coverage degrades for several of these
+models on long horizons.)
+
+**(b) The pretraining corpora contain no astronomy.** Chronos is pretrained on
+mobility/transport, weather/climate, energy and web datasets, augmented with
+TSMixup and Gaussian-process synthetic data. Light curves are absent from the
+standard corpora.
+
+**But the honest answer required checking whether that mismatch actually
+matters, and someone has measured it.** `StarEmbed` (arXiv:2510.06200) is a
+benchmark of exactly these models on astronomical variable-star light curves,
+using **~40,000 expert-labelled stars across seven classes** -- roughly **7x this
+project's labelled volume**. Its findings:
+
+* **"no TSFM strictly surpasses the classification performance of the
+  long-established domain baseline."** On *classification* -- this project's
+  task -- foundation models do **not** beat classical hand-crafted feature
+  methods, which is precisely what production already is.
+* The Chronos family **does** reach state-of-the-art on **clustering and
+  out-of-distribution detection**, despite the domain mismatch. Cross-domain
+  transfer is real -- just not for classification.
+
+**That closes the loop tightly.** The one task where these models are SOTA on
+real light curves is OOD detection -- which this project has **already
+investigated and closed**: an `IsolationForest` is deployed, Mahalanobis was
+redundant at |rho| 0.84-0.86 against it, ensemble disagreement was dominated by a
+free baseline (+0.0031 incremental), and the motivating cluster-1 premise was
+refuted (flagged at 8.54% vs 25.93%, OR 0.27, p = 2.5e-06).
+
+So: **not new terminology over a closed conclusion -- a real technique, measured
+by others on real astronomical data at 7x this project's scale, losing at the
+task proposed and winning only at a task already closed here.** No new
+investigation warranted. Had StarEmbed found the opposite, this verdict would
+have gone the other way.
+
+### PART 2 -- the ExoMiner++ "modest gains" citation is ALSO inaccurate, and the correct reading argues harder against the proposal
+
+Retrieved Section 6.9, *Ablation Experiments for New ExoMiner++ Branches*, from
+the full PDF. The paper's actual finding:
+
+> "All models **except for the 'Momentum Dump' model** show an **increase in the
+> PR AUC** when compared to the baseline model, suggesting that all these
+> branches **contribute to an overall better separation** between planet and
+> non-planet TCEs. The top performing branch is 'Flux Trend'..."
+
+That is the **opposite** of "combining multiple branches yielded only modest
+gains beyond the strongest models." The paper says the branches help. *(Table 11
+holds the magnitudes; PDF extraction hit a form-object limit before the table, so
+the size of the gains is not quantified here -- only the direction, which is
+unambiguous in the prose.)*
+
+**Third inaccurate citation in a single proposal.**
+
+**But the correct reading is worse for the proposal than the incorrect one**, and
+this is the substantive point: **this project has already tested the tabular
+equivalents of ExoMiner++'s new branches, and they did not clear.**
+
+    ExoMiner++ branch        this project's equivalent, already measured
+    Periodogram              ls_period_match  -0.0006  CI [-0.0035,+0.0019]  0/12
+    Flux Trend               trend_slope / trend_amp -- |rho| 0.826-0.829 vs the
+                             DEPLOYED var_ls_amp: redundant above the 0.80 bar
+    Momentum Dumps           straylight_frac AUC 0.4964 (|AUC-0.5| = 0.0036)
+    Difference Image         the centroid closure: +0.0021 CI [-0.0020,+0.0059],
+                             closed THREE times
+
+**An independent corroboration worth recording:** ExoMiner++'s ablation found
+*Momentum Dump* was the single branch that did **not** improve PR AUC. This
+project independently measured momentum-dump/straylight systematics flags at
+**AUC 0.4964 -- 0.0036 from pure chance**. Two projects, different data,
+different architectures, same conclusion: momentum-dump information carries no
+usable signal for this task.
+
+So the proper inference runs the other way from the proposal's. If ExoMiner++ --
+with ~15,000+ cross-mission examples, a purpose-built multi-branch architecture,
+and mission-internal diagnostics -- needed *five* new branches to move PR AUC
+incrementally, then bolting a **0.68-0.70** CNN onto a **0.9454** tree model at
+5,503 examples is not a promising configuration. The branch that helped ExoMiner++
+most (Flux Trend) is the one already measured **redundant** here against a
+deployed feature.
+
+### Verdict on the whole proposal
+
+| component | verdict |
+|---|---|
+| ExoNet 0.955 AUC justification | **FALSE.** No AUC in the paper; 0.955 is Astronet's average precision. Described figures are fabricated. |
+| parallel CNN / neural branch | **CLOSED (5th reformulation).** 0.68-0.70 vs 0.9454 -- a ~0.25 AUC gap that has WIDENED, at ~10x short of the needed data. |
+| combining it with the tree model | **CLOSED.** Alternative members score 0.069-0.223 on the stars HGB gets wrong -- confidently wrong on the SAME stars, so combination cannot surface what HGB misses. |
+| time-series foundation models | **NEW claim, verified, and closed on external evidence.** StarEmbed: no TSFM beats the domain feature baseline at classification, on 7x this project's data. SOTA only at OOD -- already closed here. |
+| ExoMiner++ "modest gains" | **MISQUOTED.** The paper reports branches helping. Correctly read, it argues against this proposal, not for it. |
+
+**Recommendation: close entirely. No new investigation.** Nothing was built.
+
+Cross-references: the ExoNet verification (now superseded by this entry), the
+original CNN closure and its widening-gap reconfirmation, the CNN-embedding /
+late-fusion closure, the small-dense-net closure from the GPC investigation, the
+multi-model calibration closure, the three ExoMiner++-inspired feature tests, the
+centroid closures, and the OOD/novelty closure.
