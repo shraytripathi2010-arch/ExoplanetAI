@@ -1,0 +1,81 @@
+{
+  "n_boot": 12,
+  "mde": 0.0097,
+  "arms": {
+    "A_sign_only": [
+      "ell_c2_signed"
+    ],
+    "B_shape": [
+      "ell_c2_signed",
+      "ell_a2_frac",
+      "ell_pp_ratio"
+    ],
+    "C_phase_locked_excess": [
+      "ell_a2_over_ctrl",
+      "ell_a2_snr"
+    ],
+    "D_all_clean": [
+      "ell_c2_signed",
+      "ell_a2_frac",
+      "ell_pp_ratio",
+      "ell_a2_over_ctrl",
+      "ell_a2_snr"
+    ]
+  },
+  "base_auc_mean": 0.9382784010811694,
+  "base_brier_mean": 0.07413463655869222,
+  "base_ece_mean": 0.03235874115186837,
+  "base_auc2_mean": 0.9316713264989128,
+  "A_sign_only": {
+    "mean_delta": -4.2441218911791014e-05,
+    "sd": 0.001005464602943144,
+    "ci_lo": -0.0019499243547685702,
+    "ci_hi": 0.0011495328969376494,
+    "n_positive": 7,
+    "n_ge_mde": 0,
+    "mean_delta_2min": 7.996502249372577e-05,
+    "auc": 0.9382359598622574,
+    "brier": 0.07403796425480123,
+    "ece": 0.033611420401271415,
+    "clears": false
+  },
+  "B_shape": {
+    "mean_delta": -0.0015457757672290295,
+    "sd": 0.0018463226739098204,
+    "ci_lo": -0.005451075260763804,
+    "ci_hi": 0.0005551061779434622,
+    "n_positive": 2,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0015900958429694394,
+    "auc": 0.9367326253139402,
+    "brier": 0.07439454798463836,
+    "ece": 0.033085243536215496,
+    "clears": false
+  },
+  "C_phase_locked_excess": {
+    "mean_delta": -0.0006008345108690823,
+    "sd": 0.0007620909017486301,
+    "ci_lo": -0.0017052632104534809,
+    "ci_hi": 0.0006931649665214005,
+    "n_positive": 3,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0008623566094830745,
+    "auc": 0.9376775665703,
+    "brier": 0.07418172916000561,
+    "ece": 0.03159828141572547,
+    "clears": false
+  },
+  "D_all_clean": {
+    "mean_delta": -0.0018990365011126442,
+    "sd": 0.0015332522263400191,
+    "ci_lo": -0.004680143001942391,
+    "ci_hi": -0.00017688002117077499,
+    "n_positive": 0,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0021717119418269426,
+    "auc": 0.9363793645800568,
+    "brier": 0.07437014017056127,
+    "ece": 0.03254489655832038,
+    "clears": false
+  }
+}

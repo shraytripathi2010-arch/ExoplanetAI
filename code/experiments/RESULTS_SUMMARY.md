@@ -13250,3 +13250,307 @@ Cross-references: the variability deployment (`var_ls_*`), the `ls_period_match`
 closure, the raw period-ratio closure, the Gaia DR3 astrometry deployment, and
 the ExoNet/foundation-models entry that verified the ExoMiner++ ablation this
 entry tests against.
+
+---
+
+## ELLIPSOIDAL VARIATION (PHASE-FOLDED FLUX TREND) -- genuinely novel, internally valid, and NULL-TO-NEGATIVE. Closes differently from the periodogram case.
+
+**Date: 2026-08-27. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`. Nothing promoted. Promotion gate, scheduler
+and deployed model untouched.** training.csv 5,534 rows (4,355 pos / 1,179 neg);
+frozen test 1,098; MDE ~0.0097.
+
+**This entry corrects a mapping in the prior ExoMiner++ record.** It is also NOT
+a fourth instance of the "verified external finding, tested fairly, positive but
+unprovable" pattern set by the periodogram secondary-peak entry. That one had
+all four arms positive. This one is null at best and **significantly negative**
+in its widest arm. The distinction is stated here so later summaries do not
+merge the two.
+
+### PART 0 -- the ExoMiner++ flux-trend branch. One correction, one hard limit.
+
+**CORRECTION.** The prior entry mapped ExoMiner++'s *Flux Trend* branch onto this
+project's closed `trend_slope_ppm_day` / `trend_amp_frac` and concluded "the
+branch that helped ExoMiner++ most is the one already measured redundant here."
+**That mapping was wrong.** Retrieved from Section 3.1 of arXiv:2502.09790:
+
+* the branch is the **"Full-orbit-view Folded Flux Trend"** branch -- phase-**folded**
+  at the detected orbital period, not a raw drift
+* its input is the **Savitzky-Golay fit component**, i.e. the trend that
+  detrending removes, on the reasoning that detrending may remove informative
+  signal
+* its stated motivation names, verbatim, a sinusoidal signal *"at half period of
+  the transit event"* caused by ellipsoidal variations from the gravitational
+  interaction of binary components, and notes that for most exoplanets these
+  variations are not in phase with the transit
+
+So ExoMiner++'s top-performing new branch is **explicitly an ellipsoidal-variation
+detector**. This project's `trend_slope_ppm_day` is `|median-of-halves linear
+slope|` over the whole sector -- monotonic, aperiodic, phase-locked to nothing
+(`exominer_triple_assess.py:raw_features`). Matching those two was matching a
+phase-folded half-period sinusoid detector onto a straight line. **The equivalent
+of ExoMiner++'s best branch had never been tested here**, and that is what
+justified building this.
+
+**HARD LIMIT, stated rather than filled in.** Table 11's actual PR AUC magnitudes
+remain **unverified**. Three independent retrievals -- arXiv HTML v1, the v2
+Section 6.9 anchor, and the IOPscience article -- each truncate before Section
+6.9, the same extraction limit hit in the prior task.
+
+| claim | status |
+|---|---|
+| a Flux Trend branch exists, distinct from the Periodogram branch | **VERIFIED** (Section 3.1, two independent retrievals) |
+| its input is the Savitzky-Golay fit component | **VERIFIED** (Section 3.1, verbatim) |
+| its motivation is ellipsoidal variation at half the transit period | **VERIFIED** (Section 3.1, verbatim) |
+| all branches except Momentum Dump increased PR AUC | **VERIFIED** (Section 6.9 prose, retrieved in the prior task) |
+| Flux Trend is the top-performing branch | **VERIFIED** (Section 6.9 prose) |
+| the SIZE of the Flux Trend gain | **UNVERIFIED -- Table 11 not retrievable** |
+| per-subclass recall for EB / brown dwarfs specifically | **UNVERIFIED -- Table 11 not retrievable** |
+
+The narrower short-period-binary claim in the brief is therefore **not confirmed
+at the number level**. Only the direction is.
+
+### PART 1 -- ellipsoidal variation is genuinely distinct. Three separations, one of them measured.
+
+Ellipsoidal variation is tidal distortion of a star by a close companion. The
+distorted star shows more projected area at quadrature than at conjunction, so
+the light curve carries **two maxima per orbit** -- a sinusoid at **half** the
+orbital period, **phase-locked to the transit ephemeris**.
+
+**(1) vs the closed `trend_slope` / `trend_amp`.** Those are one number: the
+absolute value of a median-of-halves linear slope. Monotonic, aperiodic, no phase
+reference. Ellipsoidal is periodic, at a specific frequency, at a specific phase.
+Not the same quantity, and not a near-relation of it.
+
+**(2) vs the deployed `var_ls_*`.** Those report whatever periodicity is
+**strongest** (`argmax`), which is the star's rotation, bearing no defined
+relation to the transit ephemeris. Ellipsoidal asks about one *known* frequency
+regardless of whether it dominates.
+
+**(3) vs `ls_period_match` -- the distinction the brief flagged, and it holds.**
+`ls_period_match` is *detect-then-compare*: find the argmax peak, then measure
+its log-distance to the nearest harmonic of the transit period. Its harmonic set
+does include 1/2. But it only ever **evaluates** P_tr/2 when the star's dominant
+peak already happens to sit there. Measured:
+
+| | fraction of training rows |
+|---|---|
+| `var_ls_period` within 2% of P_tr | 3.07% (164 / 5,341) |
+| **`var_ls_period` within 2% of P_tr/2** | **2.59% (138 / 5,328)** |
+| `var_ls_period` within 2% of 2*P_tr | 1.92% (84 / 4,386) |
+| P_tr/2 inside the 0.2-13 d LS search window | 96.53% |
+
+**In 97.4% of rows `ls_period_match` never looks at P_tr/2 at all**, although
+that frequency is inside the search window essentially always. `ls_period_match`
+tests a stellar-contamination hypothesis (is the star's own rotation aliasing
+into the transit period); ellipsoidal tests a companion-tidal-distortion
+hypothesis at a fixed frequency. **Verdict: genuinely untested. Built.**
+
+### PART 2 -- what was built
+
+`ellipsoidal_features.py`. Cleaning is `variability_features.py`'s step for step,
+so every correlation against a deployed feature is like-for-like. On out-of-transit
+flux phased to the candidate's own ephemeris, the standard BEER decomposition:
+
+    f(phi) = 1 + c1*cos(phi) + s1*sin(phi) + c2*cos(2phi) + s2*sin(2phi)
+    a1 = hypot(c1,s1)  first harmonic  at P    (reflection / beaming)
+    a2 = hypot(c2,s2)  second harmonic at P/2  ELLIPSOIDAL
+    c2 signed          real ellipsoidal has MINIMA at both conjunctions => c2 < 0
+
+**Both conjunctions are masked** (+/- one duration at phase 0 *and* phase 0.5).
+The second mask is the load-bearing one: folding at P/2 maps phase 0.5 onto phase
+0, so without it an eclipsing binary's **secondary eclipse** would land on top of
+the primary and this feature would be a restatement of the DEPLOYED
+`secondary_eclipse_depth`. Both masked regions collapse to one gap in the P/2
+fold, and the quadrature maxima are fully retained.
+
+**Coverage, up front.** Training **97.71%** (97.41% pos / 98.81% neg); main pool
+**100.00%** (488/488 Success); widesector **100.00%** (69/69). Training misses:
+112 rows with no usable ephemeris, 15 the known QLP `non-standard schema` rows.
+**Class-rate gate PASS** -- AUC(availability) **0.4930**, 0.0070 from chance
+(Fisher p 0.003 on 1.4 pp, the same p-small/effect-tiny pattern `ls_period_match`
+had).
+
+### PART 2 -- internal validity. All three checks pass. The feature IS measuring ellipsoidal variation.
+
+**(a) True half-period vs a deliberately WRONG, incommensurate period (P*0.7137).**
+
+| | a2(true) > a2(control) | median ratio |
+|---|---|---|
+| all rows | 60.17% | 1.299 |
+| label=1 planets | 59.77% | 1.273 |
+| **label=0 FP/FA** | **61.66%** | **1.404** |
+
+There is real phase-locked power at P_tr/2, and **more of it in false positives**.
+
+**(b) Half-period vs full-period.** median `a2/a1` **0.763**, median
+`pp_half/pp_full` **0.819** -- the half-period harmonic is comparable to, not
+swamped by, the full-period one.
+
+**(c) Sign test -- a free falsification the amplitude alone cannot give.**
+
+| | c2 < 0 (minima at both conjunctions) |
+|---|---|
+| label=1 planets | **47.37%** -- indistinguishable from coin-flip |
+| label=0 FP/FA | **58.69%** |
+
+Planets show no preferred sign; false positives are enriched toward the
+physically correct ellipsoidal sign. **Exactly the predicted direction.**
+
+**(d) Short-period stratification -- tidal distortion requires a close companion.**
+
+| period band | n | AUC(`ell_a2`) | AUC(`ell_a2_snr`) |
+|---|---|---|---|
+| P < 1 d | 1,041 | **0.6347** | 0.4770 |
+| 1-2 d | 1,186 | 0.5983 | **0.4218** |
+| 2-5 d | 1,743 | 0.5319 | 0.4452 |
+| P > 5 d | 1,452 | 0.5431 | 0.4951 |
+
+Monotone decay with period, strongest where tidal distortion is physically
+possible and at chance for wide orbits. **Physically correct.**
+
+### PART 2 -- THE NULL CONTROL DISQUALIFIES THE AMPLITUDE FEATURES. Keep this result.
+
+**`ell_a2_ctrl` -- the fit at a deliberately WRONG period -- has a HIGHER
+single-feature AUC (0.5923) than `ell_a2` at the true half-period (0.5664).**
+
+Both correlate ~0.85 with the deployed `var_ls_amp`. So the class information in
+the raw ellipsoidal *amplitude* has nothing to do with the ephemeris: it is
+stellar variability, already in production. **Without the wrong-period control
+arm, `ell_a2` at 0.5664 would have been reported as a real ellipsoidal signal
+and carried into modelling on that basis.** The control is what separated the
+physics from the amplitude.
+
+### PART 2 -- correlation. The split runs exactly along the amplitude/shape line.
+
+| feature | vs `var_oot_rms` | vs `var_ls_amp` | vs `ls_period_match` | max \|rho\| vs the 33 | verdict |
+|---|---|---|---|---|---|
+| `ell_pp_half` | **0.916** | 0.893 | 0.016 | **0.916** | REDUNDANT |
+| `ell_pp_full` | 0.887 | **0.916** | 0.025 | **0.916** | REDUNDANT |
+| `ell_a1` | 0.762 | **0.866** | 0.123 | **0.866** | REDUNDANT |
+| `ell_a2` | 0.787 | **0.852** | 0.081 | **0.852** | REDUNDANT |
+| `ell_a2_ctrl` | 0.809 | **0.844** | 0.035 | **0.844** | REDUNDANT |
+| `ell_a2_snr` | 0.182 | 0.077 | 0.281 | 0.490 (`var_ls_power`) | clean |
+| `ell_pp_ratio` | 0.114 | 0.077 | 0.164 | 0.359 (`var_ls_power`) | clean |
+| **`ell_a2_frac`** | 0.031 | 0.031 | 0.074 | **0.134** (`var_ls_period`) | clean |
+| **`ell_c2_signed`** | 0.039 | 0.000 | 0.054 | **0.124** (`FAP`) | clean |
+| **`ell_a2_over_ctrl`** | 0.004 | 0.048 | 0.071 | **0.089** (`transit_shape_ratio`) | clean |
+
+The three amplitude-normalised shape features at **0.089-0.134** are the most
+non-redundant quantities measured in this project's recent feature work. The
+periodogram entry established 0.79-0.95 as the expected correlation for a
+light-curve-shape-adjacent statistic; by the brief's own criterion these are a
+meaningfully positive novelty signal. **And `ls_period_match` correlation is
+0.054-0.281 throughout -- the Part 1 distinction is confirmed numerically, not
+just argued.**
+
+### PART 3 -- |galactic latitude| control arm. The amplitude features reproduce the closed trend feature's failure exactly.
+
+| feature | rho vs \|b\| | AUC by \|b\| quartile | spread |
+|---|---|---|---|
+| `ell_pp_half` | -0.240 | [0.683, 0.765, 0.603, **0.408**] | **0.357** |
+| `ell_pp_full` | -0.237 | [0.668, 0.743, 0.574, **0.401**] | **0.343** |
+| `ell_a2_ctrl` | -0.222 | [0.655, 0.736, 0.583, **0.442**] | **0.294** |
+| `ell_a1` | -0.220 | [0.643, 0.685, 0.534, **0.394**] | **0.291** |
+| `ell_a2` | -0.239 | [0.643, 0.690, 0.564, **0.411**] | **0.279** |
+| `ell_a2_over_ctrl` | -0.027 | [0.489, 0.445, 0.495, 0.454] | **0.050** |
+| `ell_a2_frac` | -0.021 | [0.498, 0.517, 0.553, 0.554] | **0.056** |
+| `ell_c2_signed` | -0.006 | [0.571, 0.587, 0.529, 0.576] | **0.058** |
+| `ell_pp_ratio` | -0.006 | [0.557, 0.591, 0.612, 0.549] | **0.063** |
+| `ell_a2_snr` | +0.024 | [0.443, 0.392, 0.448, 0.509] | 0.117 |
+
+The five amplitude features sit at rho **-0.22 to -0.24** with spreads
+**0.279-0.357** -- the closed `trend_*` features failed at rho -0.25 and spread
+0.281. **Same double failure, independently reproduced**: redundant with
+`var_ls_amp` AND spatially unstable. The amplitude-normalised features are
+spatially clean at spreads 0.050-0.063. Only the clean, non-redundant features
+went to the model.
+
+### PART 3 -- model test. 12 bootstraps, production's exact recipe, frozen split.
+
+Optuna-tuned HGB (`lr=0.0926, max_iter=475, max_leaf_nodes=63,
+min_samples_leaf=24, l2=0.00901, class_weight='balanced'`) inside
+`CalibratedClassifierCV(cv=5, sigmoid)`. Train 4,414 / frozen test 1,098; 2-min
+subset 968. Base **AUC 0.9407**, Brier 0.0741, ECE 0.0324.
+
+| arm | features added | mean delta | 95% CI | positive | >= MDE | 2-min delta | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| A sign only | `ell_c2_signed` | **-0.0000** | [-0.0019, +0.0011] | 7/12 | 0/12 | +0.0001 | 0.0740 | 0.0336 |
+| B shape | `ell_c2_signed`, `ell_a2_frac`, `ell_pp_ratio` | **-0.0015** | [-0.0055, +0.0006] | 2/12 | 0/12 | -0.0016 | 0.0744 | 0.0331 |
+| C phase-locked excess | `ell_a2_over_ctrl`, `ell_a2_snr` | **-0.0006** | [-0.0017, +0.0007] | 3/12 | 0/12 | -0.0009 | 0.0742 | 0.0316 |
+| **D all clean** | all five | **-0.0019** | **[-0.0047, -0.0002]** | **0/12** | 0/12 | -0.0022 | 0.0744 | 0.0325 |
+
+**None clears. Arm D is significantly NEGATIVE** -- the entire 95% CI lies below
+zero and no bootstrap is positive. Adding five weak, non-redundant features to a
+33-feature model measurably *costs* ~0.002 AUC. Arm A is indistinguishable from
+exactly zero.
+
+### Verdict
+
+| component | outcome |
+|---|---|
+| ExoMiner++ Flux Trend branch = ellipsoidal detector | **VERIFIED.** Prior mapping to `trend_slope` CORRECTED. |
+| Table 11 magnitudes / EB subclass recall | **UNVERIFIABLE.** Reported as such, not assumed. |
+| distinct from closed `trend_*` | **YES.** Monotonic slope vs phase-locked half-period sinusoid. |
+| distinct from `ls_period_match` | **YES, measured.** P_tr/2 evaluated in only 2.59% of rows. |
+| is the measurement real? | **YES.** All three internal-validity checks pass in the predicted direction. |
+| raw ellipsoidal amplitude (`ell_a1`, `ell_a2`, `ell_pp_*`) | **REJECTED pre-model.** Redundant (0.844-0.916) AND spatially unstable (0.279-0.357) -- the closed trend feature's failure, reproduced. The wrong-period control beats the true period. |
+| amplitude-normalised shape (`ell_c2_signed`, `ell_a2_frac`, `ell_a2_over_ctrl`) | **Genuinely novel (0.089-0.134), spatially clean, and NULL AT THE MODEL.** |
+
+**Recommendation: DO NOT PROMOTE.** And explicitly **not** "positive but
+unprovable" -- that verdict belongs to the periodogram secondary-peak entry,
+where all four arms were positive. Here arm A is -0.0000, arms B and C are
+negative, and arm D is significantly negative. **This closes NULL-TO-NEGATIVE.**
+
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+### Why a verified top-performing external branch yields nothing here
+
+Not a contradiction of ExoMiner++, and the difference is not the usual data-scale
+argument alone:
+
+1. **ExoMiner++ feeds the branch a phase-folded CURVE; this feeds the model three
+   scalars.** A CNN over the folded trend sees the full shape -- harmonic content,
+   asymmetry, phase offsets, where the maxima sit. `c2`, `a2/(a1+a2)` and
+   `a2/a2_ctrl` are a three-number projection of that. The measurement shows what
+   survives the projection: the part correlated with class is the amplitude, and
+   the amplitude is `var_ls_amp` (0.844-0.916), already deployed.
+2. **The signal is real but tiny and confined.** 58.7% vs 47.4% on the sign test
+   is a genuine 11-point enrichment, but it lives mostly in the P < 2 d bands,
+   which are 2,227 of 5,534 rows and the *least* negative-enriched part of the
+   training set (12.4% negatives below 1 d against 21.3% overall).
+3. **The tree already has the answer from elsewhere for these systems.** Close
+   binaries are exactly what `gaia_ruwe`/`gaia_nss` flag astrometrically (30.1%
+   of negatives vs 8.5% of positives), what `secondary_eclipse_depth` targets,
+   and what `rp_rs` bounds. Ellipsoidal modulation is a fourth, weaker route to a
+   conclusion three deployed features already reach.
+
+### Methodological notes worth keeping
+
+**A null control arm at a deliberately wrong period should be standard for any
+phase-locked feature.** It cost one extra least-squares fit per light curve and
+it overturned the headline: `ell_a2_ctrl` (0.5923) beat `ell_a2` (0.5664). Any
+feature that claims to measure something *at a specific frequency* must be shown
+to beat the same statistic at a wrong frequency, or it is measuring amplitude.
+
+**Amplitude and shape must be separated before the redundancy check, not after.**
+Every amplitude form of this feature was redundant and spatially unstable; every
+amplitude-normalised form was clean at 0.089-0.134. Testing "the ellipsoidal
+feature" as one blob would have produced a single misleading verdict either way.
+
+**A cross-reference mapping in this document was wrong for two weeks.** "Flux
+Trend -> `trend_slope`" was recorded without checking what ExoMiner++'s branch
+actually consumed. The correction only surfaced because this task re-fetched
+Section 3.1 instead of trusting the prior entry. **Prior-entry equivalence claims
+between this project's features and an external paper's components should be
+re-verified against the source before being used to close a proposal.**
+
+Artefacts: `ellipsoidal_features.py` (6,091 light curves), `ellipsoidal_assess.py`
+/ `.json`, `ellipsoidal_validate.py` / `.json`, `ellipsoidal_features.csv`.
+
+Cross-references: the closed `trend_slope`/`trend_amp` rejection, the
+`ls_period_match` closure, the periodogram secondary-peak entry (which this one
+deliberately does NOT match in verdict), the deployed variability features, the
+Gaia DR3 astrometry deployment, and the ExoNet/foundation-models entry carrying
+the Section 6.9 prose retrieval.
