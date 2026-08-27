@@ -11,6 +11,53 @@
 > `>>> DEPLOYED 2026-08-15: A DELIBERATE EXCEPTION TO THE PROMOTION RULE <<<`
 > at the end of this document before citing it. The bar itself is unchanged.
 
+---
+
+# >>> STANDING REGISTER: WHAT IS DEPLOYED, AND WHAT IS CLOSED <<<
+
+**Added 2026-08-27, after the SECOND time `gaia_ruwe`/`gaia_nss` was proposed as
+future work and the FOURTH centroid-family proposal. Read this before proposing
+anything in these families.**
+
+## A. ALREADY IN PRODUCTION -- these are NOT proposals
+
+All 33 columns below are live in `05_train_models.FEATURE_COLUMNS` and are baked
+into the current **0.9454** AUC, md5 `fe3fa82f36cc978396c68be07d6057f9`.
+Proposing any of them is proposing to build something that is already running.
+
+| deployed feature(s) | what it does | measured contribution when added |
+|---|---|---|
+| **`gaia_ruwe`, `gaia_nss`** | **Gaia DR3 astrometric-wobble + non-single-star flags. DEPLOYED 2026-08-14.** | **+0.0142, CI [+0.0124, +0.0168], 12/12 bootstraps at MDE** |
+| `crowd_flux_ratio_max`, `crowd_nearest_arcsec` | catalog neighbour crowding | +0.010 to +0.012 |
+| `var_oot_rms`, `var_excess`, `var_ls_amp`, `var_ls_power`, `var_ls_period` | stellar activity / rotation, out-of-transit-masked Lomb-Scargle | +0.0092 to +0.0101 |
+| `secondary_eclipse_depth`, `odd_even_mismatch`, `depth_mean_even/odd` | classic EB discriminators | in the base set |
+| the Optuna hyperparameter configuration | tuned HGB | +0.0052, deployed as a documented rule EXCEPTION |
+
+## B. CLOSED, WITH THE NUMBER -- do not re-propose without new information
+
+| family | times closed | outcome of record |
+|---|---|---|
+| **difference-image centroid** | **3** | +0.0021 CI [-0.0020,+0.0059]; then +0.0032 CI [-0.0012,+0.0076] at 77.6% coverage. Only untested thread: noise-normalised significance, with three preconditions attached. |
+| centre-of-light / IT-vs-OOT centroid surrogate | 1 | duplicate AND strictly weaker: ~0.004 px vs the difference image's 1.999 px |
+| flux-weighted-moment "refinement" + DAVE | 1 | `scipy.ndimage.center_of_mass` IS the flux-weighted moment; DAVE's test is the same test; PRF machinery absent and TPFs deleted by design |
+| CNN / neural branch on flux | 5 | 0.68-0.70 vs 0.9454; gap has WIDENED |
+| Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
+| periodogram peak POSITION (`ls_period_match`, raw ratio) | 2 | -0.0006 and -0.0004 |
+| periodogram peak AMPLITUDE (secondary peak, ratios) | 1 | +0.00005 to +0.00068, positive but ~200x below resolvable |
+| ellipsoidal variation / folded flux trend | 1 | null to significantly negative (-0.0019, CI [-0.0047,-0.0002]) |
+| trend / slope on raw flux | 1 | redundant with `var_ls_amp` (0.826-0.829) AND spatially unstable |
+| momentum dumps | 1 | destroyed at download by `DEFAULT_BITMASK` bit 32 |
+| PLD, difference-imaging refits, anything needing pixels | several | **TPFs are deleted by design** (`web/job_runner.py:1232`, `:1267`) |
+
+## C. THE PROMOTION BAR
+
+MDE ~0.0097 on the frozen 1,098-star test set. Clearing requires
+**`ci_lo > 0` AND `mean delta >= MDE`**, over >= 10 bootstraps of production's
+exact recipe. A number quoted from anywhere else -- including from this document
+-- must be traced to its own row before it is used as evidence.
+
+---
+
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
 `models/best_model.joblib` (HistGradientBoosting + sigmoid calibration, **26
 features**, md5 `0c996a41a76cc765895d3013830a536b`) replaced the long-standing
@@ -13554,3 +13601,175 @@ Cross-references: the closed `trend_slope`/`trend_amp` rejection, the
 deliberately does NOT match in verdict), the deployed variability features, the
 Gaia DR3 astrometry deployment, and the ExoNet/foundation-models entry carrying
 the Section 6.9 prose retrieval.
+
+---
+
+## CENTROID + GAIA RUWE/NSS PROPOSAL -- CLOSED. Nothing built. One citation traced and found unsupported.
+
+**Date: 2026-08-27. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 training rows.** Verified live:
+`gaia_ruwe` and `gaia_nss` are both present in `05_train_models.FEATURE_COLUMNS`
+(33 columns). Nothing was built. Nothing was retrained. See also the **STANDING
+REGISTER** added at the top of this document as a result of this task.
+
+### PART 0 -- the "+0.0102" citation: UNTRACEABLE as a RUWE/NSS result. Do not use it as evidence.
+
+The proposal cites **+0.0102 AUC** for combining Gaia RUWE and NSS flags. Traced
+three ways.
+
+**(a) It is not this project's Gaia result.** Every Gaia arm this project
+actually measured, read from `gaia_astrometry_validate.json` and
+`gaia_deploy_retrain.json`:
+
+| arm | measured delta |
+|---|---|
+| `+ruwe` alone | +0.008053 |
+| `+nss` alone | +0.008478 |
+| **`+both` (the deployed pair)** | **+0.014188**, CI [+0.0124, +0.0168], 12/12 at MDE |
+| deploy-retrain headline (single fit) | +0.010800 |
+| nested CV | +0.008824 |
+| `+nss` alone, 2-min-only subset | +0.0103 |
+
+**No Gaia arm equals +0.0102.** The nearest are +0.0108 (a single-fit headline,
+not a resampled result) and +0.0103 (NSS *alone*, on the 2-min subset only) --
+neither is "RUWE and NSS combined", which is +0.0142.
+
+**(b) The only exact `+0.0102` in this entire document is an ARTIFACT number
+from an unrelated investigation.** `grep` returns seven hits for `0.0102`; six
+are CI bounds, a phase fraction, or a median. Exactly one is a headline AUC
+delta:
+
+> multi-sector consistency, `multisector_missingness_control.py`:
+> **indicator only (no measurements) +0.0102, CI [+0.0043, +0.0164]**
+
+That is the **missingness-indicator control arm** -- a model fitted on a single
+binary "do I have this data" column and no measured values, which reproduced
+**108% of the multi-sector feature's apparent gain** and thereby *disqualified*
+it. It has nothing to do with Gaia, and it is a number that killed a feature
+rather than supporting one. **Its CI [+0.0043, +0.0164] is also not the Gaia
+pair's CI [+0.0124, +0.0168].** If the citation came from here, it inverted the
+meaning of the result.
+
+**(c) No external source found.** Three targeted searches (RUWE+NSS classifier
+AUC gain; RAVEN feature importance; difference-image centroid + Gaia combined
+vetting) surfaced no paper reporting +0.0102 for this feature pair. RAVEN and
+the Gaia DR3 NSS literature use RUWE and NSS as vetting diagnostics but report
+no such figure.
+
+**Verdict: UNTRACEABLE.** Not this project's number, not matched to any external
+publication, and the one exact internal match is an unrelated disqualifying
+artifact. **It did not inform the recommendation below, and it should not be
+cited again.** The number of record for RUWE+NSS in this project is **+0.0142,
+CI [+0.0124, +0.0168]**.
+
+### PART 1 -- deployment and closure status, stated for the record
+
+**1. `gaia_ruwe` and `gaia_nss` are DEPLOYED. They are not a proposal.**
+Verified live this session: both are in `FEATURE_COLUMNS`, which has 33 entries,
+against production md5 `fe3fa82f36cc978396c68be07d6057f9`. They were validated
+at **+0.0142, CI [+0.0124, +0.0168], 12/12 bootstraps clearing the MDE**, and
+their contribution is already inside the current 0.9454. **This is the second
+time they have been proposed as future work.** Nothing about them is open.
+
+**2. The difference-image centroid method is CLOSED, three times, by code
+comparison and not by description.**
+
+| closure | what was compared | outcome |
+|---|---|---|
+| 1st | the real, unmodified pipeline check across all training stars | **+0.0021**, CI [-0.0020, +0.0059] |
+| 1st, re-run at higher coverage | `MAX_CENTROID_SECTORS_TO_TRY` multi-sector, 53.3% -> **77.6%** coverage | **+0.0032**, CI [-0.0012, +0.0076] |
+| 2nd | proposed `centroid(IT) - centroid(OOT)` vs built `centroid(OOT_img - IT_img)` | duplicate AND **strictly weaker**: whole-stamp photocentre moves ~`d*r`, so **~0.004 px** at this dataset's depths against the difference image's stable **1.999 px** |
+| 3rd | "flux-weighted moments" vs `scipy.ndimage.center_of_mass` in `web/job_runner.py:1083` | **the same operation.** `center_of_mass` IS the flux-weighted first moment. DAVE's centroid module is the same test; its PRF refinement is blocked (no `oktopus`/`pyke`/`tpfmodel`) and it needs pixel data this pipeline deletes by design |
+
+The only untested thread remains the **noise-normalised significance** variant,
+already deprioritised with three preconditions attached.
+
+**3. A measurement that argues against re-opening, recorded previously and worth
+repeating here.** `shift_pixels` is essentially INDEPENDENT of the Gaia pair --
+|rho| **0.012** with `gaia_ruwe`, **0.057** with `gaia_nss` -- so the proposal's
+premise that these are complementary channels is *correct*. It does not help.
+`shift_pixels` single-feature |AUC-0.5| is **0.0359**, less than half of
+`gaia_ruwe`'s **0.0831**, and it failed twice against a **0.9030** baseline with
+more headroom than today's **0.9454**. Independence is not usefulness.
+
+### PART 1.3 -- is "Gaia astrometry to detect off-target sources" anything other than RUWE/NSS?
+
+The brief asks specifically about a *different* Gaia-based check: using Gaia's
+own **multi-epoch astrometric time series** to look for photocentre motion
+correlated **with the transit**, rather than RUWE's single aggregate noise
+statistic. **This is a genuinely distinct idea and it is NOT RUWE/NSS restated.**
+RUWE is one scalar summarising fit quality over the whole mission; a
+transit-correlated photocentre test is a phase-resolved measurement. Different
+quantity, different mechanism.
+
+**It is also infeasible, on two independent grounds, both quantified.**
+
+**Ground 1 -- the data does not exist yet.** Gaia epoch astrometry for general
+sources is a **DR4** product. DR4 is scheduled for **2 December 2026** -- three
+months after this assessment. Only a small preparatory sample of astrometric
+time series was released (29 June 2026). There is no epoch astrometry for these
+targets to query today, so nothing could be built even in principle.
+
+**Ground 2 -- the sampling cannot support the measurement, and this one does not
+expire in December.** A transit-correlated photocentre test needs Gaia epochs
+that land *during transit*. Gaia visits a typical source ~70 times over the
+mission, at irregular week-to-month intervals; a transit lasts hours. Computed
+from this project's own training set:
+
+| transit duty cycle (duration/period) | value |
+|---|---|
+| p5 | 0.393% |
+| p25 | 0.738% |
+| **median** | **1.339%** |
+| p75 | 2.491% |
+| p95 | 6.086% |
+
+| at ~70 Gaia epochs per source | expected in-transit epochs |
+|---|---|
+| median star | **0.94** |
+| p95 star | 4.26 |
+| rows reaching >= 5 in-transit epochs | **3.60%** |
+| rows reaching >= 10 in-transit epochs | **0.00%** |
+
+**The median candidate gets fewer than one in-transit Gaia epoch, and not a
+single training row would reach ten.** A per-star phase-resolved astrometric
+statistic cannot be built on ~1 sample. Even doubling Gaia's epoch count to 200
+leaves a median of 2.68. This is a property of transit duty cycles against
+Gaia's scanning law, so **DR4 will not fix it.**
+
+**Verdict: distinct idea, correctly identified, and infeasible. Part 2 does not
+proceed. Nothing built.** Per the brief's own routing (2.1 feasibility first),
+this is the intended outcome, not a skipped step.
+
+### Final recommendation
+
+| element | verdict |
+|---|---|
+| "+0.0102 for RUWE+NSS" | **UNTRACEABLE.** Not internal, no external source found; the sole exact internal match is an unrelated disqualifying artifact. **Do not cite.** |
+| Gaia RUWE / NSS flags | **DEPLOYED since 2026-08-14 at +0.0142. Not a proposal. Second time proposed as open.** |
+| difference-image centroid | **CLOSED 3x**, by direct code comparison each time |
+| centre-of-light surrogate | **CLOSED**, duplicate and provably weaker |
+| Gaia epoch-astrometry transit-correlated photocentre | **GENUINELY DISTINCT, and INFEASIBLE.** Data is DR4 (2 Dec 2026); sampling gives a median of **0.94** in-transit epochs and **0.00%** of rows reach 10. |
+
+**Recommendation: close entirely. Build nothing. Production stays at 0.9454 / 33
+features / md5 `fe3fa82f36cc978396c68be07d6057f9`.**
+
+### Process outcome
+
+A **STANDING REGISTER** was added at the top of this document listing (A) what is
+DEPLOYED with its measured contribution, (B) what is CLOSED with the number and
+the closure count, and (C) the promotion bar, with the instruction that any
+quoted number must be traced to its own row before use. This task was the second
+Gaia RUWE/NSS re-proposal and the fourth centroid-family proposal; the register
+exists so a fifth can be answered by pointing at one place.
+
+**A note on the citation check specifically.** The +0.0102 was worth tracing
+rather than waving through: it is close enough to several real numbers in this
+project (+0.0103, +0.0108, the +0.010-0.012 crowding range) to look like a
+citation of internal work, and its one exact match is a number that *disqualified*
+a feature. A figure that plausibly resembles four different results and matches
+none of them is not weak evidence -- it is no evidence.
+
+Cross-references: the Gaia DR3 astrometry deployment, the three centroid
+closures, the multi-sector missingness control, and the STANDING REGISTER at the
+top of this file.
