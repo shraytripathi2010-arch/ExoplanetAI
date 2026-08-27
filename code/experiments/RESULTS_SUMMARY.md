@@ -12918,3 +12918,335 @@ original CNN closure and its widening-gap reconfirmation, the CNN-embedding /
 late-fusion closure, the small-dense-net closure from the GPC investigation, the
 multi-model calibration closure, the three ExoMiner++-inspired feature tests, the
 centroid closures, and the OOD/novelty closure.
+
+---
+
+## PERIODOGRAM SECONDARY-PEAK AND PEAK-RATIO FEATURES -- a VERIFIED POSITIVE external result, tested fairly, closing "positive but unprovable"
+
+**Date: 2026-08-27. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`. Nothing promoted. Nothing in the promotion
+gate, the scheduler, or the deployed model was touched.** Training.csv 5,534
+rows (4,355 pos / 1,179 neg) at run time; frozen test 1,098; MDE ~0.0097.
+
+**Read this entry before citing "periodogram features were closed here."** It is
+the case where an external, independently verified, POSITIVE result was NOT
+dismissed by pattern-matching to the prior periodogram closures. It was built and
+measured. All four arms came back with a **positive mean sign**, agreeing with
+ExoMiner++ in direction, and **~14x too small to prove** at this data scale.
+That is a different verdict from `ls_period_match` (-0.0006) and the raw period
+ratio (-0.0004), and the difference should not be flattened in later summaries.
+
+### Why this was not closed on the prior record
+
+The rotation/periodicity space was declared "mapped end to end" by the earlier
+raw-ratio entry. That declaration was **about period POSITION**, and it did not
+cover what this proposal asked for. Confirmed against the source, not argued:
+
+`variability_features.py` takes `i = int(np.argmax(pw))` -- **one** peak, from
+**one** periodogram, on **out-of-transit-masked** flux. `ls_period_match` is
+`min over n in {1,2,1/2,3,1/3} of |log(P_ls/(n*P_tr))|` -- a function of the
+dominant peak's *frequency* and the transit period. Neither touches the
+**amplitude ranking of the peaks**, and neither has ever seen an unmasked series.
+
+| sub-feature | status before this entry |
+|---|---|
+| periodogram on FULL (unmasked) flux | **never computed** -- the deployed input is OOT-masked by construction |
+| SECOND-highest peak power | **never computed** -- `argmax` returns one peak and discards the rest |
+| primary/secondary power RATIO | **never computed** -- not a renaming of `ls_period_match`, which has no amplitude term |
+| dominant-peak power / period / amplitude | DEPLOYED (`var_ls_power`, `var_ls_period`, `var_ls_amp`) |
+| dominant period vs transit period | tested, failed (`ls_period_match` -0.0006; raw ratio -0.0004) |
+
+So three genuinely untested quantities, on two independent axes. The two axes
+were **separated rather than confounded**, which turned out to be the whole
+story.
+
+### Replication is bit-for-bit, so every comparison is like-for-like
+
+`ls_secondary_peak_features.py` re-runs `variability_features.py`'s cleaning
+step for step -- schema validation, flux-column choice, NaN drop, `quality==0`,
+time sort, 5-sigma MAD clip, median normalisation, 10-minute binning, identical
+`autopower(1/min(13, span/2) .. 1/0.2, normalization="standard",
+samples_per_peak=5)`. On the first training row the OOT arm returns
+**0.14852224234100347** against the deployed `var_ls_power` of
+**0.1485222423410034**. The comparison is against production, not against a
+re-implementation that drifted.
+
+Peak extraction: local maxima of the power array, with the primary's own
+neighbourhood excluded by +/- 3 independent peak widths (`3/span` in frequency)
+so a sample on the primary's flank cannot be returned as the "secondary". A
+`_nh` variant additionally drops frequencies near `n*f1` and `f1/n` for
+n in {2,3} -- a harmonic of the primary is the same physical signal reappearing,
+not an independent second one.
+
+### Coverage and availability, up front
+
+**100% of raw light curves present**: 5,534/5,534 training rows,
+488/488 main-pool Success rows, 69/69 widesector. Computed coverage after the
+schema wall:
+
+| | training | train pos | train neg | main pool | widesector |
+|---|---|---|---|---|---|
+| all 11 new features | **99.73%** | 99.98% | 98.81% | **100.00%** | **100.00%** |
+
+The 15 training misses are the known QLP `non-standard schema` rows -- the same
+15 that blocked the `var_*` backfill. No availability trap.
+
+**Class-rate gate: PASS.** Availability is 99.98% pos vs 98.81% neg, odds ratio
+52.3, Fisher p 4.5e-09 -- but the effect size that matters is
+**AUC(availability) = 0.5058**, 0.0058 from chance. The p-value is small only
+because n is large; availability carries essentially no label information.
+(Comparable to `ls_period_match`'s 0.4928, which also passed.)
+
+### AXIS A -- the FULL-flux periodogram. Hypothesis stated first, then measured, then refuted.
+
+**Hypothesis, stated before the run:** including in-transit points could make the
+transit register as a spurious periodicity at the orbital period -- but
+Lomb-Scargle fits a **sinusoid**, and a box of duty cycle ~1-5% is a poor
+sinusoid whose power spreads across harmonics, so the leaked power should be
+small and should largely restate `period`/`depth`/`snr`.
+
+**Measured. The leakage is negligible.**
+
+| | full flux | OOT-masked (deployed) |
+|---|---|---|
+| transit period inside the 0.2-13 d search window | 96.73% | -- |
+| primary peak within 2% of the transit period | **3.92%** | **3.06%** |
+| second peak within 2% of the transit period | 3.51% | -- |
+| median fractional change in primary power | **4.5%** | -- |
+| full vs OOT primary period agreeing to 2% | **76.67%** | -- |
+
+Including the transit changes which peak wins in **0.86 percentage points** of
+stars over an OOT baseline of 3.06% that is itself real aliasing, not leakage.
+Consequently:
+
+| new feature | \|rho\| vs deployed | verdict |
+|---|---|---|
+| `fls_p1` (full-flux primary power) | **0.954** vs `var_ls_power` | **REDUNDANT** -- excluded |
+| `fls_period1` (full-flux primary period) | **0.820** vs `var_ls_period` | **REDUNDANT** -- excluded |
+
+And the full-flux/OOT pairs of the *same* statistic track each other closely:
+`fls_p2` vs `ols_p2` **0.895**, `fls_p2_nh` vs `ols_p2_nh` **0.834**,
+`fls_ratio` vs `ols_ratio` **0.841**, `fls_ratio_nh` vs `ols_ratio_nh` **0.868**.
+
+**Axis A is answered: masking the transit or not is not a meaningful difference
+in this pipeline.** The transit contributes almost nothing to a Lomb-Scargle
+periodogram of a TESS sector. Not an argument -- a measurement.
+
+### AXIS B -- the secondary peak. Direction matches the blend hypothesis; the ratio contradicts its own story.
+
+**Hypothesis, stated before the run:** a blended background eclipsing binary
+contributes its OWN periodicity, so a strong second peak (equivalently, a LOW
+primary/secondary ratio) should mark a blend and be **enriched in NEGATIVES**.
+The competing hypothesis is that peak 2 is just the noise floor, in which case
+`p2` restates the periodogram's normalisation and `p1/p2` restates
+`var_ls_power`.
+
+**Direction found -- and it splits.**
+
+| feature | median positive | median negative | neg/pos | matches hypothesis? |
+|---|---|---|---|---|
+| `fls_p2` | 0.0183 | 0.0284 | **1.55x** | **yes** |
+| `fls_p2_nh` | 0.0102 | 0.0164 | **1.60x** | **yes** |
+| `ols_p2` | 0.0162 | 0.0220 | 1.36x | yes |
+| `ols_p2_nh` | 0.0089 | 0.0117 | 1.32x | yes |
+| `fls_ratio` (p1/p2) | 1.577 | 1.665 | -- | **NO -- backwards** |
+| `fls_ratio_nh` | 2.516 | 2.594 | -- | **NO -- backwards** |
+| `ols_ratio` | 1.671 | 1.837 | -- | **NO -- backwards** |
+| `ols_ratio_nh` | 2.790 | 3.125 | -- | **NO -- backwards** |
+
+Secondary-peak *power* behaves exactly as the blend hypothesis predicts. But the
+*ratio* -- the quantity the blend story is actually about, since a real
+independent second periodicity should COMPRESS p1/p2 -- moves the wrong way, and
+is at chance (AUC 0.4776 / 0.4835).
+
+**That split identifies the mechanism.** Both peaks rise together in negatives
+because negatives are simply more variable, so `p2` is tracking overall activity
+amplitude rather than an independent second signal:
+
+| | vs `var_ls_power` | vs `var_excess` | vs `var_oot_rms` |
+|---|---|---|---|
+| `fls_p2` | **0.787** | 0.583 | 0.199 |
+| `ols_p2` | **0.872** (REDUNDANT) | 0.652 | 0.168 |
+| `fls_p2_nh` | 0.544 | 0.460 | 0.223 |
+
+`ols_p2` at 0.872 is over the 0.80 bar and was excluded. The rest sit just under
+it -- non-redundant by the letter of the rule, but measurably the same physics
+as three already-deployed activity features.
+
+### Single-feature AUC
+
+| feature | AUC | \|AUC-0.5\| |
+|---|---|---|
+| `fls_p2_nh` | 0.3661 | **0.1339** |
+| `fls_period1` | 0.6122 | 0.1122 (REDUNDANT with `var_ls_period`) |
+| `fls_p2` | 0.3853 | 0.1147 |
+| `fls_p1` | 0.3950 | 0.1050 (REDUNDANT with `var_ls_power`) |
+| *`var_ls_period`* (deployed) | *0.5903* | *0.0903* |
+| *`var_ls_amp`* (deployed) | *0.5895* | *0.0895* |
+| `ols_p2_nh` | 0.4170 | 0.0830 |
+| *`var_ls_power`* (deployed) | *0.4172* | *0.0828* |
+| `ols_p2` | 0.4241 | 0.0759 |
+| `ols_ratio_nh` | 0.4627 | 0.0373 |
+| `fls_ratio` | 0.4776 | **0.0224** |
+| `fls_ratio_nh` | 0.4835 | **0.0165** |
+
+`fls_p2_nh` at 0.1339 is a **stronger univariate separator than any deployed
+periodogram feature**, including `var_ls_power` (0.0828). The peak-RATIO
+features -- the proposal's headline quantity -- are the weakest things in the
+table, at 0.0165-0.0224 from chance.
+
+### |Galactic latitude| control arm
+
+`|b|` computed for 5,484/5,534 rows. Spearman rho with `|b|` is **-0.057 to
++0.004** for all eleven -- no bulk spatial correlation.
+
+Per-quartile AUC is where the caution sits:
+
+| feature | rho vs \|b\| | AUC by \|b\| quartile | spread |
+|---|---|---|---|
+| `fls_ratio` | -0.046 | [0.506, 0.490, 0.455, 0.445] | 0.061 |
+| `fls_ratio_nh` | -0.057 | [0.516, 0.523, 0.444, 0.456] | 0.078 |
+| `ols_ratio` | -0.021 | [0.479, 0.454, 0.460, 0.432] | 0.047 |
+| `fls_p2` | -0.003 | [0.336, 0.329, 0.433, 0.486] | 0.156 |
+| `ols_p2_nh` | -0.023 | [0.387, 0.356, 0.443, 0.522] | 0.166 |
+| **`fls_p2_nh`** | +0.004 | **[0.313, 0.259, 0.444, 0.490]** | **0.231** |
+
+**`fls_p2_nh` -- the strongest univariate feature in the batch -- is the one
+that decays monotonically to chance with galactic latitude.** It separates hard
+in the crowded low-`|b|` quartiles (0.259) and does nothing at high `|b|`
+(0.490). It does not flip sign across quartiles the way the rejected `trend_*`
+features did (0.434-0.715, spread 0.281), so it was not failed outright, but the
+gradient is the signature of a crowding-driven feature rather than a stellar
+one -- consistent with `p2` measuring blend/activity in dense fields. **Recorded
+so a later reading of "0.1339, the best in the batch" is not taken at face
+value.**
+
+### Model test -- 12 bootstraps, production's exact recipe, frozen split
+
+Baseline is the live 33-feature configuration with production's deployed
+Optuna hyperparameters (`lr=0.0926, max_iter=475, max_leaf_nodes=63,
+min_samples_leaf=24, l2=0.00901, class_weight='balanced'`) inside
+`CalibratedClassifierCV(cv=5, method="sigmoid")`. Train 4,414 / frozen test
+1,098; 2-min-only subset 968.
+
+Base: **AUC 0.9386**, 2-min 0.9325, Brier 0.0737, ECE 0.0311.
+
+| arm | features added | mean delta | 95% CI | positive | >= MDE | 2-min delta | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| A secondary, full flux | `fls_p2`, `fls_ratio` | **+0.00065** | [-0.0009, +0.0029] | 8/12 | **0/12** | +0.0007 | 0.0730 | 0.0325 |
+| B secondary, full, non-harmonic | `fls_p2_nh`, `fls_ratio_nh` | **+0.00027** | [-0.0019, +0.0028] | 6/12 | **0/12** | +0.0001 | 0.0737 | 0.0319 |
+| C secondary, OOT input only | `ols_p2_nh`, `ols_ratio` | **+0.00005** | [-0.0021, +0.0015] | 7/12 | **0/12** | -0.0005 | 0.0736 | 0.0306 |
+| D all 8 non-redundant | (all) | **+0.00068** | [-0.0026, +0.0042] | 7/12 | **0/12** | +0.0004 | 0.0732 | 0.0296 |
+
+**None clears.** Clearing requires `ci_lo > 0 AND mean delta >= MDE (0.0097)`;
+every CI straddles zero and every arm is 0/12 at MDE.
+
+### RESOLVING THE ExoMiner++ TENSION -- the honest reading
+
+ExoMiner++'s Section 6.9 ablation genuinely found the periodogram branch
+improved PR AUC, and that finding was independently re-verified in the prior
+task. It is a real positive external data point. This closure does **not**
+contradict it, and it must not be summarised as if it did.
+
+**1. The sign agrees.** All four arms are positive: +0.00005 to +0.00068, 6-8 of
+12 bootstraps positive, Brier improving in 3 of 4 arms and ECE in 2. Against
+`ls_period_match` (-0.0006, 3/12) and the raw period ratio (-0.0004, 5/12), this
+is a materially different result. **Periodogram peak-amplitude information is
+weakly, consistently helpful here -- exactly as ExoMiner++ reports.**
+
+**2. The magnitude is ~14x below what this test set can resolve.** MDE scales as
+~1/sqrt(n_test). To make MDE equal the observed effect:
+
+| arm | observed delta | test stars needed | multiple of the current 1,098 |
+|---|---|---|---|
+| A | +0.00065 | ~242,700 | **221x** |
+| D | +0.00068 | ~222,900 | **203x** |
+| B | +0.00027 | ~1,456,800 | 1,327x |
+| C | +0.00005 | ~35,858,400 | 32,658x |
+
+**3. Why the mechanism difference matters, argued rather than assumed.** The
+brief was right to insist on testing rather than assuming this away -- and the
+test is what makes the following statable as fact instead of speculation:
+
+| | ExoMiner++ | this project |
+|---|---|---|
+| periodogram input | raw unfolded flux tensor | 2 or 8 scalar summary statistics |
+| representation | CNN branch learning its own features end to end | hand-computed peak power, peak ratio |
+| what survives to the classifier | whatever the branch finds useful | peak 1 power, peak 2 power, their ratio |
+| examples | ~15,000+ Kepler+TESS TCEs | 5,534 |
+| baseline it must beat | multi-branch DNN | **0.9454 tree model with `var_ls_power`, `var_ls_amp`, `var_ls_period`, `var_excess`, `var_oot_rms` already deployed** |
+
+A CNN over the periodogram can use peak *shape*, *width*, *forests of harmonics*,
+and the *whole* power distribution. `argmax` and `argmax`-of-the-rest keep three
+numbers from that. **The measurement shows what those three numbers turn out to
+be**: `fls_p1` is `var_ls_power` (0.954), `fls_period1` is `var_ls_period`
+(0.820), `ols_p2` is `var_ls_power` again (0.872), and the survivors correlate
+0.54-0.79 with `var_ls_power` and 0.46-0.65 with `var_excess`. The hand-computed
+summary collapses onto features already deployed. That is the divergence: **not
+that ExoMiner++ is wrong, but that summary statistics are a lossy projection of
+what its CNN branch consumes, and the part that survives the projection is
+already in production.**
+
+**4. The narrower claim -- brown dwarfs and binaries -- is already attacked
+directly here, by a mechanism ExoMiner++'s periodogram branch does not have.**
+ExoMiner++'s finding was specifically about BD/EB discrimination. This project's
+negative class *is* that population: 1,246 TFOPWG `FP` + 100 `FA`. And Gaia DR3
+astrometry, deployed since 2026-08-14, flags it directly:
+
+| | RUWE > 1.4 | NSS > 0 | either |
+|---|---|---|---|
+| training positives | 8.2% | 0.8% | **8.5%** |
+| training NEGATIVES | 24.5% | 13.1% | **30.1%** |
+
+A **3.5x enrichment** of astrometric-binary flags in the negative class, at
+97.5-99.2% coverage, from a measurement of the star's *astrometric wobble* --
+independent of photometry entirely, and strictly better evidence of binarity than
+a second bump in a photometric periodogram. `gaia_ruwe` is the strongest feature
+this project has promoted. The specific gap ExoMiner++ used its periodogram
+branch to fill is, here, filled by a different and more direct instrument. That
+is why a real +PR-AUC branch there yields +0.0007 here.
+
+### Verdict
+
+| sub-feature | verdict |
+|---|---|
+| periodogram on FULL flux -- primary peak/period | **DUPLICATE, measured not assumed.** \|rho\| 0.954 / 0.820 with deployed; transit leakage 0.86 pp. |
+| secondary peak power (`p2`) | **GENUINELY NEW, tested.** Best univariate in the batch (0.1339) but spatially graded with \|b\|; `ols_p2` redundant at 0.872. |
+| primary/secondary power ratio | **GENUINELY NEW, tested.** At chance (0.0165-0.0224) and its sign contradicts the blend hypothesis it was motivated by. |
+| all arms at the model | **DO NOT PROMOTE.** +0.00005 to +0.00068, every CI straddling zero, 0/12 at MDE. |
+
+**Recommendation: DO NOT PROMOTE -- classified POSITIVE BUT UNPROVABLE, not
+negative.** The effect is real in sign, consistent with a verified external
+result, and ~200x below this test set's resolving power. Nothing here justifies
+touching production, and nothing here should be cited as evidence that
+periodogram information is useless.
+
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+**For future proposals in this space.** The periodogram is now mapped on BOTH
+axes: peak *position* (dominant period, harmonic distance, raw ratio -- all
+tested, all failed) and peak *amplitude ranking* (primary power deployed;
+secondary power and peak ratio tested here, positive but unresolvable). A new
+proposal must state which of those it is not. It should also expect that any
+scalar summary of this periodogram will land 0.5-0.95 correlated with
+`var_ls_power` -- three of the eleven statistics built here crossed the 0.80
+redundancy bar against a deployed feature without anyone predicting which three.
+
+**A methodological note worth keeping.** The prior entry declared this space
+"mapped end to end." It was not -- it was mapped on one axis, and the summary
+sentence over-claimed. Separating the two axes (input masking vs peak rank)
+rather than testing the proposal as one blob is what produced a usable answer:
+axis A closed as a measured duplicate in one table, and axis B got the full
+battery it deserved. **A proposal that overlaps prior work on one axis is not
+thereby closed on the others.**
+
+Artefacts: `ls_secondary_peak_features.py` (feature computation, 6,091 light
+curves), `ls_secondary_peak_assess.py` / `.json` (pre-model battery),
+`ls_secondary_peak_validate.py` / `.json` (12-bootstrap model test),
+`ls_secondary_peak_features.csv`.
+
+Cross-references: the variability deployment (`var_ls_*`), the `ls_period_match`
+closure, the raw period-ratio closure, the Gaia DR3 astrometry deployment, and
+the ExoNet/foundation-models entry that verified the ExoMiner++ ablation this
+entry tests against.
