@@ -28,6 +28,7 @@ Proposing any of them is proposing to build something that is already running.
 | deployed feature(s) | what it does | measured contribution when added |
 |---|---|---|
 | **`gaia_ruwe`, `gaia_nss`** | **Gaia DR3 astrometric-wobble + non-single-star flags. DEPLOYED 2026-08-14.** | **+0.0142, CI [+0.0124, +0.0168], 12/12 bootstraps at MDE** |
+| *(proposed as "future work" twice: 2026-08-27 and 2026-08-28. It is DEPLOYED. Stop.)* | | |
 | `crowd_flux_ratio_max`, `crowd_nearest_arcsec` | catalog neighbour crowding | +0.010 to +0.012 |
 | `var_oot_rms`, `var_excess`, `var_ls_amp`, `var_ls_power`, `var_ls_period` | stellar activity / rotation, out-of-transit-masked Lomb-Scargle | +0.0092 to +0.0101 |
 | `secondary_eclipse_depth`, `odd_even_mismatch`, `depth_mean_even/odd` | classic EB discriminators | in the base set |
@@ -37,9 +38,13 @@ Proposing any of them is proposing to build something that is already running.
 
 | family | times closed | outcome of record |
 |---|---|---|
-| **difference-image centroid** | **3** | +0.0021 CI [-0.0020,+0.0059]; then +0.0032 CI [-0.0012,+0.0076] at 77.6% coverage. Only untested thread: noise-normalised significance, with three preconditions attached. |
-| centre-of-light / IT-vs-OOT centroid surrogate | 1 | duplicate AND strictly weaker: ~0.004 px vs the difference image's 1.999 px |
-| flux-weighted-moment "refinement" + DAVE | 1 | `scipy.ndimage.center_of_mass` IS the flux-weighted moment; DAVE's test is the same test; PRF machinery absent and TPFs deleted by design |
+| **CENTROID FAMILY -- 4 proposals, one line each. Point at the row; do not re-derive.** | | |
+| centroid 1: difference-image, recomputed from TPFs (`_centroid_from_tpf`) | closed | +0.0021 CI [-0.0020,+0.0059]; re-run at 77.6% coverage +0.0032 CI [-0.0012,+0.0076]. `shift_pixels` \|AUC-0.5\| = 0.0359 |
+| centroid 2: centre-of-light / `centroid(IT)-centroid(OOT)` surrogate | closed | duplicate AND provably weaker: ~0.004 px vs the difference image's 1.999 px |
+| centroid 3: "flux-weighted moments" refinement, + DAVE | closed | `scipy.ndimage.center_of_mass` IS the flux-weighted first moment; DAVE's test is the same test; PRF machinery absent (`oktopus`/`pyke`/`tpfmodel`) and TPFs deleted by design |
+| centroid 4: noise-normalised SIGNIFICANCE, recomputed here | closed on cost | needs per-star uncertainty infrastructure that does not exist; 3 preconditions attached |
+| **centroid 5: SPOC DV pre-computed offsets via MAST `dvr.xml`** | **OPEN -- accessible, NOT built** | **NASA publishes `dv:meanSkyOffset` etc. WITH uncertainties (e.g. 52.237 +/- 2.501 = 20.9 sigma). Retires precondition (b) of centroid 4 and needs no pixels. Probe: ~52% coverage, 50% pos vs 55% neg, Fisher p=1.0 at n=40 (low power). Needs full-scale availability + class-rate gate FIRST.** |
+| centroid: anything else recomputed from pixels | closed | TPFs deleted by design (`web/job_runner.py:1232`, `:1267`) |
 | CNN / neural branch on flux | 5 | 0.68-0.70 vs 0.9454; gap has WIDENED |
 | Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
 | periodogram peak POSITION (`ls_period_match`, raw ratio) | 2 | -0.0006 and -0.0004 |
@@ -69,6 +74,19 @@ MDE ~0.0097 on the frozen 1,098-star test set. Clearing requires
 **`ci_lo > 0` AND `mean delta >= MDE`**, over >= 10 bootstraps of production's
 exact recipe. A number quoted from anywhere else -- including from this document
 -- must be traced to its own row before it is used as evidence.
+
+**Worked example of why that last sentence exists (2026-08-28).** A proposal cited
+"crowding gave +0.0177" as its expected-gain basis. Crowding's raw headline was
+**+0.0167**; its controlled, defensible figure is **+0.010 to +0.012**. And
+`+0.0177` is not a crowding number at all -- it is the **upper CI bound of the
+multi-sector feature (+0.0094), which was DISQUALIFIED** by a 108% indicator-only
+missingness control. Benchmarking against an uncontrolled number inflates the
+target; benchmarking against a disqualified one is worse.
+
+**GIT HYGIENE, added after a real incident.** Other sessions run in this folder
+without worktree isolation. **Stage files explicitly by name; never
+`git add -A`.** Commit `67755153` swept another session's register edits into a
+commit about momentum dumps. Nothing was lost; the attribution is wrong.
 
 ## D. KNOWN CONFOUND IN `training.csv` -- OBSERVATION EPOCH
 
@@ -14640,3 +14658,184 @@ Artefacts: `control_arms.py` (reusable), `sector_map.csv` (cached host->sector),
 Cross-references: the periodogram secondary-peak entry, the ellipsoidal entry,
 the `ls_period_match` and raw-ratio closures, the momentum-dump entry (which
 established the temporal control), and the STANDING REGISTER at the top.
+
+---
+
+## FOURTH CENTROID + SECOND GAIA RE-PROPOSAL -- both halves closed from the register in minutes. But "SPOC DV" is a GENUINELY NEW DATA PATH, and it delivers the one variant this file called untested.
+
+**Date: 2026-08-28. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows. `gaia_ruwe` and `gaia_nss`
+re-verified live in `FEATURE_COLUMNS`.** Nothing built. Nothing retrained.
+
+### PART 0 -- CITATION CORRECTION: "+0.0177" is not a crowding number at all
+
+The proposal cites "crowding features gave +0.0177 previously" as its
+expected-gain basis. **Two things are wrong with that, and the second is worse
+than the brief anticipated.**
+
+1. **The raw crowding headline was +0.0167, not +0.0177.**
+2. **`+0.0177` appears in this document exactly once as a result, and it is the
+   UPPER CI BOUND of the MULTI-SECTOR feature's +0.0094** -- a different
+   investigation entirely, and one that was **subsequently DISQUALIFIED** when an
+   indicator-only missingness control reproduced 108% of its gain.
+
+So the benchmark is not merely uncontrolled -- it is the optimistic edge of a
+confidence interval belonging to a feature that was thrown out.
+
+**The defensible crowding figure is +0.010 to +0.012.** Galactic latitude was
+found to be a real confound; three independent estimates converged on **+0.0120
+beyond modelled position**, and this file's own recommendation reads *"GO, at
++0.010 to +0.012, not +0.0167"*.
+
+| number | what it actually is |
+|---|---|
+| **+0.0177** | upper CI bound of the multi-sector feature (+0.0094), **disqualified** |
+| +0.0167 | crowding's RAW, uncontrolled headline |
+| **+0.010 to +0.012** | **crowding's controlled, defensible gain -- the number of record** |
+
+**This is precisely the error the control-arm discipline exists to prevent.**
+Benchmarking a new feature's expected gain against an uncontrolled number
+inflates the target; benchmarking against a *disqualified* number is worse. Per
+section C of the register: a number quoted from anywhere, including from this
+document, must be traced to its own row first.
+
+### PART 1 -- both halves resolved, and the register carried it
+
+**Gaia RUWE/NSS: DEPLOYED. Not a proposal. Second time proposed as open.**
+Verified live: both in `FEATURE_COLUMNS` (33 entries) against md5
+`fe3fa82f36cc978396c68be07d6057f9`. Contribution at deployment **+0.0142, CI
+[+0.0124, +0.0168], 12/12 bootstraps at MDE**, baked into the current 0.9454.
+Not open for reconsideration.
+
+**Difference-image centroid: closed three times**, each by direct code
+comparison, not description: the original method (+0.0021, then +0.0032 at 77.6%
+coverage, CI crossing zero both times); the `centroid(IT)-centroid(OOT)`
+surrogate (duplicate and strictly weaker, ~0.004 px vs 1.999 px); and
+"flux-weighted moments"/DAVE (`scipy.ndimage.center_of_mass` **is** the
+flux-weighted first moment).
+
+**Register performance: it covered both halves cleanly.** Sections A and B
+answered the proposal without reading the full history. No expansion was needed
+for *coverage* -- but see the granularity change below.
+
+### PART 1.1 -- "SPOC DV" IS A GENUINELY DIFFERENT DATA PATH. This is the real finding.
+
+The prior closures all recompute the centroid from raw TPFs. "SPOC DV" can mean
+something else: **pull NASA's own pre-computed Data Validation results from
+MAST.** Checked live rather than assumed.
+
+**MAST hosts machine-readable DV reports.** For TIC 261136679 the product list
+includes `_dvr.xml` alongside the PDFs:
+
+    tess2020213081515-s0028-s0028-0000000261136679-00364_dvr.xml   164,811 bytes
+
+Downloaded and parsed. It contains the difference-image centroid results as
+structured XML under the `dv:` namespace -- `centroidResults`,
+`msTicCentroidOffsets`, `msControlCentroidOffsets`, `differenceImageCentroid`,
+`controlImageCentroid`, `ticReferenceCentroid`, and:
+
+| field | value | uncertainty | significance |
+|---|---|---|---|
+| `dv:meanSkyOffset` | 52.237003 | 2.5006468 | **20.9 sigma** |
+| `dv:meanRaOffset` | 45.479546 | 2.5000992 | 18.2 sigma |
+| `dv:meanDecOffset` | 25.696598 | 2.5023615 | 10.3 sigma |
+
+**Why this matters more than a routine "not a duplicate".** This file has
+repeatedly recorded that the ONLY untested thread in the centroid family is the
+**noise-normalised significance** variant, and deprioritised it because it
+*"needs per-star centroid uncertainty infrastructure that does not exist
+(bootstrapping over cadences or propagating per-pixel errors through
+`center_of_mass`)"*.
+
+**NASA has already computed it.** Value AND uncertainty, per star, per sector.
+That retires **precondition (b)** of the three this file attached to any fourth
+centroid proposal ("arrives with the per-star uncertainty already computed"), and
+it sidesteps the PRF-fitting and TPF-retention blockers entirely, because nothing
+is recomputed from pixels.
+
+### PART 2 -- feasibility and coverage. Scoped, NOT built.
+
+**Bounded availability probe, 40 training stars (20 positive / 20 negative), by
+coordinate cone search:**
+
+| | n | with `dvr.xml` | rate |
+|---|---|---|---|
+| label = 1 | 20 | 10 | **50%** |
+| label = 0 | 20 | 11 | **55%** |
+
+Fisher exact **p = 1.0**, odds ratio 0.818.
+
+**Two honest readings, both required.**
+
+* **No gross class asymmetry** -- which is the failure mode that killed the
+  multi-sector feature. Encouraging.
+* **But n = 40 has low power.** At 20 per class this probe could not have
+  detected anything smaller than roughly a 30-point difference. **It rules out a
+  catastrophic trap, not a real one.** A full investigation must re-measure
+  availability at full scale before anything else.
+* **~52% overall coverage is LOW** -- below the 71.8% the recomputed centroid had,
+  and far below the 95-100% of every feature tested in the last two weeks. DV
+  products exist only for **SPOC-detected TCEs**, and this project's training set
+  includes hosts that were never SPOC TCEs. The documented 494 positives with no
+  resolvable TIC ID sit in exactly this gap.
+
+**Scoped as a SEPARATE follow-up task. Not built here, per the brief.** What it
+would need, in order:
+
+1. **Full-scale availability first**, on training and BOTH pools, with the
+   class-rate gate -- the TIC-native-field precedent. At ~52% coverage this is
+   the make-or-break step, not a formality.
+2. Parse `meanSkyOffset` / `meanRaOffset` / `meanDecOffset` **and their
+   uncertainties** into the significance statistic.
+3. Correlation against the existing `shift_pixels` (which is **independent** of
+   the Gaia pair -- |rho| 0.012 / 0.057 -- so this is not a Gaia duplicate either).
+4. `control_arms.both_controls()` -- spatial AND temporal.
+5. Full resampling only if all of the above pass.
+
+**Realistic expectation, stated up front so the follow-up is not oversold:** the
+raw `shift_pixels` has single-feature |AUC-0.5| of **0.0359** and failed twice
+against a **0.9030** baseline. This variant must clear **0.0097 from 0.9454** at
+roughly half coverage. Re-scaling a weak feature by its uncertainty is a real
+improvement in principle, and the register's own precondition (c) asks why that
+should clear when the raw version twice did not. **That question is still
+unanswered -- what has changed is only that the data now exists to ask it.**
+
+### Final recommendation
+
+| element | verdict |
+|---|---|
+| "+0.0177" benchmark | **WRONG TWICE OVER.** Not crowding's number; it is the upper CI bound of a DISQUALIFIED feature. Correct basis: **+0.010 to +0.012**. |
+| Gaia RUWE/NSS | **DEPLOYED, verified live. Not a proposal. Second re-proposal.** |
+| difference-image centroid (recomputed) | **CLOSED 3x.** No change. |
+| **SPOC DV pre-computed centroids via MAST** | **GENUINELY NEW PATH, CONFIRMED ACCESSIBLE.** ~52% coverage, no gross class asymmetry at n=40. **Scoped as a separate task. Nothing built.** |
+
+**Close this proposal. Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+### Register granularity -- the change this task motivates
+
+The register **did** resolve both halves quickly, so coverage was not the
+problem. The problem is that "difference-image centroid, closed 3x" is one row
+covering four distinct sub-formulations, which is why each re-proposal still
+needs a paragraph of re-confirmation. Section B now carries **one line per exact
+sub-formulation**, so a fifth proposal can be answered by pointing at a single
+row -- including a row saying the MAST-DV path is open-but-unbuilt, so it is
+neither re-closed by mistake nor re-discovered from scratch.
+
+### Process note -- a concurrency failure in this project's own git history
+
+Another session was running `flux_trend_phase_validate.py` in this folder
+throughout. It had appended multi-sector rows to the STANDING REGISTER. **Commit
+`67755153` used `git add -A code/experiments/` and swept those edits into a
+commit whose message is entirely about momentum dumps.** Nothing was lost and the
+content is intact, but that commit misattributes another session's work.
+
+**Rule, going forward: in a shared folder without worktree isolation, stage files
+explicitly by name. Never `git add -A`.** Commit `62f7a5ba` and this one do that.
+
+Artefacts: none committed beyond this entry -- the DV probe was a bounded
+feasibility check, not an investigation.
+
+Cross-references: the three centroid closures, the Gaia DR3 deployment, the
+crowding galactic-latitude control, the multi-sector missingness control (source
+of the +0.0177 figure), and the STANDING REGISTER.
