@@ -46,7 +46,12 @@ Proposing any of them is proposing to build something that is already running.
 | **centroid 5: SPOC DV pre-computed offsets via MAST `dvr.xml`** | **CLOSED 2026-08-28** | **NO-GO on four independent grounds.** Availability is a **43.83 pp label proxy** (28.77% pos vs 72.60% neg, Fisher p=9.5e-164, **AUC(availability alone) 0.2808** -- 1.4x the CTL trap's 31 pp). Pool coverage **16.80% / 18.84%**. The value DOES separate (`meanSkyOffset_sig` \|AUC-0.5\| **0.2159**, 6.0x this project's `shift_pixels` 0.0359, medians 0.937 pos vs 3.685 neg) -- but **SPOC DV centroid offset is an INPUT to the TFOPWG disposition that defines the label**, so the signal is circular, and value (0.2159) and availability (0.2192) are indistinguishable in magnitude. *The n=40 pilot reporting 52%/balanced was BIASED: a 10-arcsec cone search counts neighbouring stars' DV reports.* |
 | **CENTROID FAMILY: ALL FIVE FORMULATIONS NOW CLOSED. Nothing open.** | | |
 | centroid: anything else recomputed from pixels | closed | TPFs deleted by design (`web/job_runner.py:1232`, `:1267`) |
-| CNN / neural branch on flux | 5 | 0.68-0.70 vs 0.9454; gap has WIDENED |
+| **NEURAL ARCHITECTURES -- CLOSED SIX TIMES. Do not reopen without the ONE condition below.** | **6** | **Reopen ONLY on a >= 5x increase in labelled examples (5,534 -> ~25,000+) or a move to multi-year continuous photometry. NOT on a new architecture, a new citation, or a new framing.** Every reformulation to date -- parallel CNN branch, CNN embedding + late fusion, small dense net on tabular features, Kepler transfer/pretraining, multi-stream/attention -- has closed on the SAME data-volume wall, not on architecture. |
+| CNN / neural branch on raw flux | 6 | **0.68-0.70 vs 0.9454 = gap +0.2454**, the widest ever measured. Gap has widened at EVERY deployment (0.2031 -> 0.2208 -> 0.2300 -> 0.2402 -> 0.2454) and has never once narrowed. |
+| CNN embedding + late fusion | 1 | the embedding itself is the bottleneck; a dense fusion combiner given a strong model's output measured **-0.0324** |
+| small dense net on the 33 tabular features | 1 | every size tested underfits or overfits at this data volume -- data wall, not tuning |
+| multi-model ensembling / stacking to rescue errors | 1 | alternative members score **0.069-0.223 AUC on the stars HGB gets wrong** -- confidently wrong on the SAME stars |
+| *ExoNet citations -- TWO DIFFERENT PAPERS share this name* | -- | **Ansdell et al. 2018 (arXiv:1810.13434) reports NO AUC anywhere** (95.8/95.5 -> 97.5/98.0, accuracy & average precision); every AUC attributed to it here has been false. **arXiv:2604.15560 (2026) DOES report AUC** and its "+0.062-0.068 over the best single-view CNN" **VERIFIES** (0.887 -> 0.9549). Always state which paper. The 2026 one does not transfer: 4-year Kepler vs 27-day TESS, its weakest CNN (0.874) is 0.19 above this project's, its tabular branch is 0.819. |
 | Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
 | periodogram peak POSITION (`ls_period_match`, raw ratio) | 2 | -0.0006 and -0.0004 |
 | periodogram peak AMPLITUDE (secondary peak, ratios) | 1 | +0.00005 to +0.00068, positive but ~200x below resolvable |
@@ -72,6 +77,30 @@ not.** Pool-level concatenation (#5) is DEPLOYED (2026-08-12, dormant since);
 selective per-candidate joint search (#3) is **already built** at
 `web/job_runner._multi_sector_body`, has been run **once**, and carries three
 measured defects.
+
+## B2. IS THE FEATURE TRACK EXHAUSTED? -- measured 2026-08-28
+
+**Essentially yes, and the record says so numerically.** Last feature promotion
+was **Gaia DR3 on 2026-08-14** (+0.0142). Since then: **16 investigations closed,
+ZERO promotions**, across 14 days. **24 distinct feature families** sit closed in
+section B.
+
+Three independent lines support it:
+1. **Hit rate is zero** through 16 consecutive well-designed tests, several with
+   real physics behind them.
+2. **Failures changed character** -- early ones failed on redundancy or no signal;
+   recent ones fail on STRUCTURAL limits: label circularity (SPOC DV),
+   observation-epoch confounding (+0.0063 of pure bookkeeping), spatial/temporal
+   instability. **Those are properties of the dataset, not of the features.**
+3. **Every recent "strong" single-feature AUC dissolved on inspection** --
+   `f_hp_p05x` 0.1776 was `snr`; `ell_a2` lost to a wrong-period control;
+   `md_min_dt` was partly `period`; DV centroid was label-circular.
+
+**This is a DATA problem, not a model-architecture problem.** Further gains need
+more labelled examples, longer baselines, or a cleaner label source than TFOPWG
+dispositions -- all acquisition questions. **It does NOT imply "try a neural
+net"**: a CNN needs more data than a tree, and faces the same 5,534 rows, 79/21
+imbalance, and 27-day sectors. That was measured five times at 0.68-0.70.
 
 ## C. THE PROMOTION BAR
 
@@ -15182,3 +15211,172 @@ binary-flag test reused `momentum_dump_features.csv` and produced no new file.
 Cross-references: the momentum-dump proximity closure, the flag-level
 availability closure, section D of the register (observation-epoch confound), and
 `control_arms.py`.
+
+---
+
+## SIXTH NEURAL-ARCHITECTURE PROPOSAL -- closed. But the "+0.06 AUC" citation VERIFIES, and it is the FIRST ExoNet number in this project that does. Read why it still does not transfer.
+
+**Date: 2026-08-28. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing built. This is a
+citation-verification and closure task.
+
+### PART 0 -- THE "+0.06" IS REAL. It belongs to a DIFFERENT PAPER called ExoNet.
+
+**Every prior ExoNet citation in this project was checked against Ansdell et al.
+2018 (arXiv:1810.13434), and every one failed.** That paper was re-fetched again
+here and the finding is unchanged: **it reports no AUC anywhere.** Its headline
+numbers are their application of Astronet at **95.8% accuracy / 95.5% average
+precision** and ExoNet at **97.5% / 98.0%** -- deltas of +1.7 pp and +2.5 pp,
+neither near 0.06, in a metric that is not AUC. The prior closure's finding that
+"0.955" was Astronet's *average precision* misattributed as ExoNet's *AUC* is
+confirmed a second time.
+
+**But this proposal's number does not come from that paper.**
+
+There is a **second, different paper also named ExoNet**: arXiv:2604.15560 (2026),
+*"ExoNet: Calibrated Multimodal Deep Learning for TESS Exoplanet Candidate Vetting
+using Phase-Folded Light Curves, Stellar Parameters, and Multi-Head Attention."*
+It **does** report AUC, and it states verbatim a gain of **0.062-0.068 AUC over
+the best single-view CNN baseline**. Its ablation table:
+
+| configuration | Test AUC | params |
+|---|---|---|
+| Global CNN only | 0.874 | 2.1M |
+| **Local CNN only (the "single CNN baseline")** | **0.887** | 2.1M |
+| Stellar MLP only | 0.819 | 0.1M |
+| Global + Local CNN | 0.916 | 4.2M |
+| **ExoNet (full, multimodal + attention)** | **0.9549** | 4.9M |
+
+0.887 -> 0.9549 = **+0.0679**. The citation is accurate.
+
+**VERDICT: VERIFIED, against a different paper than the five prior closures
+addressed.** This breaks the pattern, and the record should say so plainly rather
+than pattern-match to "another fabrication." **Two distinct papers share the name
+ExoNet, and future citations in this project must state which.**
+
+### Why a VERIFIED +0.0679 still does not license a CNN here
+
+The number is real and it is **not evidence for this proposal**, for reasons that
+are measurable rather than rhetorical.
+
+**1. It is a within-deep-learning architecture comparison.** It says a multimodal
+attention network beats a single CNN *by 0.068*. It says nothing about deep
+learning versus a tuned gradient-boosted tree on 33 engineered features. The
+relevant comparison for this project was run five times and returned **0.68-0.70**.
+
+**2. Their single-CNN baseline is ALREADY far above this project's CNN, and that
+gap is the evidence.** Their weakest CNN scores **0.874**; this project's measured
+CNN on raw phase-folded flux scores **0.68-0.70**. A ~0.19 difference between two
+single CNNs on the same task is not an architecture difference -- it is a **data
+difference**:
+
+| | ExoNet-2026 | this project |
+|---|---|---|
+| labelled examples | 7,585 KOIs | 5,534 |
+| class balance | 2,746 pl / 4,839 FP (**36% positive**) | 4,355 / 1,179 (**79% positive**) |
+| photometric baseline | **Kepler, 4 years continuous** | **TESS, single 27-day sector** |
+| test set | 1,139 | 1,098 |
+
+A phase-folded light curve built from four years of continuous Kepler photometry
+carries vastly more information than one folded from 27 days of TESS. **That is
+precisely the data-volume-and-quality wall this project measured independently**,
+and their own numbers corroborate it from the other side.
+
+**3. Their 0.9549 is NOT comparable to this project's 0.9454.** Different mission,
+different data quality, different class balance, different test set. Reading
+"0.9549 > 0.9454" as "deep learning wins" would be exactly the cross-dataset
+comparison error this file has corrected repeatedly. **It is not evidence of
+anything about this pipeline.**
+
+**4. Their stellar-features-only MLP scores 0.819** -- their tabular branch is
+much weaker than this project's 0.9454 tabular model, which is the opposite of
+the proposal's implied premise.
+
+**Per the brief, this number did not inform the recommendation. On inspection it
+would not have changed it.**
+
+### PART 1.1 -- the gap, measured fresh. It is the widest it has ever been.
+
+| baseline at each reconfirmation | production | gap vs CNN 0.70 |
+|---|---|---|
+| pre-crowding | 0.9031 | +0.2031 |
+| crowding | 0.9208 | +0.2208 |
+| variability | 0.9300 | +0.2300 |
+| Gaia | 0.9402 | +0.2402 |
+| **Optuna (CURRENT)** | **0.9454** | **+0.2454** |
+
+Against the low end of the CNN result the current gap is **+0.2654**. **The gap
+has widened at every single deployment. It has never once narrowed.**
+
+### PART 1.2 -- data volume unchanged
+
+**5,534 rows** (4,355 positive / 1,179 negative). No new source has opened:
+Kepler transfer, domain adaptation and self-training are closed (4x); K2 pooling
+closed; multi-sector reprocessing closed on class-correlated eligibility; QLP
+blocked at the schema wall. The "~10x short" finding stands unaltered.
+
+### PART 1.3 -- "have feature-based improvements been exhausted?" A real question. The honest answer is: YES, essentially.
+
+The proposal's closing sentence is the one part of it worth engaging. Answered
+from this project's own record rather than by assertion.
+
+**Promotion history -- every feature ever deployed:**
+
+| date | change | AUC | controlled gain |
+|---|---|---|---|
+| 2026-08-05 | crowding (2 features) | 0.9031 -> 0.9208 | +0.010 to +0.012 |
+| 2026-08-06 | variability (5 features) | 0.9208 -> 0.9300 | +0.0092 to +0.0101 |
+| **2026-08-14** | **Gaia DR3 (2 features)** | **0.9300 -> 0.9402** | **+0.0142** |
+| 2026-08-15 | Optuna hyperparameters | 0.9402 -> 0.9454 | +0.0052, *rule exception, not a feature* |
+
+**Since the last feature promotion on 2026-08-14: 16 investigations closed, ZERO
+promotions.** Fourteen days. **24 distinct feature families are closed in the
+register.** The families closed in just the last several tasks -- centroid (all
+five formulations), spacecraft systematics (flag, proximity, binary, attitude
+tweak), periodogram (position, amplitude, fixed-frequency power), ellipsoidal
+variation, flux trend -- were among the most physically motivated remaining.
+
+**So: yes. Feature-based improvement from THIS data appears genuinely exhausted.**
+Three independent lines support it:
+
+1. **Hit rate has gone to zero** and stayed there through 16 consecutive
+   well-designed tests, several of which had real physics behind them.
+2. **The failures have shifted character.** Early closures failed on redundancy
+   or no signal. Recent ones fail on *structural* limits: label circularity (SPOC
+   DV), observation-epoch confounding (+0.0063 from pure bookkeeping), the 0.20
+   spread flag catching spatially- and temporally-unstable features. **Those are
+   properties of the dataset, not of the features.**
+3. **Every recent "strong" single-feature AUC dissolved on inspection** --
+   `f_hp_p05x` (0.1776) was `snr`; `ell_a2` lost to a wrong-period control;
+   `md_min_dt` was partly `period`; DV centroid was label-circular. The
+   information in this dataset is already largely captured.
+
+**But that conclusion does NOT support the proposal's inference.** "Features are
+exhausted" and "therefore try a CNN" are different claims. The same evidence that
+closes the feature track -- **5,534 rows, 79/21 imbalance, single 27-day sectors,
+a documented epoch confound** -- is exactly what a CNN would face, and a CNN needs
+*more* data than a tree, not less. This project measured that at 0.68-0.70.
+
+**What the exhaustion finding actually implies** is that further gains need a
+change in the DATA, not the model: more labelled examples, longer baselines, or a
+cleaner label source than TFOPWG dispositions. Every one of those is a data-
+acquisition question. **Building a CNN to "confirm exhaustion" would cost weeks
+and confirm only what five prior CNN closures already measured.**
+
+### RECOMMENDATION: CLOSED. Sixth closure. No new investigation.
+
+| element | verdict |
+|---|---|
+| "+0.06 AUC over a single CNN baseline" | **VERIFIED** -- arXiv:2604.15560 (2026 ExoNet), 0.887 -> 0.9549 = +0.0679. **First ExoNet number in this project to verify.** A different paper from Ansdell 2018. |
+| does it transfer? | **NO.** Within-DL architecture comparison; their weakest CNN (0.874) is 0.19 above this project's (0.68-0.70) on 4-year Kepler vs 27-day TESS; their tabular branch is 0.819. |
+| Ansdell et al. 2018 AUC claims | **STILL NO AUC IN THAT PAPER**, re-verified. |
+| CNN on flux | **CLOSED 6x.** Gap now **+0.2454**, widest ever, never once narrowed. |
+| data volume | **UNCHANGED**, 5,534 rows, no new source. |
+| "are features exhausted?" | **YES, essentially** -- 16 closures / 0 promotions in 14 days; failures now structural. **This is a DATA problem, not a model-architecture problem.** |
+
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+Cross-references: the five prior neural closures, the ExoNet/Astronet citation
+correction, the Kepler-transfer bundle, section D of the register
+(observation-epoch confound), and the centroid 5 label-circularity finding.
