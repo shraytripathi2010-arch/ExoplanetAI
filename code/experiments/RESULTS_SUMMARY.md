@@ -55,6 +55,10 @@ Proposing any of them is proposing to build something that is already running.
 | trend / slope on raw flux | 1 | redundant with `var_ls_amp` (0.826-0.829) AND spatially unstable |
 | momentum dumps -- FLAG form | 1 | cadences destroyed at download by `DEFAULT_BITMASK` bit 32 (re-verified: 0 / 8,452,078 cadences); straylight half at AUC 0.4964 |
 | momentum dumps -- TIME-SINCE / proximity form | 1 | **NOT blocked -- built and measured.** Schedule recovered from 105 per-sector downloads (dumps are spacecraft events). -0.0006 to -0.0014, 0/12 at MDE. Direction opposite the hypothesis. |
+| momentum dumps -- BINARY presence/absence flag ("dump within N h of transit") | 1 | **CLOSED. WEAKER than its own continuous parent at all 6 thresholds tested** (best 0.0642 at 6 h vs `md_min_dt` 0.0812); \|rho\| 0.866 with it. Thresholding discards information here, it does not expose a nonlinearity. Parent was already 0/12 at MDE, so a weaker transform cannot clear. Not modelled. |
+| **"thruster firings"** | terminology | **NOT a distinct category.** TESS fine-points on **four reaction wheels**; its hydrazine thrusters fire **to perform momentum dumps**. Same event as the row above. |
+| `AttitudeTweak` (quality bit 1) -- the one genuinely distinct event class | 1 | **CLOSED ON RARITY, not on availability.** 24-sector census at `quality_bitmask=0`: **6 cadences / 6 events**, present in 2 of 24 sectors -- ~23x rarer than Desat (136 events). Most stars would have zero in their light curve. Schedule IS reconstructable; there is nothing to reconstruct. |
+| *(census fact, NOT a recommendation)* | -- | `ManualExclude` 718 events and `CoarsePoint` 99 events are more common than Desat's 136 and are equally reconstructable -- but inherit this family's two hazards: proximity direction ran **opposite** the hypothesis in both formulations tested, and event schedules are sector-structured, which is exactly what the +0.0063 sector-proxy control arm caught. `both_controls()` mandatory; prior low. |
 | PLD, difference-imaging refits, anything needing pixels | several | **TPFs are deleted by design** (`web/job_runner.py:1232`, `:1267`) |
 | **multi-sector, FOLD-based** (depth/duration/SDE consistency across sectors, inconsistency flags, stacking, cheap path) | **4** | cleared at +0.0094 then **disqualified by a 108% indicator-only missingness control**; and 99.5% of stars drift > 1 transit duration (median 124.7), leaving 23 usable |
 | **multi-sector, TRAINING-SIDE reprocessing** | 1 | eligibility is class-correlated: 72.5% vs 41.4%, Fisher p=0.0034, **OR 3.74**; ~0.19 SD of processing-induced class signal. Permanent |
@@ -15061,3 +15065,120 @@ Artefacts: `dv_centroid_availability.py` / `.json`, `dv_inventory_tics.csv`,
 
 Cross-references: centroid rows 1-4, the CTL trap, the multi-sector missingness
 control, and the STANDING REGISTER.
+
+---
+
+## BINARY SPACECRAFT-EVENT FLAGS + "THRUSTER FIRINGS" -- both wrinkles checked, both close. Nothing modelled.
+
+**Date: 2026-08-28. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing built beyond a
+transform of existing columns and one 24-sector flag census. No modelling.
+
+Routed as a sub-case of the closed momentum-dump family, per the register's
+one-row-per-formulation discipline. **Both wrinkles were checked rather than
+assumed, and both fail -- but for different reasons, and one of them is a fact
+about TESS worth recording.**
+
+### WRINKLE 1 -- binary flag vs continuous statistic. Checked, and it is WEAKER.
+
+The hypothesis deserved a test: thresholding can expose a nonlinearity a
+continuous statistic dilutes, if only very close proximity matters. Built from
+the **already-reconstructed dump schedule** (`momentum_dump_features.csv`) -- no
+re-extraction, since the binary flag is a deterministic transform of `md_min_dt`.
+
+Coverage: training 95.32%, main pool 100.00%, widesector 98.55%.
+
+| threshold | flag rate | positives | negatives | \|AUC-0.5\| |
+|---|---|---|---|---|
+| dump within 1 h | 13.57% | 14.43% | 10.41% | 0.0201 |
+| dump within 3 h | 32.34% | 34.33% | 25.00% | 0.0466 |
+| **dump within 6 h** | 50.14% | 52.88% | 40.04% | **0.0642** |
+| dump within 12 h | 69.16% | 71.74% | 59.61% | 0.0607 |
+| dump within 24 h | 85.18% | 87.06% | 78.20% | 0.0443 |
+| dump within 48 h | 94.84% | 95.33% | 93.06% | 0.0113 |
+
+**The best binary threshold (0.0642) is WEAKER than the continuous
+`md_min_dt` it is derived from (0.0812)**, and weaker at every one of the six
+thresholds tried. The proposed mechanism is not merely absent -- thresholding
+**discards** information here rather than revealing it. `|rho| = 0.866` with
+`md_min_dt` at the 6 h threshold confirms it is the same data re-expressed.
+
+**A strictly weaker transform of a feature that returned -0.0007, CI
+[-0.0019, +0.0010], 0/12 at MDE cannot clear.** No modelling was run, and
+running it would have been a waste of a 3-hour bootstrap.
+
+**The direction also reproduces the original finding**: the flag fires *more*
+often for planets (52.88% vs 40.04% at 6 h), the reverse of the
+instrumental-artefact hypothesis. Two independent formulations now agree that
+whatever this measures, it does not point the way the physics predicted.
+
+### WRINKLE 2 -- "thruster firings" IS momentum dumps, on this spacecraft
+
+TESS is a three-axis, zero-momentum spacecraft using **four reaction wheels**
+for fine pointing, with a **monopropellant hydrazine** system whose thrusters
+fire **to unload reaction-wheel momentum**. There is no thruster-based
+fine-pointing mode on TESS -- that architecture belongs to other missions.
+**"Thruster firing" is alternate terminology for the already-closed momentum
+dump.** Not a distinct systematics category.
+
+### AN ACTUAL DISTINCT EVENT CLASS DID SURFACE -- and it is too rare to use
+
+The search turned up something the proposal did not name: **`AttitudeTweak`
+(quality bit 1) is a genuinely separate flag from `Desat` (bit 32)**, documented
+in the DRNs as coming into use after ~Sector 27. Both are in
+`DEFAULT_BITMASK` (17087), so both are stripped at download -- which is why the
+earlier 8,452,078-cadence scan saw zero of each.
+
+Censused properly, the same way the dump schedule was recovered: **24 sector
+downloads at `quality_bitmask=0`** (~440,000 cadences).
+
+| bit | flag | cadences | distinct events |
+|---|---|---|---|
+| 1 | **AttitudeTweak** | **6** | **6** |
+| 2 | SafeMode | 0 | 0 |
+| 4 | CoarsePoint | 2,790 | 99 |
+| 8 | EarthPoint | 24 | 24 |
+| 16 | Argabrightening | 741 | 70 |
+| 32 | Desat (momentum dump) | 801 | **136** |
+| 128 | ManualExclude | 16,412 | 718 |
+
+**`AttitudeTweak` fired 6 times across 24 sectors -- ~23x rarer than momentum
+dumps, and present in only 2 of the 24 sectors sampled (s10 and s11, 2 events
+each).** At ~0.25 events per sector, the overwhelming majority of stars would
+have *zero* attitude tweaks anywhere in their light curve, so a per-star
+proximity feature would be constant or undefined for nearly every row.
+
+**Closed on rarity, not on flag-stripping.** The schedule *is* reconstructable by
+the method that worked for dumps -- there is simply almost nothing to
+reconstruct. This is a stronger closure than the availability one, because it
+does not expire when data access changes.
+
+### Verdict
+
+| wrinkle | verdict |
+|---|---|
+| binary presence/absence flag at N hours | **CLOSED. Weaker than the continuous parent at all 6 thresholds** (best 0.0642 vs 0.0812), \|rho\| 0.866 with it, and the parent was already 0/12 at MDE. Direction still opposite the hypothesis. |
+| "thruster firings" as a distinct category | **CLOSED -- terminology.** TESS thrusters fire *for* momentum dumps; fine pointing is reaction wheels. Same event. |
+| `AttitudeTweak` (bit 1), the one real distinct class | **CLOSED on rarity.** 6 events / 24 sectors, ~23x rarer than dumps, absent from 22 of 24 sectors. |
+
+**Recommendation: close. No modelling. Production stays at 0.9454 / 33 features
+/ md5 `fe3fa82f36cc978396c68be07d6057f9`.**
+
+### One factual pointer, deliberately not pursued
+
+The census incidentally shows **`ManualExclude` (718 events) and `CoarsePoint`
+(99 events) are far more common than momentum dumps (136)**. Both are stripped by
+`DEFAULT_BITMASK` and both are reconstructable by the same method. **This is
+recorded as a fact, not a recommendation.** Any proposal built on them inherits
+the momentum-dump family's two demonstrated hazards: proximity direction ran
+*opposite* the hypothesis in both formulations tested, and event schedules are
+strongly sector-structured, which is exactly what the sector-proxy control arm
+caught scoring +0.0063 on pure observation-epoch bookkeeping. **`both_controls()`
+would be mandatory, and the prior would be low.**
+
+Artefacts: `spacecraft_event_flag_check.py` (the 24-sector flag census). The
+binary-flag test reused `momentum_dump_features.csv` and produced no new file.
+
+Cross-references: the momentum-dump proximity closure, the flag-level
+availability closure, section D of the register (observation-epoch confound), and
+`control_arms.py`.
