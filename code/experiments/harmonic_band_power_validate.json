@@ -1,0 +1,86 @@
+{
+  "n_boot": 12,
+  "mde": 0.0097,
+  "arms": {
+    "A_harmonic_full": [
+      "f_hp_p05x",
+      "f_hp_max",
+      "f_hp_frac"
+    ],
+    "B_harmonic_oot": [
+      "o_hp_p05x",
+      "o_hp_max",
+      "o_hp_frac"
+    ],
+    "C_band_integrated": [
+      "o_bp_band_ratio",
+      "o_bp_band_frac"
+    ],
+    "D_all": [
+      "f_hp_p05x",
+      "f_hp_max",
+      "f_hp_frac",
+      "o_hp_p05x",
+      "o_hp_max",
+      "o_hp_frac",
+      "o_bp_band_ratio",
+      "o_bp_band_frac"
+    ]
+  },
+  "base_auc_mean": 0.9379838090910755,
+  "base_brier_mean": 0.07472335680696761,
+  "base_ece_mean": 0.030263965483342536,
+  "base_auc2_mean": 0.9317397857627743,
+  "A_harmonic_full": {
+    "mean_delta": 0.0008459117455657528,
+    "sd": 0.001270510073264477,
+    "ci_lo": -0.001155649425545563,
+    "ci_hi": 0.003121052342505642,
+    "n_positive": 9,
+    "n_ge_mde": 0,
+    "mean_delta_2min": 0.0007064535800168081,
+    "auc": 0.9388297208366412,
+    "brier": 0.07294497937769373,
+    "ece": 0.02949850934395497,
+    "clears": false
+  },
+  "B_harmonic_oot": {
+    "mean_delta": -0.0007373121559972606,
+    "sd": 0.0017394672208073773,
+    "ci_lo": -0.004281570025514656,
+    "ci_hi": 0.0011685066183336672,
+    "n_positive": 4,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0008778893836365135,
+    "auc": 0.9372464969350783,
+    "brier": 0.07400655824840983,
+    "ece": 0.030304651582639147,
+    "clears": false
+  },
+  "C_band_integrated": {
+    "mean_delta": -0.0012907123633767077,
+    "sd": 0.0005812465956679501,
+    "ci_lo": -0.0020943493261831175,
+    "ci_hi": -0.00043327491424375604,
+    "n_positive": 0,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.001342722032377221,
+    "auc": 0.9366930967276987,
+    "brier": 0.07540000304665034,
+    "ece": 0.03173542038804987,
+    "clears": false
+  },
+  "D_all": {
+    "mean_delta": -0.00048266484252643127,
+    "sd": 0.0015476868452217012,
+    "ci_lo": -0.003351483195773888,
+    "ci_hi": 0.0016871632788587913,
+    "n_positive": 5,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0005678091884988486,
+    "auc": 0.9375011442485491,
+    "brier": 0.0733962595261964,
+    "ece": 0.03006746655454093,
+    "clears": false
+  }
+}

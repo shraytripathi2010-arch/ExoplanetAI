@@ -44,6 +44,7 @@ Proposing any of them is proposing to build something that is already running.
 | Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
 | periodogram peak POSITION (`ls_period_match`, raw ratio) | 2 | -0.0006 and -0.0004 |
 | periodogram peak AMPLITUDE (secondary peak, ratios) | 1 | +0.00005 to +0.00068, positive but ~200x below resolvable |
+| periodogram power AT FIXED FREQUENCIES (harmonic power, band-integrated power) | 1 | harmonic power **null** (+0.0008 full-flux, inflated by `snr`; -0.0007 OOT). Band-integrated **significantly NEGATIVE**: -0.0013, CI [-0.0021,-0.0004], 0/12. 2P/3P excluded on availability (39-41% widesector). |
 | ellipsoidal variation / folded flux trend | 1 | null to significantly negative (-0.0019, CI [-0.0047,-0.0002]) |
 | trend / slope on raw flux | 1 | redundant with `var_ls_amp` (0.826-0.829) AND spatially unstable |
 | momentum dumps -- FLAG form | 1 | cadences destroyed at download by `DEFAULT_BITMASK` bit 32 (re-verified: 0 / 8,452,078 cadences); straylight half at AUC 0.4964 |
@@ -79,8 +80,14 @@ astrophysics. A content-free sector-proxy control arm scored **+0.0063 with
 
 **Any feature correlated with observation epoch can harvest ~+0.006 of pure
 bookkeeping.** The standing `|galactic latitude|` control arm is SPATIAL and does
-not catch this. A sector/epoch control arm is RECOMMENDED for the standing
-battery (flagged, not yet implemented -- it is a protocol change).
+not catch this.
+
+**IMPLEMENTED 2026-08-28: `code/experiments/control_arms.py`.** Call
+`both_controls(df, y, features)` -- it runs the `|b|` spatial arm AND the
+sector/epoch temporal arm, flags either at a 0.20 quartile-AUC spread, and caches
+the host->sector map. **Do not rebuild this.** On its first use it flagged two
+features as TEMPORAL that the `|b|` arm alone passed, and independently
+replicated AUC(sector alone) = 0.5908 vs 0.5803.
 
 ---
 
@@ -14459,3 +14466,177 @@ investigation (whose scope claim this entry corrects), the ExoMiner++ Section 6.
 ablation verification, the multi-sector missingness control (the same failure
 class), the ellipsoidal null-control precedent, and the STANDING REGISTER at the
 top of this file.
+
+---
+
+## HARMONIC-FREQUENCY POWER AND BAND-INTEGRATED POWER -- 1 exact duplicate, 1 partial duplicate of the ELLIPSOIDAL work, 2 genuinely new and NULL. First use of the reusable control-arm module.
+
+**Date: 2026-08-28. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing promoted. Promotion
+gate, scheduler and deployed model untouched.
+
+**Concurrency note:** another session was running `flux_trend_phase_validate.py`
+in this same folder throughout this investigation. This entry was appended after
+a fresh re-read of the file, and only this task's own artefacts were committed.
+Bootstrap wall time roughly doubled (~30 min/bootstrap) from CPU contention; the
+numbers are unaffected.
+
+### PART 0 -- precise deduplication, read from the code
+
+`ls_secondary_peak_features._peaks` is **entirely peak-based**: `argmax` for the
+primary, then the highest remaining LOCAL MAXIMUM for the secondary. Its `_nh`
+variant excludes harmonics of **`f1`, the primary peak's own frequency -- NOT of
+the transit frequency**. `grep` for `integrat|band|trapz|.sum()` across that file
+returns only the `_nh` comment. So no evaluation at externally-specified
+frequencies, and no integration, exists anywhere in the periodogram work.
+
+| formulation | verdict |
+|---|---|
+| secondary peak power, primary/secondary ratio | **EXACT DUPLICATE.** Already tested: +0.00005 to +0.00068, every CI straddling zero, 0/12 at MDE. |
+| power AT transit harmonics 1x and 2x | **PARTIAL DUPLICATE -- of the ELLIPSOIDAL investigation, not the periodogram one.** `ell_a1` / `ell_a2` fit sinusoids at exactly those frequencies; both REDUNDANT (\|rho\| 0.866 / 0.852 vs `var_ls_amp`) and spatially unstable (spread 0.291 / 0.279). |
+| power at 0.5x and 3x the transit period | **never evaluated** |
+| BAND-INTEGRATED power around 1/P | **never computed anywhere in this project** |
+
+**Two reasons the harmonic version still earned a cheap test rather than an
+assumed closure.** (1) `ell_a1`/`ell_a2` are ABSOLUTE amplitudes, and that is
+exactly why they collapsed onto `var_ls_amp`; Lomb-Scargle power under
+`normalization="standard"` is `1 - chi2(f)/chi2_ref`, the **fraction of variance
+explained** -- amplitude divided by the star's own scatter. Dividing out scatter
+is the precise operation that separated redundant from non-redundant in BOTH
+prior investigations. (2) Relative to `ls_period_match` (-0.0006, closed), this
+measures **amplitude at a fixed frequency** rather than **peak position** -- the
+same position/amplitude distinction that made the secondary-peak work
+non-duplicative in the first place.
+
+### PART 1 -- what was built
+
+`harmonic_band_power_features.py`, cleaning identical to `variability_features.py`
+so correlations are like-for-like. LS power EVALUATED at periods 0.5P, 1P, 2P, 3P
+(`ls.power(freqs)`, not a peak search), plus power INTEGRATED over
+`|f - 1/P| < 3/span`. Computed on BOTH full flux and out-of-transit-masked flux,
+because on full flux the transit injects power at its own harmonics.
+
+**Coverage, up front -- and the widesector pool is the binding constraint.**
+
+| feature | training | main pool | **widesector** |
+|---|---|---|---|
+| `hp_max`, `hp_sum`, `hp_frac` | 97.71% | 100.00% | 84.06% |
+| `hp_p05x` | 96.26% | 91.80% | 81.16% |
+| `bp_band*` | 97.42% | 98.36% | **62.32%** |
+| `hp_p1x` | 96.08% | 96.72% | **50.72%** |
+| `hp_p2x` | 77.81% | 75.00% | **39.13%** |
+| `hp_p3x` | 65.79% | 65.57% | **40.58%** |
+
+**Periods 2P and 3P frequently fall outside the 0.2-13 d Lomb-Scargle search
+window**, so the higher harmonics are simply not evaluable for a third to
+two-thirds of widesector candidates. `hp_p2x` and `hp_p3x` were **excluded on
+availability**, before any modelling. This is a real structural limit on
+harmonic-power features in this pipeline, not a bookkeeping gap.
+
+**Class-rate gate: all PASS**, AUC(availability) 0.4881-0.4955.
+
+### PART 1 -- the two-axis split reproduced the secondary-peak pattern exactly
+
+`f_hp_p05x` has **\|AUC-0.5\| = 0.1776**, the strongest single-feature value in
+this project's recent feature work -- above the deployed `var_oot_rms` (0.1486).
+It does not survive inspection:
+
+| | full flux | OOT-masked |
+|---|---|---|
+| `hp_p05x` \|AUC-0.5\| | **0.1776** | **0.1003** |
+| \|rho\| vs `snr` | **0.556** | -- |
+
+The full-flux version is largely **the transit injecting power at its own
+harmonic**, i.e. `snr` restated. Masking the transit removes 44% of the apparent
+signal. Same lesson as the full-flux primary peak (\|rho\| 0.954 with
+`var_ls_power`) and the ellipsoidal amplitude (0.852 with `var_ls_amp`).
+
+**Nothing is redundant**, though: max \|rho\| against the periodogram family is
+**0.750** (`o_hp_max` vs `var_ls_power`) and against the 33 is 0.750. The
+band-integrated features are the least redundant of the batch (0.390-0.440
+against the family). So the model test was a fair one.
+
+### PART 2 -- BOTH control arms, via the new reusable module
+
+**`control_arms.py` was built for this task and used here for the first time.**
+It exposes `gal_b_control` (spatial), `sector_epoch_control` (temporal), and
+`both_controls()` as a single entry point, with a cached host->sector map derived
+from each light curve's own time range against `momentum_dump_schedule.json` --
+**no new downloads**. The instability threshold is 0.20, calibrated on the closed
+`trend_*` features (spread 0.281, rejected).
+
+**It fired on its first use.** Two features flagged **TEMPORAL**:
+
+| feature | \|b\| spread | sector spread | flag |
+|---|---|---|---|
+| `f_bp_band` | 0.188 | **0.213** | **TEMPORAL** |
+| `f_bp_band_frac` | 0.095 | **0.200** | **TEMPORAL** |
+
+**Neither is flagged spatially. The long-standing `|b|` arm alone would have
+passed both through to modelling.** They were excluded.
+
+The module also independently reproduced the confound from a completely different
+feature set: **AUC(sector alone) = 0.5908** here against 0.5803 in the
+momentum-dump investigation, with negative-class rates 0.079 (S70-84) to 0.516
+(S27-39). The finding replicates.
+
+### PART 2 -- model test. 12 bootstraps, production's exact recipe, frozen split.
+
+Base **AUC 0.9380**, Brier 0.0747, ECE 0.0303. Train 4,414 / frozen test 1,098;
+2-min subset 968.
+
+| arm | features | mean delta | 95% CI | positive | >= MDE | 2-min | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| A harmonic, full flux | `f_hp_p05x/max/frac` | **+0.0008** | [-0.0012, +0.0031] | 9/12 | 0/12 | +0.0007 | 0.0729 | 0.0295 |
+| B harmonic, OOT | `o_hp_p05x/max/frac` | **-0.0007** | [-0.0043, +0.0012] | 4/12 | 0/12 | -0.0009 | 0.0740 | 0.0303 |
+| **C band-integrated** | `o_bp_band_ratio/frac` | **-0.0013** | **[-0.0021, -0.0004]** | **0/12** | 0/12 | -0.0013 | 0.0754 | 0.0317 |
+| D all | the eight above | **-0.0005** | [-0.0034, +0.0017] | 5/12 | 0/12 | -0.0006 | 0.0734 | 0.0301 |
+
+**No arm clears.** Arm C -- the **band-integrated formulation, the one genuinely
+novel idea in this proposal that appears nowhere else in the codebase** -- is
+**significantly NEGATIVE**: the entire CI lies below zero and no bootstrap is
+positive. Arm A leans positive at 9/12, but its mean is **12x below MDE** and its
+strongest member is `snr` in disguise.
+
+### Verdict
+
+| formulation | outcome |
+|---|---|
+| secondary peak / peak ratio | **EXACT DUPLICATE**, already closed |
+| harmonic power at 1x, 2x | **PARTIAL DUPLICATE** of `ell_a1`/`ell_a2`, both already redundant and spatially unstable |
+| harmonic power at 2P, 3P | **EXCLUDED ON AVAILABILITY** -- 39-41% widesector coverage; outside the 0.2-13 d LS window |
+| harmonic power, variance-normalised (new) | **NULL.** +0.0008 full-flux (inflated by `snr`), -0.0007 OOT. 0/12 at MDE. |
+| **band-integrated power (new)** | **SIGNIFICANTLY NEGATIVE.** -0.0013, CI [-0.0021, -0.0004], 0/12 positive. |
+
+**Recommendation: DO NOT PROMOTE. Close the periodogram-power family.**
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+**The periodogram family is now mapped on all three axes.** A further proposal
+must say which of these it is not:
+
+| axis | status |
+|---|---|
+| peak POSITION | `var_ls_period` DEPLOYED; `ls_period_match` -0.0006; raw ratio -0.0004 |
+| peak AMPLITUDE (searched) | `var_ls_power`/`var_ls_amp` DEPLOYED; secondary peak +0.0007, unresolvable |
+| power AT FIXED FREQUENCIES (evaluated) | ellipsoidal `ell_a1`/`ell_a2` redundant; harmonic power **null**; **band-integrated significantly negative** |
+
+And it should expect the recurring result: **every scalar summary of this
+periodogram lands 0.5-0.95 correlated with `var_ls_power` or `var_ls_amp`, and
+every full-flux variant is partly the transit restating `snr`, `SDE` or
+`period`.** That has now happened in four consecutive investigations.
+
+### The reusable control arm is now standing toolkit
+
+`control_arms.both_controls(df, y, features)` is the documented entry point.
+Future investigations **call it rather than rebuilding it**. This task is the
+proof it earns its place: it caught two features the spatial arm alone would have
+passed, and replicated AUC(sector alone) ~ 0.59 from an unrelated feature set.
+
+Artefacts: `control_arms.py` (reusable), `sector_map.csv` (cached host->sector),
+`harmonic_band_power_features.py` / `.csv`, `harmonic_band_power_assess.py` /
+`.json`, `harmonic_band_power_validate.py` / `.json`.
+
+Cross-references: the periodogram secondary-peak entry, the ellipsoidal entry,
+the `ls_period_match` and raw-ratio closures, the momentum-dump entry (which
+established the temporal control), and the STANDING REGISTER at the top.
