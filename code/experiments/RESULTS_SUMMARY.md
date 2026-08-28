@@ -43,7 +43,8 @@ Proposing any of them is proposing to build something that is already running.
 | centroid 2: centre-of-light / `centroid(IT)-centroid(OOT)` surrogate | closed | duplicate AND provably weaker: ~0.004 px vs the difference image's 1.999 px |
 | centroid 3: "flux-weighted moments" refinement, + DAVE | closed | `scipy.ndimage.center_of_mass` IS the flux-weighted first moment; DAVE's test is the same test; PRF machinery absent (`oktopus`/`pyke`/`tpfmodel`) and TPFs deleted by design |
 | centroid 4: noise-normalised SIGNIFICANCE, recomputed here | closed on cost | needs per-star uncertainty infrastructure that does not exist; 3 preconditions attached |
-| **centroid 5: SPOC DV pre-computed offsets via MAST `dvr.xml`** | **OPEN -- accessible, NOT built** | **NASA publishes `dv:meanSkyOffset` etc. WITH uncertainties (e.g. 52.237 +/- 2.501 = 20.9 sigma). Retires precondition (b) of centroid 4 and needs no pixels. Probe: ~52% coverage, 50% pos vs 55% neg, Fisher p=1.0 at n=40 (low power). Needs full-scale availability + class-rate gate FIRST.** |
+| **centroid 5: SPOC DV pre-computed offsets via MAST `dvr.xml`** | **CLOSED 2026-08-28** | **NO-GO on four independent grounds.** Availability is a **43.83 pp label proxy** (28.77% pos vs 72.60% neg, Fisher p=9.5e-164, **AUC(availability alone) 0.2808** -- 1.4x the CTL trap's 31 pp). Pool coverage **16.80% / 18.84%**. The value DOES separate (`meanSkyOffset_sig` \|AUC-0.5\| **0.2159**, 6.0x this project's `shift_pixels` 0.0359, medians 0.937 pos vs 3.685 neg) -- but **SPOC DV centroid offset is an INPUT to the TFOPWG disposition that defines the label**, so the signal is circular, and value (0.2159) and availability (0.2192) are indistinguishable in magnitude. *The n=40 pilot reporting 52%/balanced was BIASED: a 10-arcsec cone search counts neighbouring stars' DV reports.* |
+| **CENTROID FAMILY: ALL FIVE FORMULATIONS NOW CLOSED. Nothing open.** | | |
 | centroid: anything else recomputed from pixels | closed | TPFs deleted by design (`web/job_runner.py:1232`, `:1267`) |
 | CNN / neural branch on flux | 5 | 0.68-0.70 vs 0.9454; gap has WIDENED |
 | Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
@@ -82,6 +83,23 @@ exact recipe. A number quoted from anywhere else -- including from this document
 multi-sector feature (+0.0094), which was DISQUALIFIED** by a 108% indicator-only
 missingness control. Benchmarking against an uncontrolled number inflates the
 target; benchmarking against a disqualified one is worse.
+
+**LABEL CIRCULARITY -- check this for any feature drawn from the vetting chain
+(added 2026-08-28).** This project's negatives are **TFOPWG dispositions**. A
+feature taken from the SPOC/TFOP vetting pipeline may be an **input to the label**
+rather than a predictor of it. SPOC DV centroid offset closed on exactly this:
+its value separated at \|AUC-0.5\| 0.2159 -- 6x this project's own centroid --
+*because* large DV centroid offsets are standard grounds for calling a TOI a
+false positive. **Strength from circularity is worse than weakness: it survives
+every offline check and transfers nothing to unvetted candidates.** Ask of any
+new external feature: *did this measurement participate in assigning our labels?*
+
+**ARCHIVE-AVAILABILITY METHOD (added 2026-08-28).** To ask "does MAST have
+product X for our stars", use **per-sector bulk manifests + exact TIC matching**
+(`tesscurl_sector_NN_dv.sh`), never a coordinate cone search -- TESS products are
+per-TIC, and a 10-arcsec cone counts neighbours. The wrong method turned a
+43.83 pp class split into an apparent +5 pp. `dv_inventory_tics.csv` holds the
+44,224 TICs with DV reports.
 
 **GIT HYGIENE, added after a real incident.** Other sessions run in this folder
 without worktree isolation. **Stage files explicitly by name; never
@@ -14839,3 +14857,207 @@ feasibility check, not an investigation.
 Cross-references: the three centroid closures, the Gaia DR3 deployment, the
 crowding galactic-latitude control, the multi-sector missingness control (source
 of the +0.0177 figure), and the STANDING REGISTER.
+
+---
+
+## CENTROID 5 -- SPOC DV CENTROIDS: CLOSED. The physics is real and strong; the feature is unusable, and partly circular.
+
+**Date: 2026-08-28. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing built, nothing
+modelled, nothing promoted. **MDE re-confirmed fresh, not reused:** frozen test
+still 1,098 stars (867 pos / 231 neg), Hanley-McNeil SE(AUC) = 0.00637 at
+AUC 0.9454, consistent with the recorded **MDE ~0.0097**.
+
+**This closes the last open row in the centroid family.**
+
+### CORRECTION FIRST -- the 40-star pilot in the prior task was BIASED, not merely underpowered
+
+The pilot reported ~52% coverage and 50% pos / 55% neg, Fisher p = 1.0, and I
+recorded it as "rules out a catastrophic trap." **That conclusion was wrong, and
+the method was the reason.**
+
+The pilot cone-searched MAST at ~10 arcsec and counted `_dvr.xml` in the product
+lists of up to four observations at that position. **TESS observations are
+per-TIC, so a 10 arcsec cone counts DV reports belonging to NEIGHBOURING stars
+as though they were the target's.** It inflated coverage and -- far worse --
+washed the class asymmetry out completely.
+
+| | pilot (n=40, cone search) | full scale (exact 16-digit TIC match) |
+|---|---|---|
+| training overall | 52% | **38.11%** |
+| positives | 50% | **28.77%** |
+| negatives | 55% | **72.60%** |
+| difference | +5 pp | **+43.83 pp** |
+| Fisher p | 1.0 | **9.5e-164** |
+
+**I flagged the pilot as underpowered. It was also biased, which is the more
+serious defect** -- low power widens a confidence interval; bias moves the point
+estimate. A coordinate cone search is the wrong instrument for a per-target
+archive product. Exact identifier matching is the right one.
+
+### METHOD -- full scale without 62 hours of queries
+
+The pilot's per-star cone search ran at ~37 s/star; at 6,091 stars that is ~62
+hours. MAST instead publishes **per-sector bulk download manifests**
+(`tesscurl_sector_NN_dv.sh`) listing every DV product by filename with the TIC
+id embedded. Fetching 105 of those gives the **complete, authoritative
+inventory** in minutes, with no sampling error at all.
+
+    44,224 distinct TICs with a machine-readable dvr.xml
+
+Stars resolved to TIC ids: **5,316 / 5,534 = 96.06%** of training (1,256 direct
+`TIC_`-named + 4,060 by bulk VizieR TIC cross-match at 5 arcsec); both pools are
+100% TIC-named so need no cross-match.
+
+### PART 0 -- FULL-SCALE AVAILABILITY
+
+| population | coverage |
+|---|---|
+| training overall | **38.11%** (2,109 / 5,534) |
+| training POSITIVES | **28.77%** (1,253 / 4,355) |
+| training NEGATIVES | **72.60%** (856 / 1,179) |
+| **difference** | **+43.83 pp** |
+| main pool | **16.80%** (82 / 488) |
+| widesector pool | **18.84%** (13 / 69) |
+
+**Pool coverage alone is disqualifying.** The deployed model would score fewer
+than one candidate in five with this feature present. Every feature promoted in
+this project has had 95-100% pool availability.
+
+### PART 0.3 / PART 1.3 -- THE PROVENANCE CHECK. This is the decisive number.
+
+    contingency [[pos_dv 1253, pos_nodv 3102], [neg_dv 856, neg_nodv 323]]
+    odds ratio 0.1524      Fisher p 9.526e-164
+    >>> AUC(availability alone) = 0.2808     |AUC-0.5| = 0.2192
+
+**Mere PRESENCE of a DV report is one of the most predictive quantities in this
+entire dataset.** For scale:
+
+| quantity | \|AUC-0.5\| |
+|---|---|
+| `snr` -- the single most predictive column | 0.2177 |
+| **DV availability, carrying no measurement at all** | **0.2192** |
+| `gaia_ruwe` -- the strongest feature ever promoted here | 0.0831 |
+| `shift_pixels` -- this project's own recomputed centroid | 0.0359 |
+
+**The cause is exactly the one predicted before the query ran.** DV reports exist
+only for SPOC-pipeline-detected TCEs, and this training set's provenance is
+almost perfectly class-split:
+
+| | TIC-named (TOI catalogue provenance) |
+|---|---|
+| positives | **1.77%** |
+| negatives | **100.00%** |
+
+Negatives are TOI false positives and false alarms -- SPOC TCEs by construction.
+Positives are named confirmed planets from mixed catalogues, many never SPOC
+TCEs. **Availability is provenance, and provenance is the label.**
+
+For calibration against this project's own precedents: the **CTL trap** was
+disqualified at **31 pp**; the **multi-sector missingness indicator** scored
+**+0.0102, 108% of that feature's apparent gain**, and killed it. This is
+**43.83 pp**.
+
+### PART 1 -- RESTRICTED-POPULATION VALUE TEST. The physics is real. That is what makes this interesting, and it still does not help.
+
+Availability held constant: 600 stars (300 pos / 300 neg) sampled from the 2,109
+with a DV report, XML parsed for value AND uncertainty. This is the same analysis
+that separated the multi-sector feature's raw +0.0094 from its true +0.0021.
+
+| statistic | n | AUC | \|AUC-0.5\| |
+|---|---|---|---|
+| **`meanSkyOffset_sig`** (offset / uncertainty) | 586 | 0.2841 | **0.2159** |
+| `meanSkyOffset_val` (raw offset) | 586 | 0.2880 | 0.2120 |
+| `meanSkyOffset_unc` (uncertainty alone) | 586 | 0.4744 | 0.0256 |
+| `meanRaOffset_sig` | 586 | 0.5115 | 0.0115 |
+| `meanDecOffset_sig` | 586 | 0.5211 | 0.0211 |
+
+    median meanSkyOffset significance:  positives 0.937    negatives 3.685
+
+**The separation is real, large, and in the physically correct direction** --
+false positives sit ~3.9x further off-target than planets, which is precisely
+what a difference-image centroid is supposed to detect. The signed RA/Dec
+components are at chance, as they should be (the magnitude carries the
+information). The uncertainty alone is near chance (0.0256), so the signal is
+**not** an artefact of the normalisation.
+
+**And that is the problem.** Availability alone scores **0.2192**; the value,
+with availability held constant, scores **0.2159**. Two quantities of nearly
+identical magnitude pointing the same direction, one of which contains no
+measurement whatsoever.
+
+### THE CIRCULARITY, which is the real reason this closes
+
+**TFOPWG assigns the FP disposition partly ON THE BASIS of SPOC DV centroid
+offsets.** A large `meanSkyOffset` is one of the standard grounds for calling a
+TOI a false positive. So this feature does not predict the label -- **it is an
+input to the procedure that created the label.**
+
+That explains every number above at once: why availability is 43.83 pp
+class-split (only SPOC-vetted objects have DV reports, and SPOC-vetted objects
+are where the FP labels come from), why the value separates at 0.2159 (it is one
+of the criteria that assigned those labels), and why both magnitudes are nearly
+equal (they are two views of the same vetting act).
+
+**A feature that helped decide the label cannot be used to predict it.** This is
+not a coverage problem that a future data release fixes; it is a construction
+problem in the target variable. It would inflate every offline metric and
+transfer nothing to genuinely unvetted candidates -- which is the entire
+population the deployed model exists to score.
+
+### PART 2 -- PRECONDITION (C), ANSWERED WITH NUMBERS
+
+The register asked why this should clear the MDE when the raw centroid failed
+twice. **Two of the three candidate reasons are real, and they still do not
+produce a usable feature.**
+
+| candidate reason | verdict |
+|---|---|
+| **SPOC's PRF-based centroid is better than this project's `center_of_mass`** | **TRUE, and by a lot.** `meanSkyOffset_sig` \|AUC-0.5\| = **0.2159** vs `shift_pixels` **0.0359** -- **6.0x stronger**. The quality gap the register hypothesised is confirmed. |
+| **uncertainty normalisation adds information** | **MOSTLY NO.** `_sig` 0.2159 vs `_val` 0.2120 -- normalising adds 0.0039. The uncertainty alone is 0.0256. Nearly all the signal is in the raw offset, not the normalisation. |
+| **no clear reason to expect a different outcome** | **superseded** -- there WAS a clear reason, and it turned out to be the wrong kind of strength |
+
+**So precondition (c) is answered affirmatively on the physics and negatively on
+the conclusion.** The reason the SPOC statistic is 6x stronger than the
+home-grown one is not that NASA measured the same thing more precisely; it is
+that NASA's measurement **participated in assigning the labels**. Strength that
+comes from circularity is worse than weakness, because it survives every
+offline check.
+
+### PART 3 -- correlation
+
+**Not run, and deliberately.** The protocol runs correlation only "if Part 1
+shows real, non-availability-driven signal." Part 1 showed signal that is
+availability-driven and label-circular. Correlating a circular feature against
+the 33 would produce numbers that invite exactly the misreading this closure
+exists to prevent.
+
+### RECOMMENDATION: NO-GO. Close centroid 5. Do not proceed to a model test.
+
+Four independent disqualifications, any one of which is sufficient:
+
+1. **Availability is a 43.83 pp label proxy**, AUC 0.2808 -- 1.4x the CTL trap's 31 pp.
+2. **Pool coverage 16.80% / 18.84%** -- the model could not score four candidates in five.
+3. **The value is circular**: SPOC DV centroid offset is an input to the TFOPWG disposition that defines the label.
+4. Value signal (0.2159) and availability signal (0.2192) are **indistinguishable in magnitude**, so no restricted-population design separates them.
+
+**The centroid family is now CLOSED IN FULL -- all five formulations.**
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+### What this leaves behind that is worth keeping
+
+* **`dv_inventory_tics.csv`** -- 44,224 TICs with DV reports, and the bulk-manifest
+  technique. Any future question of the form "does MAST have product X for our
+  stars" should use per-sector manifests plus exact TIC matching, **never a
+  coordinate cone search**.
+* **A calibration point for label circularity.** This project's negatives are
+  TFOPWG dispositions. **Any feature drawn from the SPOC/TFOP vetting chain
+  itself is suspect for the same reason** -- it may be an input to the label, not
+  a predictor of it. That test is now part of the standing register.
+
+Artefacts: `dv_centroid_availability.py` / `.json`, `dv_inventory_tics.csv`,
+`dv_star_availability.csv`, `dv_centroid_values.py` / `.csv`.
+
+Cross-references: centroid rows 1-4, the CTL trap, the multi-sector missingness
+control, and the STANDING REGISTER.

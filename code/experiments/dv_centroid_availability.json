@@ -1,0 +1,31 @@
+{
+  "n_inventory_tics": 44224,
+  "n_train": 5534,
+  "train_overall": 0.38109866281170945,
+  "train_pos": 0.28771526980482204,
+  "train_neg": 0.726039016115352,
+  "diff": 0.43832374631053,
+  "pool_main": 0.1680327868852459,
+  "pool_main_n": 488,
+  "pool_widesector": 0.18840579710144928,
+  "pool_widesector_n": 69,
+  "gate": {
+    "contingency": [
+      [
+        1253,
+        3102
+      ],
+      [
+        856,
+        323
+      ]
+    ],
+    "odds_ratio": 0.15241862349885812,
+    "fisher_p": 9.526378553728588e-164,
+    "auc_availability": 0.28083812684473497
+  },
+  "tic_named": {
+    "pos": 0.017680826636050518,
+    "neg": 1.0
+  }
+}
