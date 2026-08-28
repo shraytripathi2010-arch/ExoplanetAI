@@ -46,8 +46,21 @@ Proposing any of them is proposing to build something that is already running.
 | periodogram peak AMPLITUDE (secondary peak, ratios) | 1 | +0.00005 to +0.00068, positive but ~200x below resolvable |
 | ellipsoidal variation / folded flux trend | 1 | null to significantly negative (-0.0019, CI [-0.0047,-0.0002]) |
 | trend / slope on raw flux | 1 | redundant with `var_ls_amp` (0.826-0.829) AND spatially unstable |
-| momentum dumps | 1 | destroyed at download by `DEFAULT_BITMASK` bit 32 |
+| momentum dumps -- FLAG form | 1 | cadences destroyed at download by `DEFAULT_BITMASK` bit 32 (re-verified: 0 / 8,452,078 cadences); straylight half at AUC 0.4964 |
+| momentum dumps -- TIME-SINCE / proximity form | 1 | **NOT blocked -- built and measured.** Schedule recovered from 105 per-sector downloads (dumps are spacecraft events). -0.0006 to -0.0014, 0/12 at MDE. Direction opposite the hypothesis. |
 | PLD, difference-imaging refits, anything needing pixels | several | **TPFs are deleted by design** (`web/job_runner.py:1232`, `:1267`) |
+| **multi-sector, FOLD-based** (depth/duration/SDE consistency across sectors, inconsistency flags, stacking, cheap path) | **4** | cleared at +0.0094 then **disqualified by a 108% indicator-only missingness control**; and 99.5% of stars drift > 1 transit duration (median 124.7), leaving 23 usable |
+| **multi-sector, TRAINING-SIDE reprocessing** | 1 | eligibility is class-correlated: 72.5% vs 41.4%, Fisher p=0.0034, **OR 3.74**; ~0.19 SD of processing-induced class signal. Permanent |
+
+**"Multi-sector" is FIVE different questions and they close for different
+reasons -- two of them do not close at all.** Before proposing anything in this
+family, read `>>> MULTI-SECTOR ROUTING MAP <<<` near the end of this file: it
+routes each phrasing to its owner in one table. The short version: **folding at
+a stored ephemeris is closed; letting TLS search a concatenated baseline is
+not.** Pool-level concatenation (#5) is DEPLOYED (2026-08-12, dormant since);
+selective per-candidate joint search (#3) is **already built** at
+`web/job_runner._multi_sector_body`, has been run **once**, and carries three
+measured defects.
 
 ## C. THE PROMOTION BAR
 
@@ -55,6 +68,19 @@ MDE ~0.0097 on the frozen 1,098-star test set. Clearing requires
 **`ci_lo > 0` AND `mean delta >= MDE`**, over >= 10 bootstraps of production's
 exact recipe. A number quoted from anywhere else -- including from this document
 -- must be traced to its own row before it is used as evidence.
+
+## D. KNOWN CONFOUND IN `training.csv` -- OBSERVATION EPOCH
+
+**Found 2026-08-27.** The negative-class rate swings **0.079 to 0.522** across
+sector eras (6.6x), and **AUC(sector number alone) = 0.5803** -- nearly the
+deployed `var_ls_period`'s 0.5903. This is TFOP disposition history, not
+astrophysics. A content-free sector-proxy control arm scored **+0.0063 with
+12/12 bootstraps positive** and improved Brier and ECE.
+
+**Any feature correlated with observation epoch can harvest ~+0.006 of pure
+bookkeeping.** The standing `|galactic latitude|` control arm is SPATIAL and does
+not catch this. A sector/epoch control arm is RECOMMENDED for the standing
+battery (flagged, not yet implemented -- it is a protocol change).
 
 ---
 
@@ -13772,4 +13798,664 @@ none of them is not weak evidence -- it is no evidence.
 
 Cross-references: the Gaia DR3 astrometry deployment, the three centroid
 closures, the multi-sector missingness control, and the STANDING REGISTER at the
+top of this file.
+
+# >>> MULTI-SECTOR ROUTING MAP: FIVE DIFFERENT QUESTIONS, AND WHICH CLOSURE OWNS EACH <<<
+
+**Added 2026-08-27, after a bundle of four multi-sector sub-proposals arrived
+that route to THREE different prior closures plus one live-and-defective
+deployed feature. "Multi-sector" is not one topic and has never been closed as
+one.** Read this table first; only then read the underlying section.
+
+**Production verified live before and after this assessment: Optuna-tuned HGB,
+33 features, test ROC-AUC 0.9454, `models/best_model.joblib` md5
+`fe3fa82f36cc978396c68be07d6057f9`; `training.csv` 5,534 rows.** Nothing was
+promoted, wired, or modified. This entry is assessment plus cost measurement.
+
+## THE MAP
+
+| # | the proposal, in its usual words | the operation it actually needs | owner | status |
+|---|---|---|---|---|
+| 1 | "compare depths/durations between sectors", "stddev of SDE across sectors", "binary flag for sector inconsistency" | **fold each sector at a STORED ephemeris**, take a dispersion statistic across sectors | Medium-lift Item 1 + the CONSISTENCY re-proposal | **CLOSED x2: 108% missingness artifact, AND 99.5% ephemeris drift** |
+| 2 | "combine SDE values across sectors" | **per-sector blind TLS**, then average/scatter the per-sector SDEs | same, plus the per-sector-TLS cost line | **CLOSED. Not a new framing -- and strictly dominated by #3** |
+| 3 | "run TLS jointly on concatenated sectors, promising stars only" | **concatenate, blind TLS, no stored period anywhere** | nothing -- and **already deployed** as `web/job_runner._multi_sector_body` | **NOT closed. Already built, run ONCE, and defective. See below** |
+| 4 | "reprocess training rows on wider baselines" | same as #3, applied to `training.csv` | MULTI-SECTOR ROLLOUT, Part 0 | **CLOSED. Eligibility is class-correlated, OR 3.74, Fisher p=0.0034** |
+| 5 | "extend the blind search baseline for candidate pools" | concatenate the longest CONSECUTIVE run, blind TLS | MULTI-SECTOR CONCATENATION WIRED INTO PRODUCTION | **DEPLOYED 2026-08-12. Never yet exercised by a real run** |
+
+**The one distinction that decides everything: does the method FOLD at a period
+it did not derive from this baseline, or does TLS SEARCH the baseline itself?**
+Folding (#1, #2 partially, the whole stacking family) needs an ephemeris precise
+enough to stay coherent across the span, and obtaining one requires searching
+that span -- the circularity that closed the cheap path. Searching (#3, #5)
+never touches a stored period, so `sigma_P` never enters. Same raw material,
+opposite verdicts.
+
+## ROUTING #1 -- confirmed the same measurement, by construction, not description
+
+`multisector_consistency.py` was read line by line rather than summarised:
+
+| the proposal's words | the code, `_measure_depth()` + `compute_one()` |
+|---|---|
+| "compare transit depths between sectors" | folds **each sector separately** at the stored `(t0, period)`, fixed window `abs(phase) <= duration/2P`; `depth = median(out) - median(in)` |
+| "stddev of ... across sectors" | `sector_depth_frac_scatter = depths.std(ddof=1) / abs(depths.mean())` -- **literally the stddev across sectors**, normalised so it is scale-free |
+| "binary flag for sector inconsistency" | a threshold on that same continuous quantity; the continuous version strictly dominates a binary cut of it |
+| noise-aware version | `sector_depth_chi2red`, inverse-variance weighted about the weighted mean, `se = 1.253*std(in)/sqrt(n_in)` |
+| "transits in multiple sectors" | `n_sectors_measured` |
+
+Identical construction. **The only difference in the new wording is the
+per-sector quantity: SDE instead of depth.** That substitution makes it strictly
+worse, not different -- see #2.
+
+The outcome of record, which must not be restated as "it found no gain": it
+**cleared** at +0.0094, CI [+0.0008, +0.0177], agreed under nested CV
+(0.9202 -> 0.9276) and after calibration, and was then **disqualified by a
+control**: an indicator-only arm carrying no measured values at all returned
++0.0102, **108% of the gain**; holding missingness constant left +0.0021, CI
+spanning zero. Independently, 99.5% of the 4,664 applicable stars accumulate
+more than one full transit duration of drift (median **124.7 durations**) over a
+1,151-d median span, leaving **23 stars (0.45%)** measurable at all.
+
+## ROUTING #2 -- "combine SDE" is not a distinct proposal, and it is dominated
+
+Three independent reasons, all checkable:
+
+1. **SDE is not foldable.** Depth can be measured by folding at a known
+   ephemeris in milliseconds -- that is exactly why Item 1 was affordable. SDE
+   is a periodogram statistic: there is no way to get a per-sector SDE without
+   running TLS on that sector. So this proposal is the one Item 1's design note
+   explicitly priced and rejected: per-sector TLS across the training set.
+   Repriced today at the freshly measured 50.6 s/sector-star: 5,137 stars x
+   median 7 sectors = **505 core-hours**, ~63 h wall at 8 workers.
+2. **A single 27-d sector cannot see past `period_max` = 12.7 d.** Every
+   per-sector SDE is capped at the single-sector ceiling this project measured
+   three times. Comparing or averaging them therefore mixes searches that could
+   not have found the same signal, and each sector's blind search returns its
+   own period -- so "combining" them requires matching back to a stored period,
+   which reintroduces the stored ephemeris and its drift.
+3. **Averaging SDE destroys the thing worth having.** SDE grows with the number
+   of transits in the searched series. `mean(SDE_per_sector)` throws away
+   exactly the coherent gain that a joint search keeps. Measured on the two real
+   candidates below: joint SDE rose while the per-sector average could not
+   have. **The informative version of "combine SDE across sectors" IS the joint
+   search, i.e. #3.**
+
+## ROUTING #4 -- unchanged, and it is about eligibility, not ephemerides
+
+Recorded here only so it is not conflated with #1. Reprocessing training rows
+fails for a reason that has nothing to do with folding: **multi-sector
+eligibility is itself class-correlated.** Measured against MAST on 120 training
+stars, 66/91 = 72.5% of positives vs 12/29 = 41.4% of negatives have a usable
+(>= 2 consecutive) run -- **Fisher p = 0.0034, odds ratio 3.74**, CIs
+non-overlapping -- driving ~0.19 SD of artificial class signal in SDE from
+processing alone. This closure stands whether or not the ephemeris problem
+exists, and it is why #3 and #5 are permitted for candidates only.
+
+*(A note for future readers who arrive with a differently-signed odds ratio:
+this project's number is **OR 3.74 in favour of positives**, from the
+consecutive-run eligibility test. Its reciprocal, 0.267, is the same fact stated
+the other way round. Any quoted "OR 0.382" is not a figure this file contains.)*
+
+# SELECTIVE JOINT SEARCH (#3) -- NOT CLOSED. Already deployed, run ONCE, and defective in three measured ways.
+
+The genuinely distinct sub-proposal: run a fresh joint TLS on concatenated
+sectors for a small set of already-promising candidates, as confirmatory
+evidence before TFOP submission -- not a training feature, not blanket pool
+processing. **Assessment and cost measurement only. Nothing built, nothing
+wired, no pilot run.**
+
+## PART 0: it already exists, and it has been used once in the project's history
+
+`web/job_runner.py:1014 _multi_sector_body`, reachable from the candidate page,
+already does precisely this: MAST search -> `download_one_star` with
+`target_sectors` -> `clean_light_curve` -> `compute_all_features` (a blind TLS,
+no stored period passed in) -> stored as **supplementary evidence only**, never
+fed to the classifier or the OOD check, and appended to the copyable CTOI
+submission text by `app.py:_build_ctoi_summary`.
+
+**Usage, from the live DB (read-only):** `multi_sector_evidence` holds
+**1 row** -- TIC 403153811, completed 2026-07-29 -- against 92 rows in
+`centroid_evidence`. The capability is built and essentially unused.
+
+## PART 1: THE FRESH COST NUMBERS. The stale "~27 days" is not the relevant figure, for a reason worth stating precisely.
+
+**All numbers below were measured today (2026-08-27) on this machine**, with the
+production code path, single-threaded, under real concurrent load (another
+session's TLS job held the 1-min load average at 11-52 throughout; the
+single-sector arm is included as an in-session control and came in *faster* than
+the production pool's own historical median, so no contention correction is
+applied).
+
+### 1a. Per-star TLS cost vs baseline -- measured, `code/06_download_unknown.compute_all_features`
+
+| pool | baseline | raw points | n | **median** | mean | max | vs 1 sector |
+|---|---|---|---|---|---|---|---|
+| `processed_unknown` | 24.2 d | 16.0k | 5 | **50.6 s** | 52.1 s | 74.4 s | 1.00x |
+| `processed_unknown_widesector` | 76.2 d | 45.7k | 5 | **116.4 s** | 193.1 s | 540.0 s | 2.30x |
+| `processed_8sector` | 216.9 d | 125.7k | 5 | **383.3 s** | 359.6 s | 550.8 s | 7.58x |
+
+TLS's own period grid (`transitleastsquares.period_grid`, `oversampling=1`)
+predicts 3.52x and 10.98x for those baselines, so real cost grows *slower* than
+the grid -- fixed overhead plus `bin_lightcurve`'s 15,000-point cap. Fitted:
+**`cost_s ~= 17 + 0.0437 * n_trial_periods`**.
+
+**What that says about the "~27 days" estimate: it was not wrong per star.** Fed
+the 808-d median span the Stage 0 estimate assumed, the fitted model returns
+1,487 s/star against that estimate's 1,717 s -- agreement, not a 2-4x miss. The
+figure is stale for two other reasons: it priced **8,211 stars pipeline-wide**,
+and it priced **all-sectors spans** at a time before the project settled on the
+longest-CONSECUTIVE-run policy. Scope and sector policy moved; per-star TLS cost
+did not.
+
+### 1b. Full end-to-end joint search on two REAL top candidates -- sandboxed, nothing written to the repo
+
+`RAW_FOLDER`/`PROCESSED_FOLDER` redirected to scratch, files deleted after
+measuring, download log untouched, web DB untouched.
+
+| stage | TIC 403153811 (4 sectors, 105.1 d) | TIC 273366457 (3 sectors, 76.0 d) |
+|---|---|---|
+| MAST search | 6.1 s | 7.6 s |
+| download + write (102 / 74 MB raw) | 38.9 s | 45.9 s |
+| preprocess | 4.3 s | 1.8 s |
+| **TLS** | **309.0 s** | **170.6 s** |
+| **total** | **5.9 min** | **3.6 min** |
+
+**Median 4.8 min per star, one core.** Peak disk ~100 MB/star with
+download-measure-delete; 33 GiB free.
+
+*(An earlier real run of the deployed action took 17 min wall for a 3-sector
+star on 2026-07-29 -- consistent with the same TLS cost plus a slow MAST night.
+The compute floor is TLS; the variance is the network.)*
+
+### 1c. What "promising stars only" means here, measured against MAST today
+
+There are **zero "High"-tier candidates** in this project. The pool is 296
+candidates (2 manually rejected); `confidence_tier` is Medium for **18** and Low
+for 278, and Medium is exactly the subset passing `combined_filter_pass`.
+**"Promising" = the 18 Medium-tier candidates**, optionally widened to the
+top-20 by probability. Live MAST sector search over the union (**37 stars**,
+10.3 s/star):
+
+| | value |
+|---|---|
+| sectors available | median **5**, mean 5.1, range 1-11 |
+| longest CONSECUTIVE run | median **2**, mean 2.5, range 1-5 |
+| **>= 2 consecutive (usable)** | **28 / 37 = 76%** |
+| >= 3 / >= 4 consecutive | 16 / 10 |
+
+**Total cost, longest-consecutive-run policy, fresh numbers:**
+
+| N | serial, 1 core | 6 workers |
+|---|---|---|
+| top 10 | ~48 min | ~8 min |
+| all 18 Medium-tier | ~1.4 h | ~14 min |
+| all 28 eligible of the 37 | ~2.2 h | ~22 min |
+| top 50 | ~4 h | ~40 min |
+
+**This is an overnight-free, coffee-break job.** It is ~1,000x smaller in scope
+than the 8,211-star reprocess the "27 days" figure priced, and the two are not
+comparable quantities.
+
+## PART 1.4: DOES IT ACTUALLY BUY ANYTHING? Yes -- and the evidence is sharper than expected.
+
+Both joint searches **changed the recovered period**, and both **transformed the
+ephemeris from unusable to marginal** for ground-based follow-up.
+
+| | TIC 403153811 | | TIC 273366457 | |
+|---|---|---|---|---|
+| | single-sector | **joint** | single-sector | **joint** |
+| period (d) | 0.559536 | **0.701649** | 1.750735 | **0.620882** |
+| `sigma_P` (d) | 9.71e-04 | **4.49e-04** | 1.33e-03 | **5.27e-04** |
+| T0 (BTJD) | 4128.06 | 4127.99 | **1326.65 (2018)** | **4101.58 (2025)** |
+| SDE | 7.20 | 7.99 | 6.45 | 6.78 |
+| distinct transits | 38 | **126** | 15 | **101** |
+| **1-sigma transit-time window TODAY** | **6.33 h** | **2.33 h** | **53.64 h** | **3.64 h** |
+| in transit durations | 16.0 | **5.9** | 135.1 | **10.1** |
+
+**The TFOP argument, which is the real one.** A candidate is worth submitting
+only if someone can point a telescope at it. Across all 37 promising candidates,
+using each one's stored `period_uncertainty` propagated to today's epoch
+(BTJD ~4280):
+
+> **1-sigma predicted transit time today: median 215 hours (9 days), max 576
+> hours. Median drift 158 transit durations. 100% of them drift past one full
+> duration.** Transit durations are 0.3-3 h.
+
+**Every promising candidate this project holds currently has an ephemeris that
+cannot schedule a follow-up observation.** That is the same wall that closed
+stacking, seen from the other side: stacking died because stored single-sector
+periods are ~56x too imprecise to fold across years -- and a TFOP observer needs
+exactly that precision. The joint search is the only operation in this pipeline
+that fixes it, cutting the window 2.7x and 14.7x on the two stars measured
+(T0 re-anchoring to a recent epoch does more of that work than the `sigma_P`
+improvement does).
+
+**Stated honestly, and this matters:** a *changed* period is not automatically a
+*correct* one. TIC 403153811's joint period is a clean 5:4 alias of the stored
+one and **reproduces the independent 2026-07-29 run to 5 decimal places**
+(0.701649 vs 0.7016563, different sector set, 13 months apart) -- that one is
+convincing. TIC 273366457's stored period came from **sector 1 in 2018**, while
+the joint search used sectors 101-103 in 2025: different data, not a superset,
+and both SDEs are low (6.45 / 6.78). The joint search does not adjudicate; it
+tells a human reviewer *"your two searches of this star disagree about its
+period"* before that period goes into a CTOI submission. That is exactly the
+information the review workflow currently lacks.
+
+**And it currently lacks it in a way that produces contradictory text.**
+`_build_ctoi_summary` prints the stored single-sector `period_days` / `epoch_bjd`
+as the headline "Orbital period" and "Epoch (T0)" lines, then appends the
+multi-sector re-analysis as a supplementary line. For TIC 403153811 that
+submission text would state 0.559536 d as the period and 0.701649 d three lines
+later.
+
+## PART 1.5: the ephemeris circularity does NOT apply here. Confirmed at the source.
+
+Traced through the actual code path rather than assumed:
+`_multi_sector_body` -> `compute_all_features` -> `transitleastsquares(t,f,e).power(...)`.
+The `power()` call passes `R_star`/`M_star` bounds and nothing else -- **no
+period, no T0, no seed of any kind**. `bin_lightcurve` runs first; TLS then
+builds its own grid from `max(t)-min(t)` and searches blind. `sigma_P` cannot
+enter a calculation that never reads a stored period.
+
+This is the same distinction already recorded for the wide-sector work, and it
+holds identically here. **#3 and #5 are search operations. #1, #2 and the whole
+stacking family are fold operations. The closure applies to folds only.**
+
+## PART 1 FINDINGS: three defects in the deployed action, all measured
+
+**Defect A -- it concatenates ALL sectors, not the longest consecutive run.**
+`_multi_sector_body` does `all_sectors = sorted(set(search.table["sequence_number"]))`
+and hands every one of them to `download_one_star`. The pool path deliberately
+does not: `longest_consecutive_sectors()` exists precisely because sectors
+separated by year-long gaps hand TLS an enormous grid over sparse data. Priced
+on the 37 real promising candidates, with sector epochs from the widesector
+pool's own time axis (sector 101 starts BTJD 4101.2, 25.43 d/sector):
+
+| policy | median span | median trial periods | median TLS |
+|---|---|---|---|
+| longest consecutive run (pool path) | 76 d | 2,688 | **~148 s** |
+| **all sectors (what this action does)** | **2,340 d** | **~101,000** | **~85 min** |
+
+**`MULTI_SECTOR_WATCHDOG_SECONDS = 20 * 60`.** On this projection **28 of 37
+promising candidates (76%) exceed the watchdog on TLS alone** and would fail
+with a timeout. The single successful run in the DB is the benign case: TIC
+403153811 had only sectors 102-104 at the time, i.e. a contiguous run.
+
+**Defect B -- `compute_all_features` discards a good period because an unrelated
+feature failed.** It returns `None` unless *every* one of the 33 required
+features is finite, and `_multi_sector_body` treats that as "TLS re-run failed".
+Measured on the 8-sector pool: **5 usable rows out of 14 attempts (36%)**, and
+**9 of 9 failures name `odd_even_mismatch`** (with `depth_mean_odd/even`,
+`depth_consistency_std`) -- long baselines recover long periods with few
+transits, so the odd/even split runs out of transits. The 3-sector arm was 5/7;
+single-sector 5/5. The action only ever *stores* period, T0, duration, depth,
+SDE and transit count -- all of which were computed fine in those 9 runs and
+thrown away.
+
+**Defect C -- two already-diagnosed preprocessing bugs were never ported into
+the production path.** Both were found and fixed during the cheap-path work, and
+both fixes live only in `code/experiments/multisector_cheap_path.py`:
+
+| bug | fix location | `06_download_unknown.clean_light_curve` today |
+|---|---|---|
+| flatten window specified in POINTS under mixed cadence (hit 10/25 = 40% of stars) | `flatten_one_sector()`, window derived per sector from measured cadence to hold 13.4 h | `choose_savgol_window(len(flux))` -- **still points-based, `MAX_FLATTEN_WINDOW = 401`** |
+| BTJD/BJD mixing within one star's products (TIC_373729723: sectors 2.45e6 d apart) | normalise any array with `median(t) > 2.4e6` | **absent** |
+| single savgol pass across sector gaps | avoided by per-sector flatten | **one pass over the sorted concatenation** -- benign at 2-3 d downlink gaps, corrupting across the year-long gaps Defect A creates |
+
+Defect C is largely *latent* while Defect A is unfixed, because the all-sectors
+span makes the run time out first. Fixing A without C would convert timeouts
+into silently mis-detrended curves.
+
+## PART 2: WHAT A SCOPED PILOT WOULD LOOK LIKE -- described only, NOT built, NOT approved
+
+A **workflow/tooling** proposal. No model change, no training-data change, no
+promotion-gate involvement; the joint result stays supplementary evidence
+exactly as it is today.
+
+**Population.** The **18 Medium-tier candidates**, of which **14 have >= 2
+consecutive sectors** and qualify. Widening to the top-20 by probability adds 10
+more eligible stars (28 of 37 total). Start with the 14.
+
+**Method.** Use the **longest consecutive run**, not all sectors -- i.e. call
+`m06.longest_consecutive_sectors()` before `download_one_star`, exactly as the
+pool path does, and apply `multi_sector_quality()` as a gate. Blind TLS, no
+stored period. Download-measure-delete.
+
+**Output a human reviewer would actually read**, one row per candidate: stored
+vs joint `period`, `sigma_P`, `T0`, `duration`, `depth_ppm`, `SDE`,
+`distinct_transit_count`; the period ratio (flagging integer and simple-fraction
+aliases); and **the 1-sigma predicted transit-time window at today's epoch,
+before and after** -- the number that decides whether the candidate is
+observable at all.
+
+**Decision rule it feeds.** Three outcomes, all useful: *agrees and strengthens*
+(SDE up, period unchanged -> submit with the tightened ephemeris); *disagrees*
+(period changes -> do not submit until a human adjudicates); *fails the quality
+gate or finds nothing* (-> the candidate rests on one sector, which the reviewer
+should know).
+
+**Cost.** ~4.8 min/star measured => **~67 min serial for 14 stars, ~11 min at 6
+workers**, ~100 MB peak disk. One sitting.
+
+**Prerequisites, in order.** Defect A must be fixed first or 76% of the run
+times out. Defect B should be fixed second (return the TLS scalars even when the
+odd/even family fails) or ~2/3 of the long-baseline results are discarded.
+Defect C matters only once A is fixed.
+
+**Explicitly out of scope:** any feed of joint values into the classifier, the
+OOD detector, `training.csv`, or the promotion gate. The training-side exclusion
+(#4) is permanent and untouched.
+
+## VERDICT ON EACH SUB-PROPOSAL, SEPARATELY
+
+| # | sub-proposal | verdict |
+|---|---|---|
+| 1 | depth/duration/SDE consistency across sectors; inconsistency flag | **DO NOT BUILD. Closed twice** -- identical construction to `sector_depth_frac_scatter`, cleared at +0.0094 then disqualified by a 108% indicator-only control; and corrupted for 99.5% of applicable stars by ephemeris drift, leaving 23 usable. |
+| 2 | combine SDE across sectors | **DO NOT BUILD. Not a distinct proposal.** SDE is not foldable, so it needs per-sector TLS (505 core-hours training-side); each sector is capped at `period_max` 12.7 d; and averaging per-sector SDE destroys the coherent gain that the joint search keeps. Its informative form IS #3. |
+| 3 | **selective joint search on promising stars** | **GENUINELY DISTINCT and NOT closed -- but it is already deployed and defective.** The right next step is **fix, then pilot at N=14**, not build. Confirmatory value confirmed on 2 real candidates: period changed in both, transit-time window improved 2.7x and 14.7x, at 4.8 min/star. |
+| 4 | reprocess training data on wider baselines | **PERMANENTLY EXCLUDED, unchanged.** OR 3.74, Fisher p=0.0034, ~0.19 SD of processing-induced class signal. |
+
+## STATE OF THE DEPLOYED POOL ROLLOUT (#5), verified post-migration
+
+The repo moved to `/Users/anujtripathi/Developer/ExoplanetAI` on ~2026-08-22.
+Checked today:
+
+* **Code intact and functionally correct.** `multi_sector_quality()` re-run over
+  all **271** widesector curves reproduces the deployment-time validation
+  **exactly**: **165 pass (60.9%)**, decomposing as 97 robust-sigma + 1
+  outlier-fraction (= 98 flux) + 7 max-gap + 1 duty (= 8 continuity); passing
+  baseline 76.2 d median, max gap 2.03 d, duty 0.873. `longest_consecutive_sectors({1,2,3,28,29})`
+  still returns `[1,2,3]`.
+* **Coverage has NOT grown -- it is zero.** `data/catalogs/processing_mode*.csv`
+  **does not exist**, so `audit_processing_mode` (Stage E2) has never written
+  output. The last candidate discovery run was **run 30, 2026-07-29**; the
+  concatenation shipped **2026-08-12** (`1088e3ee`). No pool run has happened
+  since deployment, and `scheduler_config.enabled = 0` with `next_run_at`
+  2026-08-01 in the past, so none is queued. The retrain/label-watch tick is the
+  only live loop (last tick 2026-08-27 20:56 UTC).
+* **Conclusion:** deployed and healthy, but dormant. Its capability is
+  unmeasured on real pool data because the pipeline that would use it has not
+  been run.
+
+## Method and honesty notes
+
+* Every cost figure here is a stopwatch measurement from today, not an
+  extrapolation, except the all-sectors projection in Defect A, which is
+  explicitly labelled as a projection from TLS's own `period_grid()` counts and
+  the fitted `17 + 0.0437*n_periods` model.
+* The machine carried a concurrent TLS job throughout (load 11-52 on 8 cores).
+  The single-sector control arm (50.6 s median) came in *below* the production
+  pool's historical median (72.6 s over 254 candidates), so the reported figures
+  are not contention-inflated relative to this project's own baselines.
+* n = 5 successes per baseline arm and n = 2 end-to-end candidates. The
+  per-star costs are medians of small samples with real spread (the 3-sector arm
+  ranges 67.6-540.0 s). Treat the totals as order-of-magnitude-correct and the
+  ordering as solid, not the minutes as precise.
+* The two candidates chosen for the end-to-end run are the two highest-probability
+  Medium-tier stars with >= 3 consecutive sectors. That is a deliberately
+  favourable slice -- it is where the pilot would start -- and it is not a random
+  sample of the pool.
+* Scripts (scratch, not committed): `tls_cost_measure.py`,
+  `sector_availability.py`, `e2e_joint_search_cost.py`.
+
+Cross-references: Medium-lift Item 1 (multi-sector depth consistency), the
+multi-sector CONSISTENCY re-proposal, PIPELINE-WIDE and CHEAP-PATH stacking, the
+MULTI-SECTOR ROLLOUT Part 0, the production concatenation deployment, the
+period-ceiling and 8-sector scaling runs, and the STANDING REGISTER at the top of
+this file.
+
+---
+
+## "TIME SINCE LAST MOMENTUM DUMP" -- BUILT (the prior blocker did not apply), tested, NULL. And it exposed a training-set confound that matters more than the feature did.
+
+**Date: 2026-08-27. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing promoted. Promotion
+gate, scheduler and deployed model untouched.
+
+**Two things in this entry outrank the feature verdict.** First, a **scope error
+in the prior momentum-dump closure** is corrected -- the data blocker was real
+for a per-star flag and wrong for this formulation, so the feature WAS buildable
+and was built. Second, the control arm designed to have no physical content
+**beat every real arm**, which surfaced a **latent observation-epoch confound in
+`training.csv`** that no current standing check would catch.
+
+### PART 0 -- both established findings re-verified. One of them does not apply here.
+
+**(a) The flag-absence finding HOLDS, and is now far better supported.** Fresh
+check, not from memory: bit 32 (`Desat`) is in lightkurve's `DEFAULT_BITMASK`
+(17087, decomposed live). Across **200 files / 8,452,078 cadences** sampled from
+all five raw directories -- against the original check's 60 files / 1,063,181 --
+bit 32 occurs **0 times**. Other bits survive as before (`Straylight2` 6.57%,
+`InsufficientTargets` 1.74%, `CollateralCosmic` 0.67%). Momentum-dump cadences
+are still stripped at download time.
+
+**(b) The chance-level systematics finding HOLDS as prior evidence, not as a
+blocker.** `straylight_frac` at AUC 0.4964, corroborated by ExoMiner++'s
+momentum-dump branch being its one non-helpful component, lowers the prior. It
+does not answer whether *proximity to a dump* carries signal. The brief was right
+that this is a more specific, mechanistically-motivated hypothesis and deserved
+its own test.
+
+**(c) CORRECTION -- the data-availability blocker's SCOPE was wrong.** The prior
+closure concluded recovery "would need a full re-download of all 5,494 training
+stars plus both candidate pools with `quality_bitmask=0`." True for a per-star
+flag column. **False here, because a momentum dump is a SPACECRAFT event, not a
+stellar one** -- every star observed in a sector shares the same dump times. The
+cost is one reference download per sector: **~105, not ~9,200.**
+
+Verified before committing to it. One `quality_bitmask=0` download, sector 1:
+
+    70 bit-32 cadences -> 10 distinct dump EVENTS
+    BTJD 1327.843 1330.343 1332.843 1335.343 1337.843
+         1342.186 1344.686 1347.186 1349.685 1352.185
+    intervals: 2.500 2.500 2.500 2.500 4.343 2.500 2.500 2.500 2.500 d
+
+Exactly the 2.5 d interval the Sector 1 Data Release Notes document.
+
+**(d) The two routes needing NO download were checked and both fail.** Recorded
+so they are not re-proposed.
+
+| route | result |
+|---|---|
+| published mission schedule | the condensed TESS DRNs give only the **interval** ("Every 2.5 days"), never timestamps; and the interval changes by sector (2.5 -> 3.0-3.375 -> 4.0+). No machine-readable dump list. |
+| infer dumps from the GAPS the stripped cadences leave | **tested at the right scale** (a dump strips 1-3 cadences ~ 2-6 min). Files carry **6-274 small gaps** where a sector should have ~9 dumps, and only **15.94%** of their spacings fall within 10% of *any* documented interval -- consistent with chance. They are cosmic-ray and straylight rejection, not dumps. |
+
+**Part 0's routing condition was met, so the work proceeded.**
+
+### PART 1 -- the schedule, and its independent validation
+
+`momentum_dump_schedule.py`: scan every raw light curve for its (t_min, t_max),
+bin into 27.4 d sector widths, download one representative product per bin at
+`quality_bitmask=0`, group bit-32 cadences within 0.05 d into dump events.
+
+**Result: 100 sectors, 469 dump events, 0 bins with no schedule.**
+
+The extracted intervals reproduce the DRN progression without being told it:
+
+| sectors | measured median interval | DRN |
+|---|---|---|
+| 1-3 | **2.500 d** | every 2.5 days |
+| 4-5 | **3.000 d** | 3.0-3.375 days |
+| 6 | **3.125 d** | 3.0-3.375 days |
+| 100-104 | 6.46-6.83 d | 4.0+ days |
+
+Range across all sectors 2.50-13.94 d. **This is an independent confirmation the
+extraction is correct**, not a reused assumption.
+
+### PART 1 -- features, and the deliberate confound probe
+
+| feature | definition |
+|---|---|
+| `md_min_dt` | min over the star's transits of (t_transit - t_last_dump) |
+| `md_median_dt` | median of the same |
+| `md_frac_near_6h` / `md_frac_near_24h` | fraction of transits within 6 h / 24 h after a dump |
+| `md_period_ratio` | \|log(P_transit / (n * dump_interval))\| minimised over n in {1,2,1/2,3,1/3} -- the sharpest version: an instrumental artefact at a period commensurate with the dump cadence |
+| **`md_n_dumps`, `md_dump_interval`** | **functions of SECTOR ALONE. Included deliberately as a built-in confound probe, never as candidate features.** |
+
+**Coverage, up front.** Training **95.32%** (95.32% pos / 95.34% neg), main pool
+**100.00%** (488/488), widesector **100.00%** (68/69 ok, 1 with all transits
+before the first dump). Training misses: 146 rows in sectors the schedule did
+not reach, 112 with no usable ephemeris, 1 malformed file.
+
+**Class-rate gate: PASS, and it is the cleanest gate result in this project.**
+AUC(availability) **0.4999**, odds ratio 0.996, **Fisher p = 1.0**. Availability
+depends on the sector, not on the star, so it is almost perfectly balanced --
+95.32% of positives against 95.34% of negatives.
+
+### PART 1 -- the physical hypothesis, and what the data said
+
+**Hypothesis, stated before measurement:** thruster firings leave elevated
+pointing jitter for minutes-to-hours, so transit-like signals clustering shortly
+AFTER dumps are more likely instrumental -> proximity should be enriched in
+NEGATIVES.
+
+**Two of the four direction checks came back OPPOSITE.**
+
+| feature | median positive | median negative | expected | observed |
+|---|---|---|---|---|
+| `md_min_dt` | 0.2264 | 0.3358 | neg < pos | **OPPOSITE** |
+| `md_median_dt` | 3.1808 | 3.1168 | neg < pos | match |
+| `md_frac_near_6h` | 0.0270 | 0.0000 | neg > pos | **OPPOSITE** |
+| `md_frac_near_24h` | 0.1667 | 0.1667 | neg > pos | match (tied) |
+
+Confirmed planets sit *closer* to dumps than false positives do -- the reverse of
+the mechanism.
+
+**And `md_min_dt`'s apparent strength is substantially `period` restated.** With
+more transits in a sector the minimum time-since-dump necessarily shrinks, so it
+scales with period: \|rho\| **0.476** with the deployed `period`, and **0.621**
+for `md_period_ratio`. Residualising `md_min_dt` on period drops its AUC from
+0.4188 (\|AUC-0.5\| 0.0812) to 0.4313 (**0.0687**). Reduced, not eliminated --
+which is why it still earned the model test.
+
+### PART 1 -- single-feature AUC and correlation
+
+| feature | AUC | \|AUC-0.5\| |
+|---|---|---|
+| `md_min_dt` | 0.4188 | 0.0812 |
+| `md_period_ratio` | 0.5689 | 0.0689 |
+| `md_frac_near_6h` | 0.5536 | 0.0536 |
+| `md_frac_near_24h` | 0.5313 | 0.0313 |
+| `md_dump_interval` *(sector proxy)* | 0.5223 | 0.0223 |
+| `md_n_dumps` *(sector proxy)* | 0.5218 | 0.0218 |
+| `md_median_dt` | 0.4918 | 0.0082 |
+
+**Nothing is redundant.** Max \|rho\| against the 33 is **0.621**
+(`md_period_ratio` vs `period`); everything else is at or below 0.476. Against
+`ls_period_match` specifically: 0.034-0.300. **|Galactic latitude| control arm is
+clean** -- rho -0.229 to +0.263, quartile-AUC spreads 0.057-0.177.
+
+### PART 2 -- model test. 12 bootstraps, production's exact recipe, frozen split.
+
+Base **AUC 0.9397**, Brier 0.0732, ECE 0.0294. Train 4,414 / frozen test 1,098;
+2-min subset 968.
+
+| arm | features | mean delta | 95% CI | positive | >= MDE | 2-min | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| A proximity | `md_min_dt`, `md_frac_near_6h/24h` | **-0.0007** | [-0.0019, +0.0010] | 3/12 | 0/12 | -0.0009 | 0.0735 | 0.0286 |
+| B period-commensurate | `md_period_ratio` | **-0.0006** | [-0.0021, +0.0005] | 5/12 | 0/12 | -0.0004 | 0.0735 | 0.0302 |
+| **C SECTOR-PROXY CONTROL** | `md_n_dumps`, `md_dump_interval` | **+0.0063** | **[+0.0046, +0.0089]** | **12/12** | 0/12 | +0.0069 | **0.0709** | **0.0257** |
+| D all real features | the five above | **-0.0014** | [-0.0034, +0.0007] | 2/12 | 0/12 | -0.0017 | 0.0738 | 0.0296 |
+
+**No arm clears** (`ci_lo > 0` AND `mean delta >= MDE 0.0097`). The real
+momentum-dump features are **null to negative**. And the arm that "worked" is the
+one deliberately built to contain **no dump-proximity information at all**.
+
+### THE FINDING THAT OUTLIVES THIS PROPOSAL -- observation epoch predicts the label
+
+Arm C's two columns know only *which sector the star was observed in*. They carry
+nothing about the star, the transit, or any dump. They are positive in **12/12**
+bootstraps at **+0.0063**, with ci_lo > 0, and they improve **both** Brier
+(0.0732 -> 0.0709) and ECE (0.0294 -> 0.0257). They are fitting something real.
+
+Traced directly, on the 5,275 training rows with a resolved sector:
+
+| sector era | n | negative-class rate |
+|---|---|---|
+| 1-13 | 882 | 0.226 |
+| 14-26 | 659 | 0.229 |
+| **27-39** | 431 | **0.522** |
+| 40-55 | 1,179 | 0.161 |
+| **56-69** | 350 | **0.517** |
+| **70-84** | 1,526 | **0.079** |
+| 85-105 | 248 | 0.234 |
+| overall | 5,275 | 0.213 |
+
+**A 6.6x swing in negative rate across observation eras, with no astrophysical
+cause. AUC(sector number alone) = 0.5803** -- higher than every momentum-dump
+feature built here, and nearly the deployed `var_ls_period`'s 0.5903, from a
+variable encoding only *when the star was looked at*.
+
+This is **label-assembly history**, not physics: which TOIs had been dispositioned
+FP versus confirmed depends on TFOP follow-up campaigns, which ran unevenly across
+sectors. Same failure class as the **multi-sector missingness indicator**
+(+0.0102, 108% of that feature's gain, which disqualified it): a bookkeeping
+column out-performing the physics it was meant to support.
+
+**Two consequences, and the second is the important one.**
+
+1. Arm C must **not** be promoted despite ci_lo > 0. It is below MDE, and it
+   encodes the archive's labelling history. Deploying it would tell the model
+   "stars observed in sectors 27-39 and 56-69 are more likely false positives",
+   which is true of *this catalogue* and false of *the sky*. It would degrade on
+   any new sector.
+2. **This confound is latent in `training.csv` and no standing check would catch
+   it.** The `|galactic latitude|` control arm is SPATIAL. This is TEMPORAL, and
+   nothing currently tests it. Any feature correlated with observation epoch --
+   sector-count features, anything derived from mission-era metadata, anything
+   whose availability tracks when data was taken -- can harvest up to ~+0.006 of
+   pure bookkeeping. **RECOMMENDATION: add a sector/epoch control arm alongside
+   the `|b|` arm in the standing battery.** Not implemented here; it is a change
+   to the standing protocol and is flagged, not taken.
+
+### Verdict
+
+| element | outcome |
+|---|---|
+| flag-absence blocker | **RE-VERIFIED**, 0/8,452,078 cadences (8x the original sample) |
+| blocker's SCOPE for a time-since feature | **CORRECTED.** Spacecraft event -> ~105 downloads, not ~9,200. Buildable. |
+| published dump schedule | intervals only, no timestamps -- unusable |
+| dumps inferred from gaps | **fails empirically**, 15.94% ~ chance |
+| the schedule itself | **BUILT and independently validated** against the DRNs: 100 sectors, 469 events |
+| `md_min_dt` / `md_frac_near_*` / `md_period_ratio` | **NULL TO NEGATIVE**: -0.0006 to -0.0014, every CI straddling zero, 0/12 at MDE. Direction OPPOSITE the hypothesis in 2 of 4 checks. |
+| sector-proxy control arm | **+0.0063, 12/12** -- and it is the confound, not a feature |
+
+**Recommendation: DO NOT PROMOTE anything from this investigation.** Momentum-dump
+proximity is measured and null. **Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+**Both framings are now closed, and by different arguments.** Do not re-derive
+either:
+
+* **flag-based** ("momentum dump flag", "desaturation flag", "quality bit 32"):
+  closed on chance-level AUC (straylight 0.4964, corroborated by ExoMiner++) AND
+  on the cadences being stripped at download.
+* **time-since / proximity-based** ("time since last dump", "momentum dump
+  proximity score", "post-dump settling window", "dump-commensurate period"):
+  **closed on MEASUREMENT, not on availability.** The data was obtained, the
+  schedule was built, the features were computed at 95.32%/100%/100% coverage
+  with a perfect class-rate gate, and they returned -0.0006 to -0.0014.
+
+A reformulation in this family needs to explain what it measures that
+`md_min_dt`, `md_median_dt`, `md_frac_near_6h`, `md_frac_near_24h` and
+`md_period_ratio` do not -- and must not be an observation-epoch proxy, which
+this entry shows is worth ~+0.006 of pure artifact.
+
+### Methodological note
+
+**The confound probe was worth more than the feature.** `md_n_dumps` and
+`md_dump_interval` were included specifically because they were functions of
+sector alone -- a control designed to fail. It did not fail; it beat every real
+arm, and that is what exposed the epoch confound. **A control arm built from a
+deliberately content-free version of the feature belongs in this project's
+standard battery**, exactly as the wrong-period control did in the ellipsoidal
+investigation, where it also overturned the headline.
+
+Artefacts: `momentum_dump_schedule.py` / `.json` (100 sectors, 469 events),
+`momentum_dump_features.py` / `.csv`, `momentum_dump_assess.py` / `.json`,
+`momentum_dump_validate.py` / `.json`.
+
+Cross-references: the original momentum-dump/straylight systematics
+investigation (whose scope claim this entry corrects), the ExoMiner++ Section 6.9
+ablation verification, the multi-sector missingness control (the same failure
+class), the ellipsoidal null-control precedent, and the STANDING REGISTER at the
 top of this file.
