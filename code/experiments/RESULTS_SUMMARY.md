@@ -51,6 +51,10 @@ Proposing any of them is proposing to build something that is already running.
 | CNN embedding + late fusion | 1 | the embedding itself is the bottleneck; a dense fusion combiner given a strong model's output measured **-0.0324** |
 | small dense net on the 33 tabular features | 1 | every size tested underfits or overfits at this data volume -- data wall, not tuning |
 | multi-model ensembling / stacking to rescue errors | 1 | alternative members score **0.069-0.223 AUC on the stars HGB gets wrong** -- confidently wrong on the SAME stars |
+| **CatBoost as a swap or seed-ensemble** | 3 | 24 feat **+0.0085** (died on 10-seed replication to +0.0013); 31 feat **+0.0042**, CI [-0.0013,+0.0100], **0/12 at MDE**, ECE **+25.8%** (0.0365->0.0459). Edge HALVED as features were added -- crowding/variability absorbed what it was mining. **NOTE: last run at 31 features, pre-Gaia and pre-Optuna, so it is 2 deployments STALE at 33. Scoped-but-not-run, prior LOW** (third point on a halving curve, against a model that since absorbed +0.0142 Gaia and +0.0052 Optuna). |
+| **"CatBoost in a new 34-feature space"** | premise false | **There is no 34th feature.** Production is 33 (Gaia RUWE/NSS, 2026-08-14, the last promotion). 16 investigations since, zero promotions. Do not condition work on a feature count that does not exist. |
+| **self-training / pseudo-labelling** | 2 | Error amplification confirmed: confident predictions cluster in the giant blind spot, resampling **t=-2.63, p=0.0165**, low-SNR subpopulation **-0.0114**. **RE-MEASURED 2026-08-28 at 33 features: the mechanism is WORSE, not retired by Gaia** -- `st_rad` enrichment **11.49x** (was 6.6x), **128 confident positives vs 3 negatives**, 35.2% above the `st_rad>=1.5` penalty threshold vs 15.9% of real planets. |
+| **"double the label count" via pseudo-labelling** | arithmetically impossible | **Real pool is 557 scored candidates; doubling 5,534 rows needs 5,534.** Confident tail yields **131 = +2.4%**; every pool row indiscriminately is **+10.1%**. Off by ~10x before any methodological objection. |
 | *ExoNet citations -- TWO DIFFERENT PAPERS share this name* | -- | **Ansdell et al. 2018 (arXiv:1810.13434) reports NO AUC anywhere** (95.8/95.5 -> 97.5/98.0, accuracy & average precision); every AUC attributed to it here has been false. **arXiv:2604.15560 (2026) DOES report AUC** and its "+0.062-0.068 over the best single-view CNN" **VERIFIES** (0.887 -> 0.9549). Always state which paper. The 2026 one does not transfer: 4-year Kepler vs 27-day TESS, its weakest CNN (0.874) is 0.19 above this project's, its tabular branch is 0.819. |
 | Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
 | periodogram peak POSITION (`ls_period_match`, raw ratio) | 2 | -0.0006 and -0.0004 |
@@ -108,6 +112,14 @@ MDE ~0.0097 on the frozen 1,098-star test set. Clearing requires
 **`ci_lo > 0` AND `mean delta >= MDE`**, over >= 10 bootstraps of production's
 exact recipe. A number quoted from anywhere else -- including from this document
 -- must be traced to its own row before it is used as evidence.
+
+**Second worked example (2026-08-28).** A proposal estimated "+0.01 if we double
+the label count". The nearest real number is the pseudo-labelling `abs0.95 w=0.25`
+arm's **+0.0092** -- a **single-fit** figure against a bare-pipeline baseline, and
+the arm the investigation then **disqualified** on three independent checks. Two
+consecutive tasks have now had their headline number trace to an optimistic
+pre-refutation value. **Numbers generated inside this project get the same tracing
+as numbers cited from papers.**
 
 **Worked example of why that last sentence exists (2026-08-28).** A proposal cited
 "crowding gave +0.0177" as its expected-gain basis. Crowding's raw headline was
@@ -15380,3 +15392,153 @@ and confirm only what five prior CNN closures already measured.**
 Cross-references: the five prior neural closures, the ExoNet/Astronet citation
 correction, the Kepler-transfer bundle, section D of the register
 (observation-epoch confound), and the centroid 5 label-circularity finding.
+
+---
+
+## CATBOOST "AT 34 FEATURES" + SELF-TRAINING TO "DOUBLE THE LABEL COUNT" -- one premise false, one arithmetically impossible. But the CatBoost closure IS stale, and that correction runs against expectation.
+
+**Date: 2026-08-28. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing built, nothing
+retrained, no pseudo-labels generated.
+
+### PART 0 -- CatBoost. The "34-feature" premise is false. But so is "already tested at 33".
+
+**The stated premise is wrong.** Production is **33 features**, verified live in
+`05_train_models.FEATURE_COLUMNS`. There is no 34th or 35th feature, none is
+pending, and the last feature promotion was **Gaia RUWE/NSS on 2026-08-14**.
+Since then 16 investigations have closed with zero promotions (section B2).
+**Conditioning work on "if expanded features succeed" is conditioning on
+something that has not happened in 14 days of consecutive negative results.**
+
+**But the expected correction -- "CatBoost is already closed at 33" -- is ALSO
+wrong, and this is the finding worth recording.** Checked in the source rather
+than assumed:
+
+    catboost_seed_ensemble.py:121     assert len(cols) == 31
+    catboost_seed_ensemble.py:183     "...vs the CURRENT 31-feature production baseline"
+    file dates: 2026-08-06
+
+**The CatBoost seed-ensemble closure was run at 31 features against the 0.9300
+baseline.** Two promotions have landed since: **Gaia (31 -> 33) on 08-14** and
+the **Optuna hyperparameters on 08-15**. So that closure is **two deployments
+stale** relative to current production -- exactly the condition the brief asked
+me to check precisely rather than assume away. **It has NOT been tested at 33
+features or against the Optuna-tuned model.**
+
+**The honest verdict is therefore: the sub-proposal's premise is false, AND the
+legitimate version of its question has genuinely not been run.** I am not going
+to paper over that.
+
+**What the closure's own trend line predicts, however, is further erosion:**
+
+| feature count | CatBoost single-fit edge over HGB | clears? |
+|---|---|---|
+| 24 | **+0.0085** | yes (later died on 10-seed replication to +0.0013) |
+| 31 | **+0.0042** | no -- CI [-0.0013, +0.0100] |
+| 33 + Optuna | **not measured** | -- |
+
+The entry attributes the halving explicitly: crowding and variability "absorbed
+part of what CatBoost was exploiting." Gaia then added **+0.0142** and Optuna
+tuning added **+0.0052** of model-side gain -- both of which act on the same
+margin CatBoost was mining. **Two data points trending down by half, plus a
+mechanism that explains why, plus 0/12 at MDE at the last measurement.**
+
+And the cost side was real: seed-ensemble **ECE 0.0365 -> 0.0459, +25.8%**, with
+Brier also worse (0.0832 -> 0.0854). The 12/12-positive result was consistently
+positive and consistently **0/12 at MDE**.
+
+**Verdict: DO NOT RUN on the stated premise, which is false. Recorded as
+SCOPED-BUT-NOT-RUN at the true current baseline, with the prior explicitly
+low** -- a third point on a halving curve, against a model that has since
+absorbed two of the things CatBoost was exploiting, at a known calibration cost.
+If anyone runs it, it should be because the record says it is untested, not
+because a 34th feature appeared.
+
+### PART 1 -- self-training. The "+0.01" traces to a DISQUALIFIED single fit, and "double" is off by 10x.
+
+**1. The "+0.01" figure.** The closest number in the record is the
+`abs0.95 w=0.25` arm's **+0.0092** -- a **single-fit** result against a
+*bare-pipeline* baseline. That arm is precisely the one the investigation went
+on to **disqualify**, via three independent checks. Applying this project's
+citation discipline to an internally-generated number: **+0.01 is not a measured
+expectation, it is the optimistic pre-refutation figure from the arm that
+failed.** Same error class as the "+0.0177" traced two tasks ago to a
+disqualified feature's CI bound. **It did not inform this recommendation.**
+
+**2. The mechanism, confirmed and RE-MEASURED TODAY -- it has not gone away.**
+The closure rested on confident predictions concentrating in a known blind spot
+(giants), with resampling significance **t = -2.63, p = 0.0165** and
+subpopulation degradation (low-SNR **0.8821 -> 0.8706, -0.0114**).
+
+The brief asks whether the Gaia deployment retired that risk. **Measured fresh
+against today's 33-feature production, scoring the live pool:**
+
+| | closed finding (24 feat, 2026-08) | **TODAY (33 feat, 0.9454)** |
+|---|---|---|
+| confident-positive `st_rad` | 10.597 | **18.097** |
+| real confirmed-planet `st_rad` | 1.597 | 1.575 |
+| **ratio** | **6.6x** | **11.49x** |
+| confident positives / negatives | 42 / 1 | **128 / 3** |
+| at p >= 0.99 | 0 | 8 |
+
+**The blind spot has not moved and has not shrunk -- by this measure it is now
+MORE concentrated, not less.** 35.2% of today's confident-positive pool rows sit
+above the documented `st_rad >= 1.5` reliability-penalty threshold, against
+15.9% of real confirmed planets -- a **2.2x enrichment**. The one-sidedness is
+also more extreme than before: **128 confident positives against 3 confident
+negatives.**
+
+So the answer to 1.4 is empirical, not argued: **Gaia's incidental improvement to
+giant-star calibration did not retire the mechanism.** And the general form of
+the claim holds regardless -- self-training amplifies wherever confident-wrong
+predictions currently cluster; if they ever left giants they would cluster
+somewhere else, and the amplification would follow them.
+
+**3. Does "doubling" change the mechanism? No -- and it makes it worse.** The
+error-amplification finding was never about the SIZE of the addition. It was
+about WHERE the confident predictions come from. Doubling means drawing *more*
+from the same pool, whose confident tail is 11.5x enriched in exactly the
+population the model is documented to handle worst. **Unless selection
+specifically excludes the blind-spot region, scaling up scales the contamination
+proportionally.** Dilution is the opposite of what happens.
+
+**4. "Double the label count" is not quantitatively possible.** The real pool
+today:
+
+| | count |
+|---|---|
+| main pool, scored (Success) | 488 |
+| widesector pool, scored | 69 |
+| **total available unlabelled** | **557** |
+| of those, confident at p>=0.95 or p<=0.05 | **131** |
+| **needed to DOUBLE 5,534 training rows** | **5,534** |
+
+**The entire pool is 557 candidates. Doubling requires 5,534.** Using every
+confidently-labelled candidate yields **+2.4%**; using every pool row
+indiscriminately -- including the ones the model is unsure about, which defeats
+the method -- yields **+10.1%**. **The proposal is off by roughly 10x against
+real data, before any methodological objection applies.**
+
+### Verdict
+
+| sub-proposal | verdict |
+|---|---|
+| CatBoost "in a new 34-feature space" | **PREMISE FALSE** -- production is 33, no 34th exists or is pending, and 16 consecutive investigations have promoted nothing. **Separately: the closure IS stale (run at 31 features, pre-Optuna).** Recorded as scoped-but-not-run with a low prior: edge halved 0.0085 -> 0.0042 as features were added, 0/12 at MDE, ECE +25.8%. |
+| self-training / pseudo-labelling to double labels | **CLOSED. Three independent grounds.** (a) "+0.01" is the disqualified arm's pre-refutation single-fit number. (b) The blind-spot mechanism is **worse today**, re-measured: 11.49x `st_rad` enrichment vs 6.6x, 128 confident positives vs 3 negatives. (c) **Doubling is 10x beyond the real pool** -- 557 available, 5,534 needed. |
+
+**Recommendation: close both. Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+### Process note
+
+Two numbers in this proposal were traced rather than accepted, and **both turned
+out to be optimistic figures from arms that were subsequently disqualified**
+("+0.01" here; "+0.0177" two tasks ago). **A number produced inside this project
+deserves the same tracing as one cited from a paper** -- section C of the
+register already says so, and this is the second consecutive task where it
+mattered.
+
+Cross-references: the CatBoost seed-ensemble closure (31-feature baseline), the
+CatBoost single-fit and 10-seed replication, the GBM cross-family ensemble
+closure, the three-part pseudo-labelling closure, the giant-star confidence-tier
+penalty, and section B2 on feature exhaustion.
