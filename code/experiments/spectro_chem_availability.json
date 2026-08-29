@@ -1,0 +1,106 @@
+{
+  "radius_arcsec": 5.0,
+  "APOGEE_DR17": {
+    "train_overall": 0.21557643657390677,
+    "train_pos": 0.25304247990815154,
+    "train_neg": 0.07718405428329092,
+    "diff_pp": -17.58584256248606,
+    "odds_ratio": 4.050279876901457,
+    "fisher_p": 2.2651509019191526e-45,
+    "auc_availability": 0.5879292128124304,
+    "n_with_coords": 5484,
+    "contingency": [
+      [
+        1102,
+        3253
+      ],
+      [
+        91,
+        1088
+      ]
+    ],
+    "pool_main": 0.004098360655737705,
+    "pool_main_n": 488,
+    "pool_widesector": 0.0,
+    "pool_widesector_n": 69
+  },
+  "GALAH_DR3": {
+    "train_overall": 0.0,
+    "train_pos": 0.0,
+    "train_neg": 0.0,
+    "diff_pp": 0.0,
+    "odds_ratio": NaN,
+    "fisher_p": 1.0,
+    "auc_availability": 0.5,
+    "n_with_coords": 5484,
+    "contingency": [
+      [
+        0,
+        4355
+      ],
+      [
+        0,
+        1179
+      ]
+    ],
+    "pool_main": 0.0,
+    "pool_main_n": 488,
+    "pool_widesector": 0.0,
+    "pool_widesector_n": 69
+  },
+  "LAMOST_DR7": {
+    "train_overall": 0.0,
+    "train_pos": 0.0,
+    "train_neg": 0.0,
+    "diff_pp": 0.0,
+    "odds_ratio": NaN,
+    "fisher_p": 1.0,
+    "auc_availability": 0.5,
+    "n_with_coords": 5484,
+    "contingency": [
+      [
+        0,
+        4355
+      ],
+      [
+        0,
+        1179
+      ]
+    ],
+    "pool_main": 0.0,
+    "pool_main_n": 488,
+    "pool_widesector": 0.0,
+    "pool_widesector_n": 69
+  },
+  "GaiaESO_DR5": {
+    "train_overall": 0.0010842067220816769,
+    "train_pos": 0.001148105625717566,
+    "train_neg": 0.0008481764206955047,
+    "diff_pp": -0.029992920502206137,
+    "odds_ratio": 1.354022988505747,
+    "fisher_p": 1.0,
+    "auc_availability": 0.500149964602511,
+    "n_with_coords": 5484,
+    "contingency": [
+      [
+        5,
+        4350
+      ],
+      [
+        1,
+        1178
+      ]
+    ],
+    "pool_main": 0.0,
+    "pool_main_n": 488,
+    "pool_widesector": 0.0,
+    "pool_widesector_n": 69
+  },
+  "UNION": {
+    "train_overall": 0.21629924105529455,
+    "train_pos": 0.2537313432835821,
+    "train_neg": 0.07803223070398643,
+    "diff_pp": -17.569911257959568,
+    "auc_availability": 0.5878495562897978
+  }
+}
