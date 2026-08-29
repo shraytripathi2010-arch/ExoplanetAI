@@ -57,6 +57,11 @@ Proposing any of them is proposing to build something that is already running.
 | **"double the label count" via pseudo-labelling** | arithmetically impossible | **Real pool is 557 scored candidates; doubling 5,534 rows needs 5,534.** Confident tail yields **131 = +2.4%**; every pool row indiscriminately is **+10.1%**. Off by ~10x before any methodological objection. |
 | **SPECTROSCOPIC STELLAR CHEMISTRY -- APOGEE / GALAH / LAMOST / Gaia-ESO ([Fe/H], [alpha/Fe], Mg, Si, C/N, Li, thin/thick disk)** | **1 (2026-08-29)** | **NEW category. CLOSED AT THE AVAILABILITY GATE -- no chemistry value ever computed.** The science is REAL (Fischer & Valenti 2005; Adibekyan et al. 2012a/b) and the novelty is genuine (no abundance column exists). It fails on WHO WAS OBSERVED. **Pool coverage 0.00-3.00% across ALL FOUR surveys** (APOGEE 0.41%, LAMOST 0.00%, GALAH 3.00%, Gaia-ESO 0.00%) -- 40x below the SPOC DV figure already considered disqualifying. **And availability is a label proxy: APOGEE 25.30% pos vs 7.72% neg, -17.59 pp, OR 4.05, p=2.3e-45, AUC(availability alone) 0.5879** -- as predictive as `gaia_ruwe`, from no chemistry at all. Cause: positives are bright named confirmed planets (survey-prioritised), negatives are faint TIC-named TOIs; LAMOST is northern, the pool is southern. **Reopens only on a southern faint-limited abundance survey of TESS candidates -- a DATA question, not a method one.** Does NOT refute the metallicity-planet correlation. |
 | **GALACTIC KINEMATICS -- U/V/W, tangential velocity, disk membership (Bensby thick/thin), height above the plane** | **1 (2026-08-29)** | **RELATED TO but DISTINCT FROM the chemistry row above -- that died at availability, this passed it and was measured in full.** Availability PASSES: tangential 97.20% train / -2.15 pp / **AUC(avail) 0.5108**; full-3D 77.29% / +7.85 pp (caveat, not disqualifying); main pool 59.63% / 39.96%. **The MATCHED-SKY-BAND test disqualified the batch's STRONGEST feature**: `kin_absz` (\|d sin b\|, \|AUC-0.5\| 0.0795) retains only **40%** inside \|b\| in [8,40] where the class \|b\| difference inverts, and `kin_dist` **SIGN-FLIPS** -- both positional, and **both independently flagged SPATIAL+TEMPORAL by `control_arms`**. A correlation-only check (rho vs \|b\| = 0.228) would have passed `kin_absz` through. Five survivors modelled: **A tangential -0.0014 CI [-0.0030,-0.0003] 0/12 (significantly negative), B full-3D -0.0011, D all -0.0016, C disk-membership +0.0004 (only positive arm, improves Brier AND ECE, but 24x below MDE)**. Bashi et al. is REAL; an OCCURRENCE-RATE prior does not translate to per-signal discrimination. |
+| **P(binary) COMPOSITE from deployed RUWE+NSS** | **1 (2026-08-29)** | **SIGNIFICANTLY NEGATIVE: -0.0015, CI [-0.0031,-0.0003], 0/12.** A logistic score fitted OUTSIDE the model on two DEPLOYED columns is a deterministic function of them -- it cannot add information, and empirically it SUBTRACTS: a redundant column competes for splits at every node. Univariately it looks good (\|AUC-0.5\| 0.1099 vs `gaia_ruwe` 0.0833) because projecting 2 informative features onto 1 axis does that; the single-feature comparison is the wrong yardstick. **See the reusable lesson below.** |
+| Gaia astrometric excess noise (`epsi`/`sepsi`) | 1 (2026-08-29) | Genuinely new (never fetched by the RUWE/NSS query), 98.93% coverage, **strongest univariate in its session at \|AUC-0.5\| 0.2041** -- and **-0.0001 at the model**, 5/12, 0/12 at MDE. \|rho\| 0.633 with deployed `chi2red_min`. |
+| TIC-vs-Gaia photometric offset | 1 (2026-08-29) | **Excluded pre-model.** `Tmag-Gmag` REDUNDANT with `st_teff` (0.884 -- it is a colour); `TICGaiamag-Gmag` flagged **SPATIAL+TEMPORAL** (0.274/0.267). NOTE: TIC `Tmag` was **fetched and discarded** by `fetch_stellar_params` -- third instance of that pattern. |
+| **SB9 / SB2 spectroscopic-binary cross-match** | 1 (2026-08-29) | **CLOSED ON SCALE: 6 matches in 5,534 rows = 0.11%.** Historically-compiled catalogue of a few thousand well-studied systems; these stars are not in it. Closes before any class-rate question. |
+| *El-Badry+21 RUWE->P(binary) citation* | over-generalised | It is a **RESOLVED WIDE-BINARY** catalogue (separate Gaia sources). Transit FPs come from **UNRESOLVED/blended** EBs -- different population. Its parallax cut is not the obstacle (83.59% of our stars pass plx>1mas, checked). |
 | *ExoNet citations -- TWO DIFFERENT PAPERS share this name* | -- | **Ansdell et al. 2018 (arXiv:1810.13434) reports NO AUC anywhere** (95.8/95.5 -> 97.5/98.0, accuracy & average precision); every AUC attributed to it here has been false. **arXiv:2604.15560 (2026) DOES report AUC** and its "+0.062-0.068 over the best single-view CNN" **VERIFIES** (0.887 -> 0.9549). Always state which paper. The 2026 one does not transfer: 4-year Kepler vs 27-day TESS, its weakest CNN (0.874) is 0.19 above this project's, its tabular branch is 0.819. |
 | Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
 | periodogram peak POSITION (`ls_period_match`, raw ratio) | 2 | -0.0006 and -0.0004 |
@@ -170,6 +175,18 @@ have to look strong.** Two consequences:
 photometry, SG2 recon spectroscopy, SG3 imaging, SG4 precise RV, and any ExoFOP
 product derived from them. A proposal from that chain needs an affirmative
 argument for why it is NOT an input to the disposition, not merely a passing gate.
+
+**DO NOT PRE-COMBINE ALREADY-DEPLOYED FEATURES (added 2026-08-29).** A
+hand-engineered composite of features the model already holds -- a logistic
+P(binary) from RUWE+NSS, a ratio, any monotone summary -- **cannot add
+information** (it is a deterministic function of its inputs) and **measured
+significantly NEGATIVE**: -0.0015, CI [-0.0031,-0.0003], **0/12 positive**. The
+mechanism: a redundant column competes for splits at every node, consuming split
+budget and adding variance. For a gradient-boosted tree a monotone summary is
+**strictly worse than the raw features**, not merely equivalent. HGB learns
+nonlinear feature interactions natively -- that is what trees are. Joins
+`trap_rmse` (0.962 vs `depth_mean`), the raw LS ratio (0.667 vs `period`),
+`ell_a1`/`ell_a2` (0.85+ vs `var_ls_amp`), `f_hp_p05x` (`snr` restated).
 
 **POSITION-DERIVED FEATURES OWE A MATCHED-SKY-BAND TEST (added 2026-08-29).**
 Any feature computed FROM sky position or proper motion can rediscover
@@ -17322,3 +17339,132 @@ failure mode, and the template this followed), the label-circularity standing
 rule in the register, the archive-availability method rule (exact TIC matching),
 the sector/epoch confound, the TIC CTL trap, and the spectroscopic-chemistry and
 Bayestar19 pool-coverage closures.
+
+---
+
+## P(BINARY) COMPOSITE + SB9 CROSS-MATCH -- routed separately. The composite is SIGNIFICANTLY NEGATIVE; SB9 closes on scale at 6 matches.
+
+**Date: 2026-08-29. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing promoted.
+
+Two mechanistically different proposals, routed separately as they should be:
+one **recombines signals the model already has**, the other is a **genuinely new
+external catalogue**. They close for entirely different reasons.
+
+### PART 0 -- what was already fetched, and what was thrown away
+
+| input | status |
+|---|---|
+| `gaia_ruwe`, `gaia_nss` | **DEPLOYED.** Query was `Vizier(columns=["Source","RUWE","NSS","Gmag","+_r"])`. |
+| Gaia astrometric excess noise (`epsi`/`sepsi`) | **NEVER FETCHED** -- genuinely new; required a re-query. |
+| TIC `Tmag` | **FETCHED AND DISCARDED.** `fetch_stellar_params` calls `Catalogs.query_criteria(catalog="Tic", ...)`, which returns the full ~125-column TIC row, then subsets to `["ID","ra","dec","rad","e_rad","mass","e_mass","Teff"]`. **Third instance of this exact pattern** (after TIC `logg`/`rho` and the DV reports). Cheap to recover. |
+| SB9 | Genuinely new external catalogue. |
+
+**El-Badry+21 is OVER-GENERALISED in this proposal.** It is a **resolved
+wide-binary catalogue**, built from spatial+kinematic coincidences between
+*separate* Gaia sources. The transit-false-positive mechanism is an
+**unresolved or blended** EB inside the TESS aperture -- a different population.
+Its parallax cuts are NOT the obstacle (**83.59%** of training stars pass
+plx > 1 mas, checked rather than asserted); the mismatch is mechanical. It does
+not supply a general RUWE -> P(binary) calibration for unresolved binaries.
+
+### PART 0.1 -- the architectural reasoning, STATED BEFORE THE TEST
+
+> HGB is a tree ensemble. Given `gaia_ruwe` and `gaia_nss` as raw inputs it
+> already partitions their joint space natively -- that is what trees do. A
+> logistic P(binary) fitted OUTSIDE the model and fed back as ONE column is a
+> **deterministic function of those same two inputs**, so by the data processing
+> inequality it **cannot contain information they do not**. It can only help by
+> making an existing pattern easier to express -- and a logistic surface is a
+> **strictly smaller hypothesis class** than the axis-aligned partition HGB
+> already learns. Prediction: no meaningful gain.
+
+**A correction to my own first measurement.** The composite's in-sample
+single-feature AUC was 0.6113 and I flagged it as label leakage. **That was
+wrong** -- cross-fitting gives 0.6099, an optimism of only **+0.0015**. The
+composite genuinely summarises better *univariately* (|AUC-0.5| **0.1099**) than
+either input (`gaia_ruwe` 0.0833). That is simply what projecting two informative
+features onto one axis does; it is not evidence of added information, and the
+single-feature comparison was the wrong yardstick either way.
+
+### PART 1 -- SB9: CLOSED ON SCALE
+
+**6 matches in 5,534 training rows = 0.11%.**
+
+SB9 (Pourbaix et al.) is a historically-compiled catalogue of a few thousand
+well-studied spectroscopic binaries; this project's stars are overwhelmingly not
+in it. **No feature is constructible from 6 rows**, and the closure lands before
+any class-rate question applies. Same closure class as other small-catalogue
+gates in this file.
+
+### PART 2 -- the battery on what remained
+
+Class-rate gate: **all PASS**, AUC(availability) 0.4850-0.5099.
+
+| feature | \|AUC-0.5\| | rho vs `gaia_ruwe` | max rho vs 33 | matched band | control arms |
+|---|---|---|---|---|---|
+| **`bin_sepsi`** | **0.2041** | 0.454 | 0.633 (`chi2red_min`) | survives 119% | SPATIAL (0.210) |
+| `bin_epsi` | 0.1672 | 0.508 | 0.569 | survives 132% | SPATIAL (0.211) |
+| `bin_tmag_gmag` | 0.1530 | 0.160 | **0.884 `st_teff`** | survives 89% | ok |
+| `bin_tic_gaia_dmag` | 0.1402 | 0.061 | 0.709 | survives 145% | **SPATIAL+TEMPORAL** |
+| `bin_pcomposite` | 0.1099 | **0.741** | 0.741 | survives 129% | ok |
+
+**Every feature survived the matched-sky-band test** (89-145%) -- unlike the
+kinematics case. These are astrometric/photometric quantities, not position
+restated. Excluded before modelling: **`bin_tmag_gmag`** (redundant at 0.884 with
+`st_teff` -- it is a colour, so it necessarily tracks temperature) and
+**`bin_tic_gaia_dmag`** (SPATIAL+TEMPORAL, spreads 0.274/0.267).
+
+### PART 3 -- model test. 12 bootstraps, production's exact recipe.
+
+Base **AUC 0.9384**, Brier 0.0740, ECE 0.0291.
+
+| arm | features | mean delta | 95% CI | positive | >= MDE | Brier | ECE |
+|---|---|---|---|---|---|---|---|
+| **A composite** | `bin_pcomposite` | **-0.0015** | **[-0.0031, -0.0003]** | **0/12** | 0/12 | 0.0745 | 0.0309 |
+| B excess noise | `bin_epsi`, `bin_sepsi` | **-0.0001** | [-0.0021, +0.0024] | 5/12 | 0/12 | 0.0737 | 0.0336 |
+| C both | all three | -0.0013 | [-0.0027, +0.0005] | 2/12 | 0/12 | 0.0743 | 0.0319 |
+
+**The composite is SIGNIFICANTLY NEGATIVE** -- entire CI below zero, 0/12
+positive. It does not merely fail to help; **it measurably hurts.**
+
+**And `bin_sepsi` -- the strongest single feature measured anywhere in this
+session at |AUC-0.5| = 0.2041 -- contributes exactly nothing** (-0.0001, 5/12).
+It correlates 0.633 with the deployed `chi2red_min`.
+
+### THE REUSABLE LESSON: pre-combining already-deployed features does not help a tree model, and can hurt
+
+The prediction was that the composite could not add information. **The measured
+result is stronger than predicted: it is significantly negative.** The mechanism
+is concrete -- a redundant column competes for splits at every node, consuming
+split budget and adding variance, while contributing nothing the model could not
+already reach from the raw inputs. For a gradient-boosted tree, a hand-engineered
+monotone summary of features it already holds is **strictly worse than the raw
+features**, not merely equivalent.
+
+**This generalises to any future proposal of the form "combine deployed features
+X and Y into a derived score Z and feed Z to the model."** It joins the existing
+family: `trap_rmse` (0.962 with `depth_mean`), the raw LS period ratio (0.667
+with `period`), `ell_a1`/`ell_a2` (0.85+ with `var_ls_amp`), `f_hp_p05x` (`snr`
+restated). **The model does not need help combining features it already has.**
+
+### Verdict
+
+| sub-proposal | verdict |
+|---|---|
+| P(binary) composite from RUWE + NSS | **DO NOT PROMOTE -- SIGNIFICANTLY NEGATIVE** (-0.0015, CI [-0.0031,-0.0003], 0/12). Architecturally could not add information; empirically it subtracts. |
+| Gaia astrometric excess noise (`epsi`/`sepsi`) | **DO NOT PROMOTE.** Genuinely new, 98.93% coverage, strongest univariate in the session (0.2041) -- and **-0.0001 at the model**, 0/12 at MDE. |
+| TIC-vs-Gaia photometric offset | **EXCLUDED pre-model.** `bin_tmag_gmag` redundant with `st_teff` (0.884); `bin_tic_gaia_dmag` flagged SPATIAL+TEMPORAL. |
+| SB9 / SB2 cross-match | **CLOSED ON SCALE.** 6 matches / 5,534 = 0.11%. |
+| El-Badry+21 citation | **OVER-GENERALISED.** Resolved wide binaries, not unresolved blends. |
+
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+Artefacts: `binary_composite_fetch.py`, `binary_composite_raw.csv`,
+`binary_composite_assess.py` / `.json`, `binary_composite_features.csv`,
+`binary_composite_validate.py` / `.json`.
+
+Cross-references: the Gaia DR3 deployment, the `trap_rmse` and raw-period-ratio
+closures (same "already deployed in disguise" family), the TIC `logg`/`rho`
+discard, and `control_arms.py`.
