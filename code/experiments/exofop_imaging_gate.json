@@ -1,0 +1,140 @@
+{
+ "part0_access": {
+  "endpoint": "https://exofop.ipac.caltech.edu/tess/download_imaging.php?output=csv",
+  "method": "bulk CSV, no scraping; exact TIC join",
+  "rows": 36778,
+  "unique_tic": 14289,
+  "ragged_rows_truncated": 689,
+  "image_type_counts": {
+   "Speckle": 24556,
+   "AO": 9763,
+   "(blank)": 1944,
+   "Lucky": 428,
+   "Seeing-Limited": 84,
+   "Other": 2,
+   " r": 1
+  },
+  "group_counts": {
+   "tfopwg": 20195,
+   "(blank)": 16499,
+   "arielwg": 80,
+   "2018-09-08": 1
+  },
+  "obs_date_min": "2005-05-07",
+  "obs_date_max": "2026-07-04",
+  "hires_rows": 34747,
+  "hires_unique_tic": 13867,
+  "contrast_parseable_pct": 84.37850749705011
+ },
+ "tic_resolution": {
+  "train_resolved": 5316,
+  "train_total": 5534,
+  "pct": 96.06071557643658
+ },
+ "part2_availability_gate": {
+  "train_pct": 70.31602708803611,
+  "train_pos_pct": 68.91467246797195,
+  "train_neg_pct": 75.23324851569126,
+  "diff_pp": -6.318576047719304,
+  "contingency": [
+   [
+    2851,
+    1286
+   ],
+   [
+    887,
+    292
+   ]
+  ],
+  "odds_ratio": 0.7298195290186047,
+  "fisher_p": 2.3440934898748538e-05,
+  "auc_availability": 0.4684071197614035,
+  "n_train_with_imaging": 3738,
+  "pool_main_pct": 0.6147540983606558,
+  "pool_main_n": 3,
+  "pool_main_total": 488,
+  "pool_widesector_pct": 2.898550724637681,
+  "pool_widesector_n": 2,
+  "pool_widesector_total": 69
+ },
+ "part1_circularity": {
+  "n_matched_toi_with_imaging": 5917,
+  "disposition_counts": {
+   "PC": 3445,
+   "FP": 929,
+   "CP": 653,
+   "APC": 415,
+   "KP": 396,
+   "FA": 74,
+   "(blank)": 5
+  },
+  "FP_FA": {
+   "n": 1003,
+   "pct_imaging_before_disposition_update": 80.259222333001,
+   "median_days_obs_to_update": 860.0
+  },
+  "CP_KP": {
+   "n": 1049,
+   "pct_imaging_before_disposition_update": 88.56053384175405,
+   "median_days_obs_to_update": 1282.0
+  },
+  "ALL": {
+   "n": 5917,
+   "pct_imaging_before_disposition_update": 79.38144329896907,
+   "median_days_obs_to_update": 787.0
+  },
+  "imaging_rate_by_disposition_pct": {
+   "CP": 96.4549483013294,
+   "APC": 85.92132505175984,
+   "FA": 79.56989247311827,
+   "PC": 73.48549488054607,
+   "FP": 72.35202492211839,
+   "KP": 67.3469387755102,
+   "(blank)": 38.46153846153847
+  },
+  "n_toi_total": 7826
+ },
+ "part2b_value_and_provenance": {
+  "restricted_n": 3738,
+  "restricted_pos": 2851,
+  "restricted_neg": 887,
+  "values": {
+   "dmag_0p5": {
+    "n": 1394,
+    "auc": 0.5237265392924656,
+    "abs_auc_minus_half": 0.023726539292465598,
+    "median_pos": 6.7145,
+    "median_neg": 6.673
+   },
+   "best_dmag": {
+    "n": 3371,
+    "auc": 0.40905928890761417,
+    "abs_auc_minus_half": 0.09094071109238583,
+    "median_pos": 6.0,
+    "median_neg": 6.7
+   },
+   "n_obs": {
+    "n": 3738,
+    "auc": 0.5499336256152532,
+    "abs_auc_minus_half": 0.04993362561525316,
+    "median_pos": 2.0,
+    "median_neg": 2.0
+   }
+  },
+  "provenance": {
+   "label0_TICnamed": {
+    "n": 1179,
+    "imaging_pct": 75.23324851569126
+   },
+   "label1_nameprov": {
+    "n": 4059,
+    "imaging_pct": 69.57378664695739
+   },
+   "label1_TICnamed": {
+    "n": 78,
+    "imaging_pct": 34.61538461538461
+   },
+   "provenance_matched_split_pp": 40.61786390030665
+  }
+ }
+}

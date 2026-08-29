@@ -80,6 +80,7 @@ Proposing any of them is proposing to build something that is already running.
 | **stellar CLUSTER / MOVING-GROUP membership** (youth/age proxy) | **1 (2026-08-29)** | **CLOSED ON EFFECTIVE n -- and it PASSED every confound test.** Hunt & Reffert 2023 (Gaia DR3, ~7,200 clusters) + Cantat-Gaudin 2020/2018, bulk XMatch on all 5,534 rows: **78 members = 1.42%** (pos 1.26% / neg 1.95%). Class-rate gate PASS, **AUC(flag) 0.4964**. **MATCHED-BAND TEST PASSED**: rho vs \|b\| **-0.009**, member rate by \|b\| quartile 1.53/1.17/2.26/0.73 (non-monotone), AUC 0.4964 -> **0.5001** in band. `both_controls` clean on BOTH axes (spreads 0.018 / 0.014); non-redundant (max \|rho\| 0.093, top correlates are the `var_*` columns -- the youth mechanism, at nothing). **Not modelled**: 98.6% zeros, ~15 members in the 1,098-star frozen test, chance AUC -> cannot reach MDE 0.0097. Pool rate 5.91% is **4.2x training** -- mismatch runs BACKWARDS. **Reopens on POPULATION (a young-cluster-enriched training set), not method. This is NOT evidence against the youth hypothesis.** |
 | **3D DUST EXTINCTION -- Bayestar19** (environmental/distance proxy) | **1 (2026-08-29)** | **CLOSED AT THE PART 0 AVAILABILITY GATE, three independent blockers.** (1) **FOOTPRINT**: `dustmaps` source verbatim, "Pan-STARRS 1 footprint (dec > -30 deg)"; pool is southern-CVZ -> **0.79% scored / 1.35% target list / 0.00% widesector** (median dec -50 to -67). Same band as APOGEE's 0.41%; 20x below SPOC DV's 16.80% which was already disqualifying. (2) **AVAILABILITY IS A LABEL PROXY**: pos 84.95% vs neg 65.62%, **+19.32 pp, AUC(avail) 0.5966 -- worse than APOGEE's 0.5879**, from a declination cut containing no dust information. (3) Harvard Dataverse returns **HTTP 403** for the map DOI here. Also: **no per-star parallax exists** (the Gaia deployment fetched RUWE/NSS/Gmag only). The package itself installs fine (v1.0.14) -- that is not the blocker. **Reopens only on an all-sky 3D map reaching ~0.4-1.25 kpc+; surveyed, none in `dustmaps` 1.0.14 qualifies.** |
 | **2D dust / E(B-V) as a "fallback"** | **1 (2026-08-29)** | **CLOSED ON THE MATCHED-BAND TEST -- measured, not assumed.** All-sky via IRSA, so it is 100% available and DID reach the decisive test. **rho(E(B-V), \|b\|) = -0.8897.** AUC **0.3396 all-sky -> 0.4438 inside \|b\| in [8,40]**: 65% of the apparent separation is sky position, and **bare \|b\| scores BETTER than dust inside the band (0.0888 vs 0.0562)**. `both_controls` flags it **SPATIAL** (\|b\| spread 0.227, same class as the closed `trend_slope` 0.281). SFD98 and Schlafly&Finkbeiner 2011 are identical to 4 dp -- not two proposals. **A 2D extinction proxy is sky position; do not re-propose it as a dust feature.** |
+| **ExoFOP-TESS TFOP HIGH-RESOLUTION IMAGING (SG3 speckle/AO)** -- "imaging coverage present" flag and/or contrast summary | **1 (2026-08-29)** | **CLOSED -- SECOND INSTANCE OF LABEL CIRCULARITY, plus the worst train/serve mismatch measured here.** Access is excellent and NOT a blocker: `download_imaging.php?output=csv`, one request, **36,778 records / 14,289 TICs**, `Image Type` separates Speckle/AO/Lucky from Seeing-Limited, `Contrast` **84.4% parseable** as "delta X mag @ Y arcsec". **(1) CIRCULARITY:** TFOP's own charter -- SG1 seeing-limited photometry exists *"to identify false positives due to nearby eclipsing binaries"*, and **SG3 is defined as the higher-resolution continuation of exactly that**; the TFOP WG both commissions the imaging and assigns the TFOPWG disposition that IS our negative label; **80.26% of imaging on FP/FA targets predates the disposition update, median lead 860 d** (n=1,003). **(2) POOL COVERAGE 0.61% (3/488) / 2.90% (2/69)** against 70.32% training -- below SPOC DV's 16.80%/18.84% which was already disqualifying alone. Structural: TFOP images TOIs, the pool is not-yet-TOIs. **THE AVAILABILITY GATE PASSES DECEPTIVELY**: -6.32 pp overall, AUC 0.4684, below every disqualifying precedent -- but that is two opposing selections cancelling; **provenance-matched (TIC-named TOIs only) the split is +40.62 pp**, the SPOC DV signature. Contrast VALUE at fixed separation is **0.0237** (weak); the stronger `best_dmag` 0.0909 and `n_obs` 0.0499 encode **follow-up allocation, not astrophysics**. Not modelled, per the circularity routing. **Reopening is definitionally impossible: the feature exists only for TFOP-vetted stars, and once the pool is vetted the disposition IS the label.** |
 | **multi-sector, FOLD-based** (depth/duration/SDE consistency across sectors, inconsistency flags, stacking, cheap path) | **4** | cleared at +0.0094 then **disqualified by a 108% indicator-only missingness control**; and 99.5% of stars drift > 1 transit duration (median 124.7), leaving 23 usable |
 | **multi-sector, TRAINING-SIDE reprocessing** | 1 | eligibility is class-correlated: 72.5% vs 41.4%, Fisher p=0.0034, **OR 3.74**; ~0.19 SD of processing-induced class signal. Permanent |
 
@@ -149,6 +150,26 @@ its value separated at \|AUC-0.5\| 0.2159 -- 6x this project's own centroid --
 false positive. **Strength from circularity is worse than weakness: it survives
 every offline check and transfers nothing to unvetted candidates.** Ask of any
 new external feature: *did this measurement participate in assigning our labels?*
+
+**SECOND INSTANCE CONFIRMED (2026-08-29), and it looks NOTHING like the first.**
+ExoFOP TFOP SG3 speckle/AO imaging closed on the same ground. The contrast is the
+lesson: SPOC DV announced itself with a **suspiciously STRONG** offline signal
+(availability 0.2192, value 0.2159); ExoFOP imaging announced itself with a
+**suspiciously BENIGN** one -- availability AUC **0.4684**, milder than every
+disqualifying precedent, and it is circular anyway. **A circular feature does not
+have to look strong.** Two consequences:
+* **The catching test is STRUCTURAL, not statistical**: *who commissions this
+  measurement, and does it exist before the label is assigned?* For SG3, TFOP's
+  own charter plus a timing join answered both -- **80.26% of imaging on FP/FA
+  targets predates the disposition, median lead 860 days.**
+* **A near-chance availability AUC is not evidence that selection is absent.** It
+  can be two large opposing selections cancelling. ExoFOP imaging is **-6.32 pp**
+  overall and **+40.62 pp** once provenance is matched. Always split availability
+  by provenance before concluding a gate passed.
+**The whole TFOP vetting chain is now presumed circular** -- SG1 seeing-limited
+photometry, SG2 recon spectroscopy, SG3 imaging, SG4 precise RV, and any ExoFOP
+product derived from them. A proposal from that chain needs an affirmative
+argument for why it is NOT an input to the disposition, not merely a passing gate.
 
 **POSITION-DERIVED FEATURES OWE A MATCHED-SKY-BAND TEST (added 2026-08-29).**
 Any feature computed FROM sky position or proper motion can rediscover
@@ -16986,3 +17007,318 @@ Cross-references: the crowding deployment (source of the matched-band method),
 the Gaia DR3 deployment (query infrastructure reused), the spectroscopic-
 chemistry closure (related, distinct, closed earlier and for a different
 reason), and `control_arms.py`.
+
+---
+
+## ExoFOP-TESS TFOP HIGH-RESOLUTION IMAGING (SG3 speckle/AO) -- CLOSED. The SECOND instance of label circularity, and the worst train/serve mismatch yet measured.
+
+**Date: 2026-08-29. Production UNCHANGED and verified live before and after:
+0.9454 / 33 features / `models/best_model.joblib` md5
+`fe3fa82f36cc978396c68be07d6057f9`; `training.csv` 5,534 rows (4,355 pos /
+1,179 neg). Nothing built into the pipeline, nothing modelled, nothing
+promoted. Promotion gate, scheduler and deployed model untouched.**
+
+**The proposal self-identified its selection-bias risk, and was right to. But the
+risk it named ("only promising/famous stars get deep imaging") is the SMALLER of
+the two problems.** The larger one is that TFOP SG3 imaging is a documented input
+to the TFOPWG disposition that *is* this project's negative label -- the same
+failure mode that closed SPOC DV centroids, now confirmed a second time and from
+a different direction.
+
+# PART 0 -- ACCESS: the best bulk access of any external source tried here. GO.
+
+**The feared cost -- per-TOI HTML scraping at 5,534-star scale -- does not
+apply.** ExoFOP publishes the complete TFOP imaging observation log as a single
+bulk CSV:
+
+    https://exofop.ipac.caltech.edu/tess/download_imaging.php?output=csv
+    HTTP 200, 5.7 MB, one request
+
+| | value |
+|---|---|
+| observation records | **36,778** |
+| distinct TIC ids | **14,289** |
+| `Image Type` = Speckle / AO / Lucky (SG3 high-res) | 24,556 / 9,763 / 428 = **34,747 records, 13,867 TICs** |
+| `Image Type` = Seeing-Limited (SG1, correctly excluded) | 84 |
+| `Group` = `tfopwg` | 20,195 |
+| `Obs Date` parsed | 36,731, spanning **2005-05-07 to 2026-07-04** |
+
+**Speckle/AO IS explicitly tagged and separable** -- the `Image Type` column
+answers the brief's second question directly.
+
+**A contrast summary statistic IS extractable in structured form.** The
+`Contrast` column is free text but highly regular: **84.4% parses** as
+`delta <X> mag @ <Y>"`. Median depth **5.60 mag**; reported separations cluster
+at standard values (0.5" 17,405; 1.0" 7,239; 0.2" 4,185). No attached-file
+parsing needed for a summary statistic. *(The residual 15.6% are genuinely
+irregular -- `delta 6 mag @ >10 and <30"`, `delta ?mag=0.39 mag @ Separation =
+46.90''`, and negative deltas for resolved bright companions.)*
+
+**One data-quality note, recorded rather than silently absorbed:** ExoFOP's CSV
+contains unescaped `"` inside the last column (`Notes`), so **689 of 36,778 rows
+(1.9%)** overflow the 15-field header. `Notes` is last, so truncating to 15
+fields is lossless for every column used here. A naive `pd.read_csv` raises
+outright.
+
+Join key is the **exact TIC id**, per the standing archive-availability rule
+(TESS products are per-TIC; a cone search counts neighbours). Reused
+`dv_star_availability.csv`'s host->TIC resolution from the SPOC DV work --
+**5,316 / 5,534 = 96.06%** of training resolved; both pools are 100% TIC-named.
+No new cross-match was needed.
+
+**VERDICT PART 0: GO.** Access is real, bulk, structured, and cheap.
+
+# PART 1 -- THE CIRCULARITY CHECK. This is the deciding factor. Confirmed from documentation AND from timing.
+
+## 1a. TFOP's own charter, retrieved from the primary source
+
+From `tess.mit.edu/followup/`, the TFOP Working Group's own subgroup definitions,
+verbatim:
+
+> **SG1: Seeing-limited Photometry** *"to identify **false positives** due to
+> nearby eclipsing binaries that contaminate the TESS image of a candidate
+> transiting planet."*
+>
+> **SG2: Recon Spectroscopy** *"...to **detect false positives** caused by
+> spectroscopic binaries..."*
+>
+> **SG3: High-resolution Imaging** *"with adaptive optics, speckle imaging,
+> and/or lucky imaging **to detect nearby objects that are not resolved in the
+> TESS Input Catalog or by Seeing-limited Photometry.**"*
+
+**Read the three together.** SG1's stated purpose is false-positive
+identification via nearby eclipsing binaries. SG3 is defined as the
+higher-angular-resolution continuation of exactly that function -- finding the
+nearby objects SG1 could not resolve. It is the same NEB/blend hypothesis at
+better resolution, run by the same body.
+
+**And that body is the one that assigns the label.** This project's negatives are
+**TFOPWG dispositions** (FP/FA). The TFOP WG both commissions SG3 imaging and
+assigns the disposition. The question the standing register tells us to ask --
+*did this measurement participate in assigning our labels?* -- is answered
+affirmatively by TFOP's own organisational chart.
+
+## 1b. The timing test -- did imaging PRECEDE the disposition? Measured, not assumed.
+
+Documentation establishes that imaging *could* inform disposition. Whether it
+actually *preceded* it is an empirical question, answered by joining the imaging
+log's `Obs Date` to the TOI table's `Date TOI Updated (UTC)` on TIC.
+
+**5,917 TOIs have both a high-resolution imaging record and a disposition date:**
+
+| disposition group | n | imaging BEFORE disposition update | median days, first image -> disposition |
+|---|---|---|---|
+| **FP / FA** (this project's negatives) | 1,003 | **80.26%** | **860 d** |
+| CP / KP (confirmed / known planets) | 1,049 | 88.56% | 1,282 d |
+| ALL | 5,917 | **79.38%** | 787 d |
+
+**Four out of five imaging observations were in hand before the disposition was
+finalised.** The imaging was available to the people assigning the label, with a
+median lead time of well over two years. This is the empirical signature of an
+input, not an independent predictor.
+
+## 1c. Imaging allocation by disposition -- the "fame" bias the proposal predicted, confirmed
+
+| TFOPWG disposition | imaging coverage |
+|---|---|
+| **CP** (confirmed planet) | **96.45%** |
+| APC (ambiguous PC) | 85.92% |
+| FA (false alarm) | 79.57% |
+| PC (planet candidate) | 73.49% |
+| FP (false positive) | 72.35% |
+| KP (known planet) | 67.35% |
+
+Confirmed planets are imaged at **96.5%** -- validation imaging is effectively a
+precondition of confirmation. That is precisely the "only promising/famous stars
+get deep imaging" bias the proposal named.
+
+## VERDICT PART 1: DIRECT CIRCULARITY. Same failure mode as SPOC DV, second instance.
+
+SG3 imaging is commissioned by the TFOP WG, for the documented purpose of
+resolving the nearby-companion hypothesis that distinguishes a planet from a
+blended eclipsing binary, and it is in hand before the disposition is assigned
+80% of the time. **It is an input to the label, not a predictor of it.**
+
+**Per the brief's own routing, modelling is not entered.**
+
+# PART 2 -- STANDARD GATES, for the record. One passes deceptively; the other fails hard.
+
+## 2a. Availability-alone AUC -- MILD, and that mildness is itself the finding
+
+| | value |
+|---|---|
+| training coverage (of 5,316 TIC-resolved) | **70.32%** (3,738) |
+| POSITIVES | **68.91%** |
+| NEGATIVES | **75.23%** |
+| **difference** | **-6.32 pp** |
+| odds ratio / Fisher p | 0.730 / 2.34e-05 |
+| **AUC(availability alone)** | **0.4684** (\|AUC-0.5\| **0.0316**) |
+
+Against the disqualifying precedents this looks benign:
+
+| precedent | split | \|AUC(avail)-0.5\| |
+|---|---|---|
+| SPOC DV centroid | 43.83 pp | **0.2192** |
+| TIC CTL trap | 31 pp | 0.1225 |
+| 2D dust footprint | 19.32 pp | 0.0966 |
+| APOGEE chemistry | 17.59 pp | 0.0879 |
+| **ExoFOP imaging (this)** | **-6.32 pp** | **0.0316** |
+
+**But -6.32 pp is not the absence of selection. It is two large opposing
+selections nearly cancelling** -- and the register's own provenance lesson is
+what exposes it. Split by provenance:
+
+| class | provenance | n | imaging coverage |
+|---|---|---|---|
+| **negative** | TIC-named (TOI) | 1,179 | **75.23%** |
+| positive | name-provenance (named confirmed planets) | 4,059 | 69.57% |
+| **positive** | **TIC-named (TOI)** | **78** | **34.62%** |
+
+**Inside a provenance-matched population -- TIC-named TOIs only -- the split is
++40.62 pp**, the SPOC DV signature (43.83 pp) reproduced almost exactly. The
+overall figure is diluted only because **98.1% of this project's positives enter
+through a different stream** (named confirmed planets from mixed catalogues) that
+gets imaged at 69.6% for *characterisation* reasons rather than vetting ones.
+
+*(n = 78 for TIC-named positives is small; 34.62% is 27 stars, binomial 95% CI
+roughly [24%, 46%], which does not approach the negatives' 75.23%. The direction
+and magnitude are robust even if the point estimate is not precise.)*
+
+**A near-chance availability AUC is therefore NOT evidence that selection is
+absent here.** It is evidence that two selection effects of opposite sign are
+present and roughly equal. Recorded as a general caution.
+
+## 2b. POOL COVERAGE -- independently disqualifying, and the worst yet measured
+
+| population | coverage |
+|---|---|
+| training | 70.32% |
+| **main candidate pool** | **0.61%** (3 / 488) |
+| **widesector pool** | **2.90%** (2 / 69) |
+
+| precedent | pool coverage | outcome |
+|---|---|---|
+| TIC CTL | 37.5% | flagged |
+| **SPOC DV centroid** | **16.80% / 18.84%** | **"disqualifying on its own"** |
+| Bayestar19 dust | 0.79% / 0.00% | closed |
+| APOGEE chemistry | 0.41% | closed |
+| **ExoFOP imaging (this)** | **0.61% / 2.90%** | **closed** |
+
+**This is structural, and the brief predicted it exactly.** TFOP imaging is
+allocated to *TOIs*. This project's unknown pool is, by construction, stars that
+have **not** been alerted as TOIs and therefore have **no** TFOP follow-up. The
+model would train on a feature present for 70% of its training rows and
+essentially **never see it again in deployment** -- present for 5 of 557 scored
+candidates.
+
+## 2c. Contrast VALUE on the restricted population -- weak, and what signal exists is allocation effort
+
+Availability held constant (the 3,738 training stars WITH imaging; 2,851 pos /
+887 neg), mirroring the design the SPOC DV closure used:
+
+| statistic | n | AUC | \|AUC-0.5\| | median pos / neg |
+|---|---|---|---|---|
+| `dmag_0p5` -- contrast at 0.5" (the physical quantity) | 1,394 | 0.5237 | **0.0237** | 6.71 / 6.67 |
+| `best_dmag` -- deepest delta-mag at any separation | 3,371 | 0.4091 | **0.0909** | 6.00 / **6.70** |
+| `n_obs` -- number of imaging observations | 3,738 | 0.5499 | **0.0499** | 2.0 / 2.0 |
+
+**The physically meaningful statistic is the weakest.** Contrast at a fixed
+separation -- the only one of the three that is a like-for-like measurement --
+sits at **0.0237**, with class medians differing by 0.04 mag. The strongest
+column, `best_dmag` at 0.0909, mixes separations, so it partly encodes *which
+separation an observer chose to report*; and negatives having the DEEPER
+contrast (6.70 vs 6.00) says false positives received better imaging, which is
+allocation, not astrophysics. `n_obs` is allocation by definition.
+
+**This is the informative difference from SPOC DV.** There, value (0.2159) and
+availability (0.2192) were both enormous and indistinguishable. Here both are
+small. So this proposal does **not** close on a strong circular signal -- it
+closes on pool coverage and on structural circularity, with the value simply
+being weak and what little it has being follow-up effort.
+
+# PARTS 3 AND 4 -- NOT RUN, and deliberately
+
+**Part 3 (control arms, matched-sky-band):** the protocol runs these only if
+Parts 0-2 have not already closed the proposal. Both Part 1 and Part 2b closed
+it independently. The sector/epoch question the brief raised was answered more
+directly than `both_controls()` could: rather than testing whether the feature
+correlates with observation era, **1b measured the actual lead time between
+imaging and disposition** on 5,917 TOIs. The matched-sky-band test does not apply
+-- imaging follow-up is not a position-derived quantity.
+
+**Part 4 (modelling):** barred by the brief's own instruction on finding direct
+circularity, and independently pointless at 0.61% pool coverage. Correlating or
+modelling a circular feature produces numbers that invite exactly the misreading
+these closures exist to prevent -- the same reasoning recorded at SPOC DV Part 3.
+
+# RECOMMENDATION: CLOSED. Two independent disqualifications, either sufficient.
+
+| # | ground | evidence |
+|---|---|---|
+| **1** | **LABEL CIRCULARITY** | TFOP SG3's documented charter is to resolve the nearby-companion hypothesis that SG1 exists to use for false-positive identification; the TFOP WG both commissions the imaging and assigns the TFOPWG disposition that IS this project's negative label; **80.26% of imaging on FP/FA targets predates the disposition update, median lead 860 days.** |
+| **2** | **TRAIN/SERVE MISMATCH** | **0.61% / 2.90%** pool coverage against 70.32% training -- below SPOC DV's 16.80%/18.84%, which was already disqualifying alone. Structural: TFOP images TOIs; the pool is not-yet-TOIs. |
+
+Supporting, not load-bearing: availability is a **+40.62 pp** label proxy inside
+a provenance-matched population, and the physical contrast statistic is at
+**0.0237**.
+
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+## THIS IS THE SECOND INSTANCE OF THE SAME FAILURE MODE
+
+The register's label-circularity rule was added after SPOC DV centroids with the
+note: *"Any feature drawn from the SPOC/TFOP vetting chain itself is suspect for
+the same reason."* **That prediction has now been tested against a second, very
+different member of that chain and held.**
+
+The two instances are worth contrasting, because they show the failure mode has
+more than one signature:
+
+| | SPOC DV centroid | ExoFOP SG3 imaging |
+|---|---|---|
+| source | automated **pipeline** product | **human** follow-up allocation |
+| availability split | **+43.83 pp**, AUC 0.2808 | **-6.32 pp** overall, **+40.62 pp** provenance-matched |
+| value signal | **0.2159** -- huge, circular | **0.0237** -- weak |
+| pool coverage | 16.80% / 18.84% | **0.61% / 2.90%** |
+| how it announces itself | a suspiciously STRONG offline signal | a suspiciously BENIGN availability gate |
+
+**The second row is the lesson.** SPOC DV was caught because its numbers were too
+good. This one's headline availability gate would have *passed* -- 0.0316 is
+below every disqualifying precedent -- and it is disqualified anyway. **A
+circular feature does not have to look strong.** The test that caught it here was
+structural (who commissions the measurement, and when relative to the label),
+not statistical.
+
+## What would change this -- nothing that is a method
+
+Not a better contrast statistic, not a different separation, not a larger sample.
+The feature is defined only for stars that have already been through TFOP
+follow-up, and the deployed model exists to score stars that have not.
+**Reopening requires the pool itself to become TFOP-vetted -- at which point the
+disposition, not the imaging, would be the label.** That is a definitional
+dead end, not a data-acquisition one.
+
+## Method notes
+
+* Every coverage figure is exact-TIC matching over the **complete** ExoFOP
+  imaging log, not a sample.
+* `Seeing-Limited` records (SG1) were **excluded** from the high-resolution
+  definition; including them changes coverage by under 0.1 pp but would conflate
+  two different subgroups.
+* The `download_spect.php` and `download_tseries.php` endpoints **timed out** in
+  this environment (curl exit, HTTP 000). Per the standing rule that a tool
+  failure is not a measurement, **they are recorded as un-measured, not as
+  absent** -- neither was needed here.
+* The TOI-table join uses `Date TOI Updated (UTC)`, the most recent disposition
+  edit. This is conservative for the circularity claim: using the earlier
+  `Date TOI Alerted` would make the imaging look *later* relative to the label,
+  and the measured 80% precedence is against the later of the two dates.
+
+Artefacts: `exofop_imaging_gate.py` / `.json`. The per-star table `exofop_imaging_star.csv` is not shipped (ExoFOP observer data); regenerate it with the gate script -- see README.
+
+Cross-references: the **SPOC DV centroid closure** (first instance of this
+failure mode, and the template this followed), the label-circularity standing
+rule in the register, the archive-availability method rule (exact TIC matching),
+the sector/epoch confound, the TIC CTL trap, and the spectroscopic-chemistry and
+Bayestar19 pool-coverage closures.
