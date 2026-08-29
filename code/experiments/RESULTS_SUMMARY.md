@@ -55,13 +55,20 @@ Proposing any of them is proposing to build something that is already running.
 | **"CatBoost in a new 34-feature space"** | premise false | **There is no 34th feature.** Production is 33 (Gaia RUWE/NSS, 2026-08-14, the last promotion). 16 investigations since, zero promotions. Do not condition work on a feature count that does not exist. |
 | **self-training / pseudo-labelling** | 2 | Error amplification confirmed: confident predictions cluster in the giant blind spot, resampling **t=-2.63, p=0.0165**, low-SNR subpopulation **-0.0114**. **RE-MEASURED 2026-08-28 at 33 features: the mechanism is WORSE, not retired by Gaia** -- `st_rad` enrichment **11.49x** (was 6.6x), **128 confident positives vs 3 negatives**, 35.2% above the `st_rad>=1.5` penalty threshold vs 15.9% of real planets. |
 | **"double the label count" via pseudo-labelling** | arithmetically impossible | **Real pool is 557 scored candidates; doubling 5,534 rows needs 5,534.** Confident tail yields **131 = +2.4%**; every pool row indiscriminately is **+10.1%**. Off by ~10x before any methodological objection. |
+| **SPECTROSCOPIC STELLAR CHEMISTRY -- APOGEE / GALAH / LAMOST / Gaia-ESO ([Fe/H], [alpha/Fe], Mg, Si, C/N, Li, thin/thick disk)** | **1 (2026-08-29)** | **NEW category. CLOSED AT THE AVAILABILITY GATE -- no chemistry value ever computed.** The science is REAL (Fischer & Valenti 2005; Adibekyan et al. 2012a/b) and the novelty is genuine (no abundance column exists). It fails on WHO WAS OBSERVED. **Pool coverage 0.00-3.00% across ALL FOUR surveys** (APOGEE 0.41%, LAMOST 0.00%, GALAH 3.00%, Gaia-ESO 0.00%) -- 40x below the SPOC DV figure already considered disqualifying. **And availability is a label proxy: APOGEE 25.30% pos vs 7.72% neg, -17.59 pp, OR 4.05, p=2.3e-45, AUC(availability alone) 0.5879** -- as predictive as `gaia_ruwe`, from no chemistry at all. Cause: positives are bright named confirmed planets (survey-prioritised), negatives are faint TIC-named TOIs; LAMOST is northern, the pool is southern. **Reopens only on a southern faint-limited abundance survey of TESS candidates -- a DATA question, not a method one.** Does NOT refute the metallicity-planet correlation. |
+| **GALACTIC KINEMATICS -- U/V/W, tangential velocity, disk membership (Bensby thick/thin), height above the plane** | **1 (2026-08-29)** | **RELATED TO but DISTINCT FROM the chemistry row above -- that died at availability, this passed it and was measured in full.** Availability PASSES: tangential 97.20% train / -2.15 pp / **AUC(avail) 0.5108**; full-3D 77.29% / +7.85 pp (caveat, not disqualifying); main pool 59.63% / 39.96%. **The MATCHED-SKY-BAND test disqualified the batch's STRONGEST feature**: `kin_absz` (\|d sin b\|, \|AUC-0.5\| 0.0795) retains only **40%** inside \|b\| in [8,40] where the class \|b\| difference inverts, and `kin_dist` **SIGN-FLIPS** -- both positional, and **both independently flagged SPATIAL+TEMPORAL by `control_arms`**. A correlation-only check (rho vs \|b\| = 0.228) would have passed `kin_absz` through. Five survivors modelled: **A tangential -0.0014 CI [-0.0030,-0.0003] 0/12 (significantly negative), B full-3D -0.0011, D all -0.0016, C disk-membership +0.0004 (only positive arm, improves Brier AND ECE, but 24x below MDE)**. Bashi et al. is REAL; an OCCURRENCE-RATE prior does not translate to per-signal discrimination. |
 | *ExoNet citations -- TWO DIFFERENT PAPERS share this name* | -- | **Ansdell et al. 2018 (arXiv:1810.13434) reports NO AUC anywhere** (95.8/95.5 -> 97.5/98.0, accuracy & average precision); every AUC attributed to it here has been false. **arXiv:2604.15560 (2026) DOES report AUC** and its "+0.062-0.068 over the best single-view CNN" **VERIFIES** (0.887 -> 0.9549). Always state which paper. The 2026 one does not transfer: 4-year Kepler vs 27-day TESS, its weakest CNN (0.874) is 0.19 above this project's, its tabular branch is 0.819. |
 | Kepler transfer / domain adaptation / self-training | 4 | closed; ExoMiner++ rejected transfer learning itself |
 | periodogram peak POSITION (`ls_period_match`, raw ratio) | 2 | -0.0006 and -0.0004 |
 | periodogram peak AMPLITUDE (secondary peak, ratios) | 1 | +0.00005 to +0.00068, positive but ~200x below resolvable |
 | periodogram power AT FIXED FREQUENCIES (harmonic power, band-integrated power) | 1 | harmonic power **null** (+0.0008 full-flux, inflated by `snr`; -0.0007 OOT). Band-integrated **significantly NEGATIVE**: -0.0013, CI [-0.0021,-0.0004], 0/12. 2P/3P excluded on availability (39-41% widesector). |
-| ellipsoidal variation / folded flux trend | 1 | null to significantly negative (-0.0019, CI [-0.0047,-0.0002]) |
-| trend / slope on raw flux | 1 | redundant with `var_ls_amp` (0.826-0.829) AND spatially unstable |
+| **PHASE-FOLDED FLUX-TREND FAMILY -- every scalar projection now closed. Point at the row.** | **3** | See `>>> PHASE-FOLDED FLUX-TREND <<<` at the end of this file for the six-row decomposition table. |
+| ft 1: **variance** of out-of-transit flux "on the candidate's period" | DEPLOYED | **This is `var_oot_rms`.** Its OOT mask is ALREADY built by phase-folding on the candidate ephemeris. And a variance is permutation-invariant, so folding cannot change it: **5,964/5,964 light curves bit-identical, max diff 0.000e+00**. Third time a deployed `var_*` column was proposed as new work. |
+| ft 2: ellipsoidal variation, **even** part at **P/2** (`ell_a2`, `ell_c2_signed`) | 1 | amplitude redundant (\|rho\| 0.852) and spatially unstable; signed `c2` genuinely novel (0.124) but **-0.0000**; widest arm **-0.0019, CI [-0.0047,-0.0002]** |
+| ft 3: **even** part at the **FULL period** (`ell_a1`, `ell_pp_full`) -- "fold at P instead of P/2" | 1 | **NOT an untested variant.** The BEER fit returns both harmonics from one design matrix, so this was built and adjudicated alongside P/2: redundant **0.866-0.916**, \|b\| spread **0.291-0.343** |
+| ft 4: **odd** part -- the phase SLOPE, `s1`, `s2` ("fitted baseline slope on the candidate's period") | **1 (2026-08-28)** | **Genuinely novel and empty.** max \|rho\| **0.031-0.184** (cleanest in this project), \|b\| and epoch arms clean -- but single-feature AUC **0.5005**, beaten **18x by its own wrong-period null control** (0.0090 vs 0.0005). Model: **-0.0007 to -0.0020, 0/12 at MDE, widest arm CI [-0.0044,-0.0001]**, and the content-free NULL arm was the BEST arm. Analytically blind to reflection AND ellipsoidal (both even). |
+| ft 5: monotonic slope in **TIME**, not phase (`trend_slope_ppm_day`, `trend_amp_frac`) | 1 | redundant with `var_ls_amp` (0.826-0.829) AND spatially unstable (quartile AUC 0.434-0.715) |
+| **"+0.014 AUC in ExoNet ablations" for a flux-trend branch** | citation | **MISATTRIBUTED ON THREE AXES.** ExoNet has **no AUC and no ablations** (0 occurrences of each, full PDF). **+0.014 is uniquely ExoMiner++'s PERIODOGRAM branch PR AUC gain** (0.911-0.897, Table 11) -- wrong paper, wrong branch, wrong metric. The Flux Trend branch's real ROC AUC gain is **+0.003**, ~3x below this project's MDE. **ExoMiner++ Table 11 is now RETRIEVED IN FULL** and reproduced in that section; it also **refutes** the flux-trend/EB claim (+0.001 EB recall, the smallest of any helping branch, vs +0.004 for Difference Image and Periodogram). |
 | momentum dumps -- FLAG form | 1 | cadences destroyed at download by `DEFAULT_BITMASK` bit 32 (re-verified: 0 / 8,452,078 cadences); straylight half at AUC 0.4964 |
 | momentum dumps -- TIME-SINCE / proximity form | 1 | **NOT blocked -- built and measured.** Schedule recovered from 105 per-sector downloads (dumps are spacecraft events). -0.0006 to -0.0014, 0/12 at MDE. Direction opposite the hypothesis. |
 | momentum dumps -- BINARY presence/absence flag ("dump within N h of transit") | 1 | **CLOSED. WEAKER than its own continuous parent at all 6 thresholds tested** (best 0.0642 at 6 h vs `md_min_dt` 0.0812); \|rho\| 0.866 with it. Thresholding discards information here, it does not expose a nonlinearity. Parent was already 0/12 at MDE, so a weaker transform cannot clear. Not modelled. |
@@ -69,6 +76,10 @@ Proposing any of them is proposing to build something that is already running.
 | `AttitudeTweak` (quality bit 1) -- the one genuinely distinct event class | 1 | **CLOSED ON RARITY, not on availability.** 24-sector census at `quality_bitmask=0`: **6 cadences / 6 events**, present in 2 of 24 sectors -- ~23x rarer than Desat (136 events). Most stars would have zero in their light curve. Schedule IS reconstructable; there is nothing to reconstruct. |
 | *(census fact, NOT a recommendation)* | -- | `ManualExclude` 718 events and `CoarsePoint` 99 events are more common than Desat's 136 and are equally reconstructable -- but inherit this family's two hazards: proximity direction ran **opposite** the hypothesis in both formulations tested, and event schedules are sector-structured, which is exactly what the +0.0063 sector-proxy control arm caught. `both_controls()` mandatory; prior low. |
 | PLD, difference-imaging refits, anything needing pixels | several | **TPFs are deleted by design** (`web/job_runner.py:1232`, `:1267`) |
+| **EXTERNAL-CATALOG CROSS-MATCH FAMILY -- each closes on WHO WAS OBSERVED / WHERE, never on whether the astrophysics is real. Two new rows below; check both before proposing a third.** | | |
+| **stellar CLUSTER / MOVING-GROUP membership** (youth/age proxy) | **1 (2026-08-29)** | **CLOSED ON EFFECTIVE n -- and it PASSED every confound test.** Hunt & Reffert 2023 (Gaia DR3, ~7,200 clusters) + Cantat-Gaudin 2020/2018, bulk XMatch on all 5,534 rows: **78 members = 1.42%** (pos 1.26% / neg 1.95%). Class-rate gate PASS, **AUC(flag) 0.4964**. **MATCHED-BAND TEST PASSED**: rho vs \|b\| **-0.009**, member rate by \|b\| quartile 1.53/1.17/2.26/0.73 (non-monotone), AUC 0.4964 -> **0.5001** in band. `both_controls` clean on BOTH axes (spreads 0.018 / 0.014); non-redundant (max \|rho\| 0.093, top correlates are the `var_*` columns -- the youth mechanism, at nothing). **Not modelled**: 98.6% zeros, ~15 members in the 1,098-star frozen test, chance AUC -> cannot reach MDE 0.0097. Pool rate 5.91% is **4.2x training** -- mismatch runs BACKWARDS. **Reopens on POPULATION (a young-cluster-enriched training set), not method. This is NOT evidence against the youth hypothesis.** |
+| **3D DUST EXTINCTION -- Bayestar19** (environmental/distance proxy) | **1 (2026-08-29)** | **CLOSED AT THE PART 0 AVAILABILITY GATE, three independent blockers.** (1) **FOOTPRINT**: `dustmaps` source verbatim, "Pan-STARRS 1 footprint (dec > -30 deg)"; pool is southern-CVZ -> **0.79% scored / 1.35% target list / 0.00% widesector** (median dec -50 to -67). Same band as APOGEE's 0.41%; 20x below SPOC DV's 16.80% which was already disqualifying. (2) **AVAILABILITY IS A LABEL PROXY**: pos 84.95% vs neg 65.62%, **+19.32 pp, AUC(avail) 0.5966 -- worse than APOGEE's 0.5879**, from a declination cut containing no dust information. (3) Harvard Dataverse returns **HTTP 403** for the map DOI here. Also: **no per-star parallax exists** (the Gaia deployment fetched RUWE/NSS/Gmag only). The package itself installs fine (v1.0.14) -- that is not the blocker. **Reopens only on an all-sky 3D map reaching ~0.4-1.25 kpc+; surveyed, none in `dustmaps` 1.0.14 qualifies.** |
+| **2D dust / E(B-V) as a "fallback"** | **1 (2026-08-29)** | **CLOSED ON THE MATCHED-BAND TEST -- measured, not assumed.** All-sky via IRSA, so it is 100% available and DID reach the decisive test. **rho(E(B-V), \|b\|) = -0.8897.** AUC **0.3396 all-sky -> 0.4438 inside \|b\| in [8,40]**: 65% of the apparent separation is sky position, and **bare \|b\| scores BETTER than dust inside the band (0.0888 vs 0.0562)**. `both_controls` flags it **SPATIAL** (\|b\| spread 0.227, same class as the closed `trend_slope` 0.281). SFD98 and Schlafly&Finkbeiner 2011 are identical to 4 dp -- not two proposals. **A 2D extinction proxy is sky position; do not re-propose it as a dust feature.** |
 | **multi-sector, FOLD-based** (depth/duration/SDE consistency across sectors, inconsistency flags, stacking, cheap path) | **4** | cleared at +0.0094 then **disqualified by a 108% indicator-only missingness control**; and 99.5% of stars drift > 1 transit duration (median 124.7), leaving 23 usable |
 | **multi-sector, TRAINING-SIDE reprocessing** | 1 | eligibility is class-correlated: 72.5% vs 41.4%, Fisher p=0.0034, **OR 3.74**; ~0.19 SD of processing-induced class signal. Permanent |
 
@@ -138,6 +149,24 @@ its value separated at \|AUC-0.5\| 0.2159 -- 6x this project's own centroid --
 false positive. **Strength from circularity is worse than weakness: it survives
 every offline check and transfers nothing to unvetted candidates.** Ask of any
 new external feature: *did this measurement participate in assigning our labels?*
+
+**POSITION-DERIVED FEATURES OWE A MATCHED-SKY-BAND TEST (added 2026-08-29).**
+Any feature computed FROM sky position or proper motion can rediscover
+"galactic latitude predicts the label" in physical dress. The standing
+correlation-based spatial arm is NOT sufficient: `kin_absz` had rho vs \|b\| of
+only **0.228** and would have passed, yet retained just **40%** of its
+separation inside the matched band, and `kin_dist` sign-flipped. Use the
+crowding method -- restrict both classes to \|b\| in [8,40] deg where the class
+difference INVERTS (planets 15.9 vs FPs 19.7, from 16.9 vs 12.5) and re-measure.
+`control_arms.both_controls()` independently caught the same two features at
+spreads 0.36-0.43, so the two checks corroborate rather than duplicate.
+
+**A TOOL FAILURE IS NOT A MEASUREMENT (added 2026-08-29).** GALAH and LAMOST are
+not hosted on the CDS XMatch server under their VizieR ids; the query raised, and
+the harness would have recorded **0% coverage** for both. Re-measured by direct
+VizieR cone search, their real coverage is 4.3% and ~19.7%. **Never let a failed
+query enter a results table as a zero** -- distinguish "measured and absent" from
+"could not measure", and say which in the record.
 
 **ARCHIVE-AVAILABILITY METHOD (added 2026-08-28).** To ask "does MAST have
 product X for our stars", use **per-sector bulk manifests + exact TIC matching**
@@ -15542,3 +15571,1418 @@ Cross-references: the CatBoost seed-ensemble closure (31-feature baseline), the
 CatBoost single-fit and 10-seed replication, the GBM cross-family ensemble
 closure, the three-part pseudo-labelling closure, the giant-star confidence-tier
 penalty, and section B2 on feature exhaustion.
+
+---
+
+## PHASE-FOLDED FLUX-TREND VARIANCE AND SLOPE -- one half is DEPLOYED, one half is a provable identity, and the residue is BUILT and NULL. Plus: the ExoMiner++ ablation table is finally retrieved.
+
+**Date: 2026-08-28. Production UNCHANGED and verified live before and after:
+0.9454 / 33 features / `models/best_model.joblib` md5
+`fe3fa82f36cc978396c68be07d6057f9`; `training.csv` 5,534 rows (4,355 pos /
+1,179 neg); frozen test 1,098; MDE ~0.0097. Nothing promoted. Promotion gate,
+scheduler and deployed model untouched.**
+
+This entry does three things that outlive its own feature verdict:
+
+1. **It retrieves ExoMiner++ Table 11 in full** -- the "UNVERIFIABLE" hard limit
+   recorded in the ellipsoidal-variation entry and in the prior ExoMiner++ task
+   is now **closed**, from the primary PDF.
+2. **It traces the cited "+0.014 AUC" to an exact source** and finds it
+   **triply misattributed** -- wrong paper, wrong branch, wrong metric.
+3. **It implements the sector/observation-epoch control arm** that the
+   momentum-dump entry flagged as a required addition to the standing battery
+   but did not build -- and independently reproduces that entry's confound.
+
+# PART 0 -- THE CITATION. VERDICT: MISATTRIBUTED, and traced exactly.
+
+## The claim
+
+"+0.014 AUC in ExoNet ablations" for a flux-trend branch.
+
+## (a) It cannot be ExoNet. Re-verified from the primary PDF, not from this file's record.
+
+`arXiv:1810.13434` (Ansdell et al. 2018) downloaded and extracted in full,
+8 pages, 31,763 characters:
+
+| string | occurrences |
+|---|---|
+| `AUC` | **0** |
+| `area under` | **0** |
+| `receiver operating` | **0** |
+| `confusion matrix` | **0** |
+| **`ablation`** | **0** |
+| `0.014` | **0** |
+| `roc` (case-insensitive) | 12 -- **every one a substring**: "rocky", "process", "Proceedings" |
+
+**The paper reports no AUC of any kind and contains no ablation experiments at
+all.** Both halves of the citation's framing are absent from the named source.
+This is the third independent confirmation of the ExoNet-has-no-AUC finding, and
+the first to also establish there are no ablations.
+
+## (b) It IS a real number -- ExoMiner++, and now verified at the number level
+
+`arXiv:2502.09790` retrieved as the full 39-page PDF and text-extracted. Section
+6.9 and **Table 11 in full**, reproduced here because three prior retrieval
+attempts truncated before it:
+
+    Model              Prec & Recall   PR AUC   ROC AUC   Acc     KP     CP     BD     EB     FP     NTP
+    Flux (baseline)    0.811 & 0.863    0.897    0.988   0.978  0.910  0.816  0.656  0.985  0.746  0.997
+    Difference Image   0.850 & 0.831    0.904    0.989   0.980  0.891  0.772  0.719  0.989  0.801  0.999
+    Flux Trend         0.835 & 0.876    0.923    0.991   0.981  0.917  0.835  0.656  0.986  0.772  0.998
+    Periodogram        0.851 & 0.842    0.911    0.990   0.980  0.893  0.793  0.750  0.989  0.790  0.999
+    Unfolded Flux      0.839 & 0.866    0.913    0.990   0.981  0.900  0.832  0.625  0.987  0.754  1.000
+    Momentum Dump      0.809 & 0.867    0.897    0.989   0.978  0.916  0.818  0.656  0.984  0.738  0.998
+
+Deltas against the Flux baseline:
+
+| branch | d PR AUC | d ROC AUC | d EB recall |
+|---|---|---|---|
+| Difference Image | +0.007 | +0.001 | +0.004 |
+| **Flux Trend** | **+0.026** | **+0.003** | **+0.001** |
+| **Periodogram** | **+0.014** | +0.002 | +0.004 |
+| Unfolded Flux | +0.016 | +0.002 | +0.002 |
+| Momentum Dump | +0.000 | +0.001 | -0.001 |
+
+**Exactly one cell in the whole table equals 0.014: the PERIODOGRAM branch's
+PR AUC gain.** No branch's ROC AUC delta is anywhere near it; the largest is
++0.003.
+
+## VERDICT: MISATTRIBUTED ON THREE AXES SIMULTANEOUSLY
+
+| axis | cited | actual |
+|---|---|---|
+| paper | ExoNet (Ansdell+ 2018) | **ExoMiner++ (arXiv:2502.09790)** |
+| branch | Flux Trend | **Periodogram** |
+| metric | AUC (ROC) | **PR AUC** |
+
+**The flux-trend branch's real number, on the metric actually cited, is
++0.003 ROC AUC.** That is the figure a flux-trend proposal is entitled to cite,
+and it is **~3x below this project's MDE of 0.0097** -- i.e. the external
+evidence, taken at face value and at its correct value, predicts an effect this
+test set cannot resolve, before any porting loss.
+
+This is the **same failure mode as the ExoNet 0.955 case** (wrong model + wrong
+metric: Astronet's average precision cited as ExoNet's AUC), now with a third
+axis added. The number is findable, which is exactly why the error regenerates.
+**It did not inform the recommendation below.**
+
+## Three things Table 11 settles that were previously open in this file
+
+1. **"Flux Trend is the top-performing branch" -- CONFIRMED at the number
+   level**: +0.026 PR AUC, the largest of the five.
+2. **"Momentum Dump is the one non-helpful branch" -- CONFIRMED**: PR AUC
+   0.897, identical to the baseline to three decimals.
+3. **The short-period-binary claim is REFUTED, not merely unverified.** The
+   ellipsoidal entry flagged "per-subclass recall for EB specifically" as
+   unverifiable. It is now verified and it runs the other way: the Flux Trend
+   (= ellipsoidal-detector) branch gives the **smallest** EB recall gain of any
+   helping branch, **+0.001**, against **+0.004** for both Difference Image and
+   Periodogram. The ellipsoidal branch is not where ExoMiner++'s EB improvement
+   lives. That is independent external agreement with this project's own
+   ellipsoidal null result.
+
+# PART 1 -- ROUTING THE TWO SUB-FEATURES
+
+## 1a. "Variance of out-of-transit data on the candidate's period" = `var_oot_rms`, DEPLOYED. The qualifier changes nothing, and that is provable.
+
+**It is the deployed feature, including the "on the candidate's period" part.**
+Read from `variability_features.py:variability_for_raw`, not from a summary:
+
+```python
+ph  = ((t - t0 + 0.5 * period) % period) / period - 0.5     # PHASE-FOLD
+oot = np.abs(ph) > (duration / period)                       # mask from the fold
+rms = 1.4826 * np.median(np.abs(fo - np.median(fo)))         # var_oot_rms
+```
+
+The out-of-transit mask is **already defined by phase-folding on the candidate's
+ephemeris**. There is no unfolded variant in production to improve on.
+
+**And even if there were, folding cannot change a variance.** A fold is a
+reordering: it changes each point's abscissa, never its flux value. Any
+statistic that is a function of the multiset `{f_i}` alone -- variance, MAD,
+RMS, standard deviation -- is **permutation-invariant**, so folding leaves it
+*identically*, not approximately, unchanged. This is a mathematical identity,
+not an empirical near-miss, and it is what distinguishes this half of the
+proposal from the slope half.
+
+**Demonstrated on real data rather than asserted.** `ft_var_unfolded` and
+`ft_var_folded` compute the same MAD on the same point set in time order and in
+phase order:
+
+| | value |
+|---|---|
+| light curves compared | **5,964** (training + both pools) |
+| **rows bit-identical** | **5,964 / 5,964 = 100.00%** |
+| max absolute difference | **0.000e+00** |
+
+And the reimplementation reproduces production: Spearman **0.9999** against the
+deployed `var_oot_rms`, median ratio **1.0000** (p05 0.993, p95 1.005), across
+5,407 training rows -- despite this build masking *both* conjunctions, a
+stricter mask.
+
+**Routing: DEPLOYED. Not a proposal.** This is the third time a deployed
+variability column has been proposed as new work.
+
+## 1b. "Fitted baseline slope on the candidate's period" -- NOT the closed `trend_slope`, and NOT any stored ellipsoidal column. A real residue, identified analytically.
+
+Three candidate routings were checked, and the first two fail:
+
+**(i) Is it the closed `trend_slope_ppm_day`?** No. That is
+`|median-of-halves linear slope|` in **TIME** over the whole sector -- monotonic,
+aperiodic, phase-locked to nothing. A slope in **phase** is a different
+functional. Measured: **|rho| = 0.006** between the two. Not a restatement.
+
+**(ii) Is it "fold at the FULL period rather than half", i.e. the untested
+sibling of the ellipsoidal work?** **No -- that variant was already built and
+already tested.** `ellipsoidal_features.py` fits
+`[1, cos(phi), sin(phi), cos(2phi), sin(2phi)]` in ONE design matrix, so the
+full-period harmonic came out alongside the half-period one:
+
+| full-period quantity | already computed | already adjudicated |
+|---|---|---|
+| `ell_a1` = hypot(c1,s1), first harmonic at **P** | yes | REJECTED pre-model: \|rho\| **0.866** vs `var_ls_amp`, \|b\| spread **0.291** |
+| `ell_pp_full`, peak-to-peak of the **full-period** fold | yes | REJECTED pre-model: \|rho\| **0.916**, \|b\| spread **0.343** |
+| `ell_pp_ratio` = half/full | yes | modelled, arm B, **-0.0015** |
+
+So "fold at the full period instead of half" is **not an untested parameter
+change** -- the ellipsoidal investigation fitted both harmonics simultaneously
+and reported both. **Part 2's premise as stated in the brief dissolves here.**
+
+**(iii) The one thing genuinely not kept: the SIGNED odd projection.**
+`_harmonic_fit` computes `beta = [const, c1, s1, c2, s2]` and returns only
+`a1 = hypot(c1,s1)`, `a2 = hypot(c2,s2)` and the **signed `c2`**. The signed
+first-harmonic components `c1` and `s1` are computed and **discarded**. And
+`ell_c2_signed` -- the one signed quantity that was kept -- was the *only*
+ellipsoidal column to come back genuinely non-redundant (\|rho\| 0.124) where its
+unsigned magnitude `ell_a2` was redundant at 0.852. So a signed full-period
+statistic is exactly the kind of thing that has previously survived where the
+magnitude did not. **That is a real gap, and it is what was built.**
+
+### What a phase-slope actually measures -- derived, then verified
+
+A least-squares line fitted to (phase, flux) over a full cycle is the projection
+onto the **ODD** part of the fold. For phase in cycles on [-0.5, 0.5]:
+
+    m = 12 * <phi * f>  =  (6/pi)*s1 - (3/pi)*s2 + (2/pi)*s3 - ...
+
+Verified numerically on synthetic folds (20,000 points):
+
+| injected signal | predicted slope | measured |
+|---|---|---|
+| pure `cos(phi)` -- **reflection / phase curve at P** | **0.0000** | -0.0026 |
+| pure `cos(2phi)` -- **ELLIPSOIDAL at P/2** | **0.0000** | -0.0424 |
+| pure `sin(phi)` | +1.9099 | **+1.9098** |
+| pure `sin(2phi)` | -0.9549 | **-0.9445** |
+| pure `sin(3phi)` | +0.6366 | **+0.6408** |
+
+**Both physically-motivated signals in this family are EVEN about mid-transit,
+so a phase-slope is identically blind to both.** Reflection peaks at secondary
+eclipse (pure `-cos(phi)`); ellipsoidal has minima at both conjunctions (pure
+`c2 < 0`). A phase-slope can only see the *out-of-phase residual* -- asymmetry
+that no orbiting companion produces.
+
+**Hypothesis, stated before modelling:** a non-zero phase slope is therefore not
+a phase-curve detector at all; it is a *falsification* statistic. It should
+behave like stellar activity or systematics leaking into the fold, and the
+wrong-period control should do about as well. (Note that the activity reading
+overlaps heavily with what `ls_period_match` already tested and closed at
+-0.0006.)
+
+**Confirmed on real data:** Spearman(`ft_slope_phase`, `ft_s1_signed`) =
+**0.812**, median ratio **2.11** against the predicted **1.910** -- the excess
+being the higher odd harmonics the closed form predicts. The statistic is the
+odd projection, measured, not assumed.
+
+# PART 2 -- WHAT WAS BUILT, AND THE PRE-MODEL BATTERY
+
+`flux_trend_phase.py`. Cleaning, masking (BOTH conjunctions) and the
+wrong-period null control are `ellipsoidal_features.py` step for step, so every
+correlation against a deployed or previously-tested column is like-for-like, and
+the two investigations are directly comparable.
+
+| feature | definition |
+|---|---|
+| `ft_slope_phase` | signed OLS slope of OOT flux on phase-in-cycles, folded at the **FULL** candidate period -- the literal "fitted baseline slope on the candidate's period" |
+| `ft_c1_signed`, `ft_s1_signed` | the SIGNED first-harmonic components at P, which `ellipsoidal_features` computes and discards |
+| `ft_slope_snr` | slope / its own standard error |
+| **`ft_slope_ctrl`** | **NULL CONTROL** -- the identical slope at a deliberately incommensurate period, `P * 0.7137`, the same multiplier the ellipsoidal work used |
+| `ft_slope_over_ctrl` | \|slope\| / \|slope_ctrl\| -- phase-locked excess over the null |
+
+**Coverage, up front.** Training **97.71%** (97.41% pos / 98.81% neg), main pool
+**100.00%** (488/488 Success), widesector **100.00%** (69/69). The 127 training
+misses are the same ones the ellipsoidal run had: 112 rows with no usable
+ephemeris, 15 QLP `non-standard schema`.
+
+**Class-rate gate: PASS.** AUC(availability) **0.4930** -- 0.0070 from chance.
+(Odds ratio 0.451, Fisher p 0.0030: the same small-p/tiny-effect pattern
+`ls_period_match` and the ellipsoidal features had, and the same inherited
+missingness, so it adds no new structure to production.)
+
+## Single-feature AUC -- the weakest set this project has measured
+
+| feature | AUC | \|AUC - 0.5\| |
+|---|---|---|
+| **`ft_slope_phase`** | **0.5005** | **0.0005** |
+| `ft_c1_signed` | 0.5022 | 0.0022 |
+| `ft_slope_snr` | 0.5038 | 0.0038 |
+| `ft_s1_signed` | 0.4952 | 0.0048 |
+| **`ft_slope_ctrl`** *(wrong-period null)* | **0.4910** | **0.0090** |
+| `ft_slope_over_ctrl` | 0.4659 | 0.0341 |
+| *(unsigned)* `abs(ft_s1_signed)` | 0.5583 | 0.0583 |
+| *(unsigned)* `abs(ft_slope_phase)` | 0.5524 | 0.0524 |
+
+**The wrong-period null control is 18x stronger than the true-period slope**
+(0.0090 vs 0.0005). This is the ellipsoidal investigation's decisive pattern
+reproduced exactly -- there, `ell_a2_ctrl` (0.5923) beat `ell_a2` (0.5664). The
+signed, phase-locked slope carries essentially **zero** class information, and
+what little the family has lives in the *unsigned magnitude*, which is the
+variability amplitude already deployed.
+
+## Correlation -- the cleanest in this project, and that is the point
+
+| feature | max \|rho\| vs the 33 + ellipsoidal + closed columns | against | vs `var_oot_rms` | vs `var_ls_amp` | vs `ell_a1` | vs `ell_pp_full` | vs `ls_period_match` | vs `trend_slope_ppm_day` |
+|---|---|---|---|---|---|---|---|---|
+| `ft_slope_phase` | **0.037** | `depth_mean_odd` | 0.021 | 0.023 | 0.032 | 0.027 | 0.011 | **0.006** |
+| `ft_slope_ctrl` | 0.031 | `SDE_raw` | -0.004 | -0.013 | -0.024 | -0.022 | 0.018 | -0.010 |
+| `ft_c1_signed` | 0.068 | `ell_c2_signed` | 0.048 | 0.032 | 0.063 | 0.040 | -0.024 | 0.036 |
+| `ft_s1_signed` | 0.034 | `ell_a1` | 0.022 | 0.033 | 0.034 | 0.030 | 0.010 | 0.021 |
+| `ft_slope_snr` | 0.048 | `snr` | -0.020 | -0.004 | 0.004 | -0.005 | 0.014 | -0.024 |
+| `ft_slope_over_ctrl` | 0.184 | `ell_a2_frac` | -0.012 | 0.015 | 0.105 | 0.010 | -0.109 | -0.005 |
+
+**max \|rho\| 0.031-0.184**, against the ellipsoidal shape features' 0.089-0.134
+and the 0.79-0.95 this project established as typical for a light-curve-shape
+statistic. **The Part 1 routing is confirmed numerically, not just argued**: 0.006
+against the closed `trend_slope_ppm_day`, 0.021-0.048 against the deployed
+`var_oot_rms`, 0.027-0.040 against the full-period `ell_pp_full`. These really
+are new quantities. They are also, on the evidence above, empty ones -- which is
+the honest combination and the reason the model test was still run.
+
+## |Galactic latitude| control arm -- CLEAN
+
+| feature | rho vs \|b\| | quartile AUC | spread |
+|---|---|---|---|
+| `ft_slope_phase` | **-0.014** | [0.501, 0.498, 0.500, 0.512] | **0.014** |
+| `ft_s1_signed` | -0.010 | [0.501, 0.483, 0.497, 0.501] | 0.018 |
+| `ft_slope_snr` | -0.001 | [0.496, 0.499, 0.516, 0.500] | 0.021 |
+| `ft_slope_ctrl` | +0.001 | [0.497, 0.514, 0.500, 0.463] | 0.051 |
+| `ft_slope_over_ctrl` | -0.017 | [0.469, 0.485, 0.473, 0.432] | 0.053 |
+| `ft_c1_signed` | -0.006 | [0.521, 0.496, 0.495, 0.457] | 0.063 |
+
+Spreads **0.014-0.063** against the **0.281** that disqualified
+`trend_slope_ppm_day` and the 0.279-0.357 that disqualified the ellipsoidal
+amplitudes. Spatially clean -- the phase-slope does not inherit the closed trend
+feature's spatial instability, because it is not the same statistic.
+
+## Sector / observation-epoch control arm -- IMPLEMENTED HERE FOR THE FIRST TIME
+
+The momentum-dump entry flagged this as a required addition to the standing
+battery and explicitly did not build it. It is built here, from each star's own
+raw light curve: `t_min` -> 27.4 d bin -> sector, via
+`momentum_dump_schedule.json`'s bin->sector map, so the assignment is derived
+independently of that entry's own per-star numbers.
+
+**It independently reproduces the confound.** 5,353 training rows resolved:
+
+| sector era | n | negative-class rate |
+|---|---|---|
+| 1-13 | 892 | 0.234 |
+| 14-26 | 704 | 0.244 |
+| **27-39** | 467 | **0.497** |
+| 40-55 | 1,166 | 0.159 |
+| **56-69** | 351 | **0.516** |
+| **70-84** | 1,526 | **0.079** |
+| 85-105 | 247 | 0.235 |
+
+**AUC(sector alone) = 0.5837**, against the momentum-dump entry's independently
+derived **0.5803**. A **6.5x** swing in negative rate across observation eras,
+reproduced from a different derivation of the sector column. The confound is
+real and it is now confirmed twice.
+
+**And every feature here is clean against it:**
+
+| feature | rho vs sector | quartile AUC | spread |
+|---|---|---|---|
+| `ft_s1_signed` | -0.002 | [0.495, 0.516, 0.485, 0.486] | 0.031 |
+| `ft_slope_ctrl` | -0.016 | [0.492, 0.479, 0.510, 0.480] | 0.031 |
+| `ft_c1_signed` | +0.019 | [0.505, 0.491, 0.516, 0.482] | 0.034 |
+| `ft_slope_phase` | +0.008 | [0.493, 0.520, 0.507, 0.468] | 0.052 |
+| `ft_slope_over_ctrl` | -0.030 | [0.444, 0.458, 0.483, 0.506] | 0.062 |
+| `ft_slope_snr` | -0.017 | [0.507, 0.519, 0.505, 0.452] | 0.067 |
+
+rho **-0.030 to +0.019**, spreads **0.031-0.067**. Nothing here is an
+observation-epoch proxy. **The arm is now reusable: `flux_trend_phase_assess.py`
+carries it as a standalone block that needs only a per-star first-timestamp.**
+
+# PART 3 -- MODEL TEST. 12 bootstraps, production's exact recipe, frozen split.
+
+`flux_trend_phase_validate.py` is a thin, unmodified reuse of
+`ellipsoidal_validate.py`: same Optuna-tuned HGB
+(`lr=0.0926, max_iter=475, max_leaf_nodes=63, min_samples_leaf=24, l2=0.00901,
+class_weight='balanced'`) inside `CalibratedClassifierCV(cv=5, sigmoid)`, same
+frozen split (train 4,414 / test 1,098), same 2-min subset (968), same MDE.
+Only the feature file and the arm definitions differ, so this investigation and
+the ellipsoidal one are directly comparable.
+
+**Arm E is a deliberately content-free NULL arm** -- the slope evaluated at a
+wrong period -- following the momentum-dump entry's methodological note that a
+control built from a content-free version of the feature belongs in the standard
+battery.
+
+Base **AUC 0.9383**, Brier 0.0741, ECE 0.0324; 2-min subset base 0.9317.
+
+| arm | features added | mean delta | 95% CI | positive | >= MDE | 2-min delta | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| A slope only | `ft_slope_phase` | **-0.0007** | [-0.0024, +0.0010] | 2/12 | 0/12 | -0.0005 | 0.0746 | 0.0330 |
+| B signed c1/s1 | `ft_c1_signed`, `ft_s1_signed` | **-0.0018** | [-0.0032, +0.0006] | 1/12 | 0/12 | -0.0014 | 0.0756 | 0.0326 |
+| C ctrl-normalised | `ft_slope_over_ctrl`, `ft_slope_snr` | **-0.0011** | [-0.0023, +0.0003] | 2/12 | 0/12 | -0.0009 | 0.0742 | 0.0324 |
+| **D all five** | all five | **-0.0020** | **[-0.0044, -0.0001]** | **1/12** | 0/12 | -0.0017 | 0.0753 | 0.0318 |
+| E **NULL** wrong-period | `ft_slope_ctrl` | -0.0005 | [-0.0018, +0.0009] | 4/12 | 0/12 | -0.0006 | 0.0745 | 0.0303 |
+
+**Nothing clears.** Every arm has a negative mean, 0/12 bootstraps reach the MDE,
+and **arm D is significantly negative** -- the entire 95% CI lies below zero.
+The 2-min-only subset agrees in sign and magnitude throughout. Brier worsens in
+four arms of five; ECE moves by less than 0.003 in either direction, which is
+not a promotion criterion.
+
+**Two readings of this table matter more than the headline.**
+
+**(1) The NULL arm is the best-performing arm.** `ft_slope_ctrl` -- a slope
+fitted at a deliberately wrong, incommensurate period, carrying no ephemeris
+information whatsoever -- returns **-0.0005 with 4/12 positive**, better than the
+true-period slope's -0.0007/2 and better than every real arm. Adding a
+content-free column is *less harmful* than adding the real one. That is the
+signature of pure noise being added to a 33-feature model, and it is the third
+time this project's deliberately-content-free control has out-performed the
+feature it was built to test (after `ell_a2_ctrl` beating `ell_a2`, and the
+sector-proxy arm beating every momentum-dump feature).
+
+**(2) It reproduces the ellipsoidal result almost exactly.** That investigation's
+widest arm was **-0.0019, CI [-0.0047, -0.0002], 0/12 positive**; this one's is
+**-0.0020, CI [-0.0044, -0.0001], 1/12 positive**. Two independent projections of
+the same phase-folded out-of-transit trend, built months apart from different
+motivations, land on the same number. The folded flux trend, reduced to scalars,
+costs this model ~0.002 AUC.
+
+### Verdict
+
+| component | outcome |
+|---|---|
+| the "+0.014 AUC in ExoNet ablations" citation | **MISATTRIBUTED on three axes.** ExoNet has no AUC and no ablations (verified, 0 occurrences of each). +0.014 is uniquely ExoMiner++'s **Periodogram** branch **PR AUC** gain. The flux-trend branch's real ROC AUC gain is **+0.003**, ~3x below this project's MDE. |
+| ExoMiner++ Table 11 | **RETRIEVED IN FULL**, closing a hard limit recorded twice in this file. |
+| "Flux Trend is the top branch" / "Momentum Dump is the one non-helper" | **CONFIRMED at the number level** (+0.026 and +0.000 PR AUC). |
+| the flux-trend branch's EB-recall claim | **REFUTED.** +0.001, the smallest of any helping branch, against +0.004 for Difference Image and Periodogram. |
+| "variance of OOT data on the candidate's period" | **DEPLOYED as `var_oot_rms`.** The mask is already phase-based, and a variance is permutation-invariant -- 5,964/5,964 rows bit-identical folded vs unfolded, max diff 0.000e+00. Third time a deployed `var_*` column has been proposed as new work. |
+| "fitted baseline slope" = closed `trend_slope_ppm_day`? | **NO** -- \|rho\| 0.006. Genuinely a different statistic. |
+| "fold at the FULL period rather than half"? | **ALREADY BUILT AND ADJUDICATED.** `ell_a1` and `ell_pp_full` are that variant; both rejected pre-model (\|rho\| 0.866/0.916, \|b\| spread 0.291/0.343), and `ell_pp_ratio` was modelled at -0.0015. Not an untested parameter change. |
+| the signed odd projection (the real residue) | **GENUINELY NOVEL** -- max \|rho\| **0.031-0.184**, the cleanest in this project's feature work -- **spatially clean, epoch clean, and EMPTY**: single-feature AUC **0.5005**, beaten 18x by its own wrong-period null. |
+| model test | **NULL TO NEGATIVE.** -0.0007 to -0.0020, 0/12 at MDE, arm D's CI entirely below zero, and the NULL arm is the best arm. |
+
+**Recommendation: DO NOT PROMOTE, and treat the phase-folded flux-trend family
+as CLOSED.** Production stays at **0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`**.
+
+### Why this closes the family rather than one feature
+
+The phase-folded out-of-transit trend has now been decomposed into every scalar
+projection it has, across two investigations, and each piece has been separately
+adjudicated:
+
+| projection of the folded OOT trend | where tested | outcome |
+|---|---|---|
+| its **variance** | DEPLOYED as `var_oot_rms` | in production |
+| **even, half-period** (`c2`, ellipsoidal) | ellipsoidal entry | amplitude redundant 0.852; signed `c2` novel but **-0.0000** |
+| **even, full-period** (`c1`, `a1`, `pp_full`; reflection/beaming) | ellipsoidal entry | redundant **0.866-0.916**, spatially unstable |
+| **odd, all harmonics** (the phase slope, `s1`, `s2`) | **this entry** | novel (0.031-0.184), clean, **AUC 0.5005**, null-to-negative |
+| **amplitude ratios** (`a2_frac`, `pp_ratio`, `slope_over_ctrl`) | both | clean but null |
+| monotonic slope in **TIME**, not phase | `trend_slope_ppm_day` | redundant 0.826-0.829, spatially unstable |
+
+**There is no remaining untested projection.** A reformulation in this family
+must state which of these six rows it is not, and a proposal that reaches for
+"variance" or "slope" of the folded out-of-transit flux is asking for row 1 or
+rows 3-4.
+
+**And the external evidence now points the same way rather than against it.**
+The verified ExoMiner++ number for this branch is +0.003 ROC AUC on a
+0.988-baseline CNN that consumes the folded trend as a **curve**; this project
+consumes it as scalars, at a 0.9383 baseline, with an MDE of 0.0097. The
+mechanism for the gap was already established in the ellipsoidal entry -- a
+three-number projection of a shape keeps only its amplitude, and the amplitude
+is `var_ls_amp`, deployed. This entry adds the complement: the part of the shape
+the amplitude discards is the odd projection, and it is measurably empty.
+
+### Method notes
+
+* The **sector/observation-epoch control arm** is implemented here for the first
+  time, satisfying the standing requirement the momentum-dump entry raised. It
+  independently reproduces that entry's confound (AUC(sector alone) **0.5837**
+  vs 0.5803; the same 6.5x negative-rate swing across eras) from a separately
+  derived sector column that agrees **97.35%** with the `sector_map.csv` built
+  concurrently by another session, all 138 disagreements being +/-1 bin.
+* The variance-invariance result is a **mathematical identity demonstrated on
+  data**, not a statistical near-miss. Reported as such.
+* Arm E exists because the momentum-dump entry recommended a content-free
+  control arm as standard. It earned its place: it is the best arm in the table.
+* n = 12 bootstraps, production's exact recipe, frozen split, both the full test
+  set and the 2-min subset. The run took ~17 h wall under heavy contention from a
+  concurrent session; that affects wall time only, not the numbers.
+
+Artefacts: `flux_trend_phase.py` (6,091 light curves),
+`flux_trend_phase_features.csv`, `flux_trend_phase_assess.py` / `.json`,
+`flux_trend_phase_train.csv`, `flux_trend_phase_validate.py` / `.json`.
+
+Cross-references: the ELLIPSOIDAL VARIATION entry (which this one completes and
+whose Table 11 limit it closes), the deployed stellar-variability features, the
+closed `trend_slope`/`trend_amp` rejection, the `ls_period_match` closure, the
+periodogram secondary-peak entry, the momentum-dump entry (whose epoch-control
+recommendation this implements), THE ExoNet 0.955 FIGURE entry, and the STANDING
+REGISTER at the top of this file.
+
+---
+
+## FINAL SYSTEM AUDIT -- 2026-08-28. Everything works. Three things need YOUR decision, none of them broken.
+
+**Verdict: the system is correct, consistent and healthy. The live pipeline
+passes end to end. No production defect was found.** Three items require a
+judgment call and were deliberately NOT decided unilaterally; they are listed at
+the end.
+
+### 1. Production ground truth -- CONFIRMED, read from the live artifact
+
+| check | value |
+|---|---|
+| `models/best_model.joblib` md5 | **`fe3fa82f36cc978396c68be07d6057f9`** |
+| model | `CalibratedClassifierCV(sigmoid, 5 calibrated)` over `HistGradientBoostingClassifier` |
+| `n_features_in_` | **33** |
+| `FEATURE_COLUMNS` | **33** |
+| hyperparameters | lr **0.09258475971800786**, max_iter **475**, max_leaf_nodes **63**, max_depth None, min_samples_leaf **24**, l2 **0.009012660266897076**, class_weight **balanced**, random_state 42 |
+| AUC of record | **0.9454** |
+
+`NON_TLS_FEATURE_COLUMNS` and `OPTIONAL_FEATURES` live in
+`code/06_download_unknown.py` (not `05_train_models.py`); `OPTIONAL_FEATURES =
+{transit_shape_ratio, FAP, gaia_ruwe, gaia_nss}`, all four present in
+`FEATURE_COLUMNS`, no orphans. **Mutually consistent.**
+
+Canonical path confirmed `/Users/anujtripathi/Developer/ExoplanetAI`; launchd
+working directory is `.../Developer/ExoplanetAI/web`. **No drift toward
+`~/Downloads` in any live code, config or plist.**
+
+### 2. Multi-session git integrity -- ONE incident total, already documented
+
+Scanned the last 25 commits, comparing each commit's message against the `##`
+sections it added to RESULTS_SUMMARY.md:
+
+| commit | new sections | verdict |
+|---|---|---|
+| **`67755153`** | **14** | **the known incident** -- `git add -A` swept another session's multi-sector routing map into a momentum-dump commit |
+| `c5c7ef7f` | 4 | correct (register sections A/B/C + its own entry) |
+| all others | 1-2 each | correct, scoped to their message |
+
+**No additional instances.** Working tree: `main` only, **one worktree**, **no
+stashes**, no orphaned branches.
+
+### 3. Downstream artifacts -- all current on FEATURE SET; two carry a benign row-count drift
+
+| artifact | state |
+|---|---|
+| `conformal_calibration.json` | `model_md5` **MATCHES** production |
+| `best_model_metadata.json` | `model_md5` **MATCHES** production |
+| `bootstrap_ensemble/` | **32 members**, each `n_features_in_ = 33` |
+| `multivariate_ood_detector` + `_meta.json` | **33 features**, threshold -0.5082, measured FP rate 2.00% |
+| `training_feature_ranges.json` | **33 ranges** |
+| OOD staleness guard | `_check_cached_feature_set` wired at **4 call sites** |
+| conformal exchangeability fix | **INTACT** -- `save_results(out)` runs BEFORE the diagnostic, and the `except SystemExit` guard (the one that made the 2026-08-06..14 silent failure unreachable) is still present |
+
+**Minor, non-breaking:** the OOD detector and feature ranges were fit at
+`training_rows: 5494`; training.csv is now 5,534. **Feature set is identical
+(33), so the guard correctly does not fire** -- this is a 0.7% data drift, not a
+staleness bug. Refitting is safe but would bind the artifacts to currently
+UNCOMMITTED rows, so it is listed as a decision below rather than done.
+
+### 4. Scheduler and live operation -- HEALTHY
+
+    launchd  com.exoplanetai.app   state = running   pid 1021   PPID 1
+    last exit code = (never exited)     uptime 3d 18h 32m
+    working directory = /Users/anujtripathi/Developer/ExoplanetAI/web
+
+`/health` on port 5050:
+
+| field | value |
+|---|---|
+| `status` | **ok** |
+| `tick` | **3184**, last tick **6.8 s** ago |
+| `scheduler_thread_alive` | true |
+| `retrain_tick_timeout_seconds` | **3600** -- the fix is in place and unreverted |
+| `retrain_in_progress` | false |
+| busy/stalled logic | `busy_grace = tick_bound + 300` present in `web/app.py` |
+
+**No zombie or orphaned processes** from any parallel session.
+
+**Label-append path re-verified (not assumed).** `web/retrain_pipeline.py` calls
+`compute_all_features`, `add_crowding_features`, `_variability_for_raw` and
+`add_gaia_astrometry_features`. Across the 40 appended rows, every one of the 33
+columns is populated except **`transit_shape_ratio` (67.5%), `FAP` (85.0%),
+`gaia_ruwe` (87.5%), `gaia_nss` (90.0%)** -- *all four are exactly the documented
+`OPTIONAL_FEATURES`, median-imputed by design* -- plus `st_rad` 92.5% /
+`st_teff` 95.0% from sparse catalogue coverage. **Correct behaviour.**
+
+### 5. LIVE END-TO-END TEST -- PASS
+
+A genuinely fresh star, absent from training.csv and both pools, pushed through
+the real production modules:
+
+    STEP 4  TLS               Success in 24 s, 23 fields
+    STEP 5  crowding          resolved 1/1
+            variability       computed 1/1 from RAW light curves
+            gaia              matched 1/1 in Gaia DR3
+    STEP 6  33 columns        populated 31/33
+                              NaN (OPTIONAL) 2  ['FAP','transit_shape_ratio']
+                              NaN (required) 0     ABSENT 0
+              crowd_flux_ratio_max 0.02626   crowd_nearest_arcsec 5.720
+              var_oot_rms 0.001789          var_excess 1.9223
+              gaia_ruwe 0.782               gaia_nss 0.0
+    STEP 7  probability       0.9598
+            multivariate OOD  False (score -0.4092), in_distribution True
+            conformal         available; 90% set = {Planet}, not ambiguous
+
+**Every deployed feature group computes for a brand-new candidate today, and the
+model, OOD detector and conformal layer all produce sane output.** Zero required
+NaNs, zero absent columns.
+
+### 6. Complete open-items inventory -- FULL project history
+
+**RESOLVED since being flagged:**
+
+| item | resolution |
+|---|---|
+| sector/epoch control arm as standing protocol | **IMPLEMENTED** as `control_arms.py` (2026-08-28) |
+| broken OOD detector vs 33-feature model | fixed + staleness guard added |
+| conformal exchangeability diagnostic | landed and **re-verified intact today** |
+| `/health` "stalled" false positive | fixed with bounded `busy` state, verified live |
+| retrain tick hang | `RETRAIN_TICK_TIMEOUT = 3600`, verified live |
+| launchd EX_CONFIG | fixed by migration; **never exited in 3d 18h** |
+| var_* backfill gap | 3 filled, 14 correctly NaN |
+| evidence-layer UI (crowding/variability/Gaia) | shipped |
+
+**STILL OPEN -- no action taken, awaiting your call:**
+
+| # | item | status |
+|---|---|---|
+| 1 | **40 uncommitted training.csv rows** | 26 negative / 14 positive, all TIC-named, appended by the scheduler. HEAD 5,494 -> tree 5,534. **Still uncommitted per standing instruction.** |
+| 2 | **CatBoost re-test at 33 features** | **scoped, NOT run.** Last measured at 31 features pre-Optuna; 2 deployments stale. Prior LOW (edge halved 0.0085->0.0042, 0/12 at MDE, ECE +25.8%). |
+| 3 | **`uncertainty_std` backfill** | **105 / 296 candidates = 35.5%** -- unchanged |
+| 4 | SAP-flux fallback pilot | scoped, not built |
+| 5 | `db.mark_watch_label_processed` not clearing `error_message` | unchanged |
+| 6 | pipeline-wide multi-sector stacking | cost-estimated, awaiting decision |
+| 7 | ~39% of concatenated curves fail on flux | scoped, not done |
+| 8 | 9 training labels lost in an old incident | flagged, not recovered |
+| 9 | OOD/ranges refit for the 40-row drift | safe but would bind artifacts to uncommitted rows |
+
+**Reopening conditions -- FIRMLY NOT MET.** Neural architectures require **>=5x
+labelled examples**: 5,534 today against **27,670** needed, a shortfall of
+**22,136**. The alternative condition, multi-year continuous photometry, is
+structurally unavailable -- TESS sectors are 27 days.
+
+### 7. TWO THINGS THAT NEED YOUR DECISION, reported rather than acted on
+
+**(a) There are 472 lines of UNCOMMITTED work in RESULTS_SUMMARY.md from another
+session**, plus 7 uncommitted `flux_trend_phase_*` files. It is a complete,
+finished flux-trend investigation. **This audit entry was appended to the same
+file but the file was deliberately NOT committed** -- committing it would sweep
+that session's work into an audit commit, which is precisely the `67755153`
+incident this project already documented. **That session should commit its own
+work.** Until it does, all of it is at risk if the folder closes uncleanly.
+
+**(b) A register contradiction has appeared from concurrent writes.** This file
+now claims `control_arms.py` was first used in the harmonic-band-power task
+(2026-08-28) *and*, in the other session's entry, that the sector/epoch arm was
+"IMPLEMENTED HERE FOR THE FIRST TIME". Checked in code: **`flux_trend_phase_assess.py`
+does NOT import `control_arms`** -- it reimplemented the sector/epoch control
+inline, which the register explicitly says not to do ("Do not rebuild this").
+Both statements are locally true and jointly misleading. **Not edited, because
+the file belongs to a live session.** It needs one reconciling line once that
+session lands.
+
+Artefacts: `e2e_fresh_star_audit.json` (this run).
+
+---
+
+## OOD "PATH-INCONSISTENCY / 25.6% CONTRADICTION" -- THE FINDING DOES NOT EXIST. Premise checked, measured, and refuted. No fix was needed and none was applied.
+
+**Date: 2026-08-28. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.** No code changed, no artifact moved, no
+candidate re-scored.
+
+A follow-up asked me to fix an OOD "path-inconsistency" reported in the final
+audit: two disagreeing copies of the detector causing **25.6% of the pool to
+show contradictory OOD status**, affecting `split_and_rerank`'s
+`keep = in_distribution & ~below_triage_floor`. **Per this project's standing
+premise-verification discipline, the claim was checked before acting on it. It
+is not correct, on every element.**
+
+### 1. The audit reported no such finding
+
+The final audit's OOD lines, quoted from this file:
+
+| audit row | what it said |
+|---|---|
+| `multivariate_ood_detector` + `_meta.json` | **33 features**, threshold -0.5082, measured FP rate 2.00% |
+| OOD staleness guard | `_check_cached_feature_set` wired at **4 call sites** |
+
+Its only OOD caveat was explicitly labelled **"Minor, non-breaking"**: the
+detector was fit at `training_rows: 5494` against today's 5,534 -- a 0.7% data
+drift with an **identical feature set**, which is why the guard correctly does
+not fire. **No path inconsistency, no second copy, and no contradiction rate was
+reported.** The strings "path-inconsistency" and "contradictory OOD" appear
+nowhere in this file.
+
+### 2. Where "25.6%" actually comes from -- and it reconciles exactly
+
+`25.62%` is real and appears three times, all in the **OOD detector refit**
+entry. It is the **OOD flag rate among the NON-cluster-1 candidates of the main
+pool**, from the cluster-1 regression check:
+
+| pool | cluster-1 flagged | rest flagged | odds ratio | p |
+|---|---|---|---|---|
+| main | 8.54% (n=164) | **25.62%** (n=324) | 0.27 | 3.84e-06 |
+
+It is a **flag rate in a subgroup**, not a contradiction rate, and it has nothing
+to do with file paths. It reconciles to the present state to the row:
+
+    cluster-1  164 x 0.0854 = 14 flagged
+    rest       324 x 0.2562 = 83 flagged
+    implied pool-wide       = 97/488 = 19.88%
+    MEASURED TODAY          = 97/488 = 19.88%      exact match
+
+### 3. There is ONE authoritative artifact. The "second copy" is a deliberate archive.
+
+    models/multivariate_ood_detector.joblib                          <- THE artifact
+    models/versions/multivariate_ood_detector_pre33_24feat.joblib    <- archived backup
+
+The second file was created by `ood_detector_refit.py:114` as the pre-refit
+backup, under the same `models/versions/` convention already used for
+`best_model_pre_crowding_*`, `best_model_pre_variability_*` and
+`best_model_pre_gaia_*`. **No production code path loads from
+`models/versions/`** -- `grep` over `code/` and `web/` returns only comments and
+the version-index table.
+
+One line looked worth checking: `ood_detector_refit.py:161` copies the 24-feature
+archive *over* the live path. It is inside the **stale-cache guard test**, which
+deliberately stages the old artifact to prove the guard recomputes, and restores
+in a `finally:` block (`os.remove`; `shutil.move(tmp, OOD_MODEL)`; prints
+"restored the refit artifacts"). **Correct by construction.**
+
+### 4. MEASURED contradiction rate: 0.0000%
+
+Not inferred from code review -- scored the real pool through both routes.
+
+| check | result |
+|---|---|
+| route A -- production loader `load_or_compute_multivariate_detector` | 33 features |
+| route B -- direct `joblib.load` of the artifact | 33 features |
+| `feature_columns` / `imputer` / `iso_forest` | **IDENTICAL** on both |
+| loader threshold vs `_meta.json` threshold | **-0.508247339321313 both, equal** |
+| `max abs(score_A - score_B)` over 557 pool rows | **0.000e+00** |
+| **contradiction rate, 557 scored rows** | **0/557 = 0.0000%** |
+| **contradiction between two independent loader calls, main pool** | **0/488 = 0.0000%** |
+| production flag rate today | 97/488 = **19.88%** |
+
+**The two "routes" resolve to the same file.** The only key that differs is
+`threshold`, which the production loader attaches from `multivariate_ood_meta.json`;
+the raw joblib has no threshold at all, so it **cannot independently flag
+anything** -- there is no second opinion available to contradict the first.
+
+*Method note, recorded because it nearly produced a wrong number in this very
+check:* my first pass scored the pool feature tables directly and got **0
+flagged**, which looked like a discrepancy against the historical 25.62%. The
+cause was in my harness, not production -- `st_rad`/`st_teff` live in the
+candidate LIST, not the feature table, and reindexing without them median-imputed
+both columns toward the centre. Merging them as production does gives 19.88%,
+which reconciles exactly. **The same class of harness artefact this project has
+caught repeatedly; caught here before it was reported.**
+
+### 5. Candidate visibility -- no correction needed
+
+`in_distribution` is computed in exactly one place,
+`06_download_unknown.py:2007-2008`, as
+`in_distribution_univariate & ~multivariate_ood_flag`, from the single detector.
+With a measured contradiction rate of 0.0000%, **no candidate has ever been
+demoted from the review shortlist by a disagreement between copies, because no
+disagreement exists or existed.** No retroactive re-scoring was performed, and
+none is warranted.
+
+### 6. Guard scope -- accurate as designed; the requested extension has no failure mode to catch
+
+`_check_cached_feature_set` compares a cached bundle's `feature_columns` against
+the caller's and recomputes on mismatch -- wired at 4 call sites. The follow-up
+asked for it to be extended to detect **agreement between multiple copies**.
+**There is no second copy on any production load path to disagree with**, so such
+a check would compare the artifact to itself. Adding it would introduce code
+whose only possible outcome is "identical", which is worse than nothing: it would
+imply a hazard that does not exist. **Not added, deliberately.**
+
+The real hazard in this family -- a cached artifact going stale against a grown
+feature list -- **is** covered, and was covered by the fix that followed the
+genuine 2026-08-14 breakage.
+
+### Verdict
+
+| claim | status |
+|---|---|
+| "two copies at different paths, disagreeing" | **FALSE.** One authoritative artifact; the other is an archived backup no production path loads. |
+| "25.6% of the pool shows contradictory OOD status" | **FALSE.** 25.62% is the non-cluster-1 subgroup flag rate; measured contradiction rate is **0.0000%**. |
+| "candidates incorrectly demoted from the shortlist" | **FALSE.** Single computation site; no disagreement to propagate. |
+| "a fix was applied during the audit" | **NO -- and none was needed.** The audit reported the OOD artifacts healthy. |
+| guard should also check cross-copy agreement | **Declined with reason** -- no second production load path exists to compare against. |
+
+**Nothing was broken. Nothing was fixed. Nothing needed fixing.** Production
+stays at 0.9454 / 33 features / md5 `fe3fa82f36cc978396c68be07d6057f9`.
+
+Cross-references: the final system audit, the OOD detector refit and its guard
+test, and section C of the register on tracing a number to its own row before
+using it as evidence.
+
+---
+
+## SPECTROSCOPIC STELLAR-CHEMISTRY CROSS-MATCH (APOGEE / GALAH / LAMOST / Gaia-ESO) -- GENUINELY NOVEL, real astronomy, and CLOSED AT THE AVAILABILITY GATE. No chemistry value was ever examined.
+
+**Date: 2026-08-29. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing built beyond the
+cross-match itself. No feature computed, no model run.
+
+**This is a NEW proposal category for this file.** No prior investigation touched
+spectroscopic survey cross-matching, and `FEATURE_COLUMNS` contains **no
+metallicity or abundance column of any kind** -- verified, not assumed. The
+novelty claim is correct.
+
+### PART 0 -- the science is real; the citation format is not traceable
+
+| claim | verdict |
+|---|---|
+| "gas giants strongly favor high [Fe/H]" | **VERIFIED, well-established.** Fischer & Valenti 2005: 1,040 FGK stars, first uniform spectroscopic analysis of a full Doppler survey, beta = 2 for giant planets at P < 4 yr. |
+| "alpha-rich vs alpha-poor hosts reveal systematic differences in planet populations" | **VERIFIED as real astronomy.** Traces to **Adibekyan et al. 2012a/b**: [X/Fe] for Mg, Al, Si, Sc, Ti systematically higher in planet hosts at low metallicity; planets form preferentially in the thick disk at low [Fe/H]. Also Haywood 2008/2009. |
+| the markers `[26+L70-L78]` / `[29+L83-L87]` | **NOT a citation format** -- they look like tool-internal line ranges and cannot be resolved to any paper. |
+
+**The unresolvable marker was not allowed to block engagement.** The underlying
+area is legitimate, actively studied, and was assessed on its merits.
+
+### PART 1 -- THE AVAILABILITY GATE. Measured on this project's REAL stars.
+
+The proposal's "~600k shared stars" is a general survey-overlap figure and says
+nothing about *this* population. Measured directly, 5 arcsec cross-match:
+
+| survey | train overall | train POS | train NEG | difference | AUC(avail) | main pool | widesector |
+|---|---|---|---|---|---|---|---|
+| **APOGEE DR17** | **21.56%** | **25.30%** | **7.72%** | **-17.59 pp** | **0.5879** | **0.41%** | 0.00% |
+| **LAMOST DR7** | ~19.7% | **24.00%** | **15.33%** | -8.67 pp | -- | **0.00%** | -- |
+| **GALAH DR3** | ~4.3% | 2.67% | 6.00% | +3.33 pp | -- | **3.00%** | -- |
+| Gaia-ESO DR5 | 0.11% | 0.11% | 0.08% | -0.03 pp | 0.5001 | 0.00% | 0.00% |
+| **union (XMatch-measured)** | **21.63%** | 25.37% | 7.80% | **-17.57 pp** | **0.5878** | -- | -- |
+
+*(APOGEE and Gaia-ESO measured by bulk CDS XMatch over all 5,534 rows. GALAH and
+LAMOST are **not hosted on the XMatch server** under their VizieR ids -- that
+returned a TOOL failure, not a coverage of zero -- so they were re-measured by
+direct VizieR cone search on stratified samples of 150 positives / 150 negatives
+/ 200 pool candidates. **Reporting the XMatch failure as "0% coverage" would have
+been false**, and the distinction is recorded because it nearly entered this
+table as a real number.)*
+
+### THE GATE FAILS DECISIVELY, on two independent axes
+
+**1. TRAIN/SERVE MISMATCH -- every survey, without exception.**
+
+| survey | main-pool coverage |
+|---|---|
+| GALAH DR3 | **3.00%** |
+| APOGEE DR17 | **0.41%** |
+| LAMOST DR7 | **0.00%** |
+| Gaia-ESO DR5 | **0.00%** |
+
+**The best pool coverage available from any of the four surveys is 3.00%, from
+the survey with essentially no training coverage.** The deployed model would be
+unable to compute this feature for **97-100% of the candidates it exists to
+score**.
+
+For calibration against this project's own precedents: the original **TIC CTL
+fields** were flagged at **37.5%** pool availability; the **SPOC DV centroids**
+were independently disqualified at **16.80% / 18.84%**. **APOGEE's 0.41% is 40x
+below the SPOC DV figure that was already considered disqualifying on its own.**
+
+The reason is astrophysical and clean: **LAMOST is a northern survey** (Xinglong,
+dec > -10 deg) while this pool is TESS-southern-dominated -- hence 24% training
+coverage against **0.00%** pool. APOGEE, GALAH and Gaia-ESO are magnitude-limited
+and target-selected toward bright, well-studied stars; TESS candidate pools are
+faint by construction. **No amount of methodology fixes a survey that did not
+observe these stars.**
+
+**2. AVAILABILITY IS A LABEL PROXY, in the predicted direction.**
+
+APOGEE: positives **25.30%** vs negatives **7.72%** -- a **-17.59 pp** split,
+odds ratio **4.05**, Fisher **p = 2.265e-45**, and
+**AUC(availability alone) = 0.5879, |AUC-0.5| = 0.0879**.
+
+**Mere presence of an APOGEE spectrum is as predictive as `gaia_ruwe` (0.0831),
+the strongest feature this project has ever promoted** -- from a column
+containing no chemistry whatsoever. LAMOST shows the same direction independently
+(24.00% vs 15.33%).
+
+The mechanism is exactly the one predicted before the query ran: **training
+positives are named confirmed planets** -- bright, heavily followed up, and
+therefore prioritised by spectroscopic surveys -- while **negatives are TIC-named
+TOI false positives**, fainter and selected only by TESS. Provenance again, the
+same structure that produced the SPOC DV trap.
+
+*(GALAH's +3.33 pp runs the other way, but on 4 vs 9 raw hits at n=150 per class
+that is noise, not a counter-example.)*
+
+### VERDICT: CLOSED AT THE PART 1 AVAILABILITY GATE. Part 2 not entered.
+
+Per the task's own routing and this project's standing discipline, **no chemistry
+value was computed, no single-feature AUC measured, no model run.** Once
+availability fails this decisively, feature-value testing would only produce
+numbers that cannot be interpreted.
+
+| element | verdict |
+|---|---|
+| scientific premise ([Fe/H]-giant-planet, alpha-enhancement) | **REAL and well-established.** Not the reason this closes. |
+| novelty | **GENUINE.** No prior spectroscopic cross-match; no abundance column exists. |
+| pool coverage | **FAILS.** 0.00-3.00% across all four surveys; 40x below the already-disqualifying SPOC DV figure. |
+| class-correlated availability | **FAILS.** -17.59 pp, AUC(availability) **0.5879** on APOGEE alone. |
+
+**Recommendation: CLOSED at feasibility. Production stays at 0.9454 / 33
+features / md5 `fe3fa82f36cc978396c68be07d6057f9`.**
+
+### What would change this
+
+Not methodology -- **data**. This reopens only if a spectroscopic survey actually
+observes this project's candidate population: a dedicated southern,
+faint-limited abundance survey of TESS candidates, or an all-sky release deep
+enough to reach them. **Both are acquisition questions**, consistent with section
+B2's finding that remaining gains are data problems rather than model or feature
+problems.
+
+**A note on what this does NOT show.** The metallicity-giant-planet correlation
+is real, and a future proposal should not cite this entry as evidence against it.
+**It closes on who was observed, not on whether chemistry matters.** There is
+also a separate, untested question the gate never reached: whether an
+occurrence-rate relationship (which planet TYPES form) transfers at all to this
+project's task (real planet vs false positive). **That question remains open in
+principle and unanswerable in practice at 0.41% pool coverage.**
+
+Artefacts: `spectro_chem_availability.py` / `.json`,
+`spectro_chem_crossmatch.csv`.
+
+Cross-references: the TIC-native CTL trap, the SPOC DV circularity and pool-
+coverage closure, the multi-sector missingness control, the sector/epoch confound
+(section D), and the Gaia DR3 deployment -- the template this one was measured
+against and failed.
+
+---
+
+## CLUSTER/MOVING-GROUP MEMBERSHIP and 3D DUST EXTINCTION -- two mechanistically distinct proposals, BOTH CLOSED, for two DIFFERENT reasons. Neither reached modelling.
+
+**Date: 2026-08-29. Production UNCHANGED and verified live before and after:
+0.9454 / 33 features / `models/best_model.joblib` md5
+`fe3fa82f36cc978396c68be07d6057f9`; `training.csv` 5,534 rows (4,355 pos /
+1,179 neg). Nothing promoted, nothing built into the pipeline. Promotion gate,
+scheduler and deployed model untouched.**
+
+**Both are genuinely novel data sources here** -- no prior cluster cross-match, no
+prior extinction column, and `FEATURE_COLUMNS` contains neither. The novelty
+claims are correct. **They are reported separately throughout and earn different
+verdicts**, and the register carries them as two independent rows.
+
+**Headline: the brief's own pre-registered prediction was right on both counts,
+and on the mechanism rather than only the outcome.** Cluster membership is NOT a
+sky-position proxy (rho vs \|b\| = **-0.009**) -- it survives the matched-band
+test cleanly and dies of emptiness instead. 2D dust IS sky position
+(rho vs \|b\| = **-0.8897**) -- it looks strong all-sky and **collapses inside the
+matched band**, where bare \|b\| beats it.
+
+# PART 0 -- FEASIBILITY, SEPARATELY
+
+## 0a. Cluster membership -- catalogs ARE accessible; coverage is the problem
+
+All three modern Gaia cluster-membership catalogs are hosted on the CDS XMatch
+server, so this reuses the **exact bulk cross-match method** proven by the Gaia
+RUWE/NSS deployment and the spectroscopic-chemistry gate, unmodified. 5 arcsec
+radius, all 5,534 training rows plus every candidate population.
+
+| catalog | train | train POS | train NEG | main pool (scored) | main target list | widesector |
+|---|---|---|---|---|---|---|
+| **Hunt & Reffert 2023** `J/A+A/673/A114/members` (Gaia DR3, ~7,200 clusters) | **1.42%** (78) | 1.26% | 1.95% | **5.91%** (15/254) | 3.65% (73/2000) | **0.00%** (0/69) |
+| Cantat-Gaudin & Anders 2020 `J/A+A/633/A99/members` | 0.60% (33) | 0.41% | 1.27% | 1.18% (3/254) | 0.55% (11/2000) | 0.00% |
+| Cantat-Gaudin 2018 `J/A+A/618/A93/members` | 0.60% (33) | 0.41% | 1.27% | 1.18% (3/254) | 0.55% (11/2000) | 0.00% |
+| **UNION of all three** | **1.44%** (79) | 1.29% | 1.99% | -- | -- | -- |
+
+**The brief's warning was correct and the number is worse than "tens of
+thousands of stars" suggests.** Hunt & Reffert 2023 contains ~1.5 million member
+stars; **78 of them are in this training set.** Cluster catalogues are built from
+Gaia astrometry of stars in known overdensities, and this project's population --
+TOI hosts and TESS candidates -- is overwhelmingly nearby field stars.
+
+**GO to Part 1, with a caveat recorded up front:** unlike a survey cross-match,
+**membership is not a missingness gate.** A non-member is a measured `False`, not
+an absent value, so the feature is 100% *available* for any star with
+coordinates. What replaces the availability gate is an **effective-n** question.
+
+## 0b. 3D dust (Bayestar19) -- NO-GO. Three independent blockers.
+
+**The package is not the problem.** `dustmaps` installs cleanly
+(**v1.0.14**, pure Python, no compilation). That part of the proposal is sound.
+
+**Blocker 1 -- SKY FOOTPRINT. Verified from the package's own source, not from
+memory.** `dustmaps/bayestar.py`, verbatim:
+
+> "The maps cover the Pan-STARRS 1 footprint (dec > -30 deg) amounting to
+> three-quarters of the sky."
+
+Measured against this project's real populations:
+
+| population | in footprint (dec > -30) | median dec |
+|---|---|---|
+| training, all | **80.16%** | -- |
+| training, POSITIVES | **84.95%** | +38.5 |
+| training, NEGATIVES | **65.62%** | +11.8 |
+| **main pool (scored)** | **0.79%** (2/254) | **-50.1** |
+| **main target list (2,000)** | **1.35%** (27/2000) | **-50.6** |
+| **widesector pool** | **0.00%** (0/69) | **-66.8** (range -79.3 to -59.1) |
+| web review DB (296 candidates) | 0.68% | -52.9 |
+
+**Bayestar19 covers 0.00-1.35% of the candidates this feature exists to score.**
+Against this project's own precedents: TIC CTL was *flagged* at 37.5% pool
+availability; **SPOC DV centroids were independently disqualified at
+16.80%/18.84%**; APOGEE closed the chemistry proposal at 0.41%. This sits in the
+APOGEE band. The cause is structural and unfixable by method: **Bayestar19 is a
+Pan-STARRS northern map and this pool is the TESS southern continuous viewing
+zone.** Four independent coordinate sources agree.
+
+**Blocker 2 -- availability is a LABEL PROXY, and a worse one than the case that
+already closed.** Footprint membership: positives **84.95%** vs negatives
+**65.62%**, a **+19.32 pp** split, odds ratio **2.96**,
+**AUC(availability alone) = 0.5966**.
+
+**That is larger than APOGEE's 0.5879**, the figure that closed the
+spectroscopic-chemistry proposal on its own, and larger than `gaia_ruwe`'s
+single-feature \|AUC-0.5\| of 0.0831 -- **from a column containing no dust
+information whatsoever, only a declination cut.** Same provenance mechanism as
+every prior trap: training positives are named, well-studied northern-accessible
+confirmed planets; negatives are TESS-selected and sit further south.
+
+**Blocker 3 -- the data itself will not download here.** `dustmaps.sfd.fetch()`
+and `bayestar.fetch()` both resolve through Harvard Dataverse, which returns
+**HTTP 403 Forbidden** for `doi:10.7910/DVN/EWCNL5` in this environment. Recorded
+as a practical blocker, **not** as the reason this closes -- it is third in line
+behind two that no download would fix.
+
+**And the input it needs does not exist yet either.** A 3D map requires a
+per-star DISTANCE. The Gaia RUWE/NSS deployment fetched `Source, RUWE, NSS, Gmag`
+only -- **no parallax** -- so there is no cached distance to reuse; it would need
+its own bulk fetch first. Moot given Blockers 1-2, and recorded so a future
+reader does not assume distance is on hand.
+
+**VERDICT 0b: NO-GO on 3D dust.** Not entered into Part 1 as a 3D feature.
+
+## 0c. The 2D fallback -- flagged as the brief asked, then MEASURED rather than assumed
+
+The brief asked that a 2D `(l,b)`-only proxy be flagged as "almost by definition
+a restatement of sky position" rather than built with false hope. **That flag is
+correct, and it is now a number instead of an expectation** -- because the 2D
+route is the one variant that *passes* the gate Bayestar19 failed, which makes it
+the honest place to run the decisive test.
+
+Real E(B-V) was retrieved from **IRSA's Galactic Dust Reddening service** (no
+Dataverse dependency, ~0.7 s/query), returning both **SFD98** and **Schlafly &
+Finkbeiner 2011** values. All-sky, so:
+
+| | coverage |
+|---|---|
+| training sample queried (1,179 neg + 1,179 pos) | **100.00%** (2,331/2,331) |
+| footprint restriction | **none** |
+
+So the 2D variant clears availability outright. It goes to Part 2, where it
+belongs.
+
+# PART 1 -- CLASS-RATE AND AVAILABILITY GATES
+
+| | cluster membership (HR23) | 3D dust (Bayestar19) | 2D dust E(B-V) |
+|---|---|---|---|
+| what is gated | member **rate** (flag, no missingness) | footprint availability | none -- 100% |
+| training rate/coverage | **1.42%** (78 stars) | 80.16% | 100% |
+| POS vs NEG | 1.26% vs 1.95%, **-0.69 pp** | 84.95% vs 65.62%, **+19.32 pp** | -- |
+| **AUC(availability/flag)** | **0.4964** | **0.5966 -- FAILS** | -- |
+| **AUC(raw value)** | n/a (binary) | not computed (gate failed) | **0.3396** |
+| pool coverage | 5.91% / 3.65% / 0.00% | **0.79% / 1.35% / 0.00% -- FAILS** | 100% |
+
+**Cluster membership passes the class-rate gate** -- AUC(flag) **0.4964**, 0.0036
+from chance, the cleanest gate result in this file after the momentum-dump
+schedule's 0.4999. The slight enrichment runs toward NEGATIVES (1.95% vs 1.26%),
+which is physically the right direction for a youth proxy (young stars are
+active, and activity produces false positives) but is 23 negatives against 55
+positives and carries no usable information.
+
+**One train/serve mismatch worth recording, and it runs BACKWARDS.** Pool member
+rate (**5.91%** scored, 3.65% target list) is **4.2x the training rate of
+1.42%**. The model would meet cluster members far more often at serve time than
+in training -- the reverse of the usual direction, and still a mismatch.
+
+**3D dust fails both gates**, either sufficient on its own, exactly as the
+spectroscopic-chemistry proposal did.
+
+# PART 2 -- THE MATCHED-SKY-BAND TEST. The decisive check, and the prediction was pre-registered.
+
+## The band, reproduced exactly from the crowding deployment
+
+Restrict BOTH classes to `|b|` in **[8, 40] deg** -- the band in which this
+dataset's class asymmetry by galactic latitude **inverts**:
+
+| | value | crowding entry's value |
+|---|---|---|
+| stars retained | **3,510 / 5,484 (64.0%)** | 3,510/5,485 (64%) |
+| median \|b\| ALL: pos / neg | **16.9 / 12.5** | 16.9 / 12.5 |
+| median \|b\| IN BAND: pos / neg | **15.9 / 19.7** | 15.9 / 19.7 |
+
+**Identical to the recorded numbers.** The band construction is validated against
+the investigation it was borrowed from before either feature is tested in it.
+
+## The pre-registered prediction, stated before the test ran
+
+> **Cluster membership is MORE likely to survive.** It is a localized,
+> astrophysical property: a star can sit in a sparse field at low \|b\| and still
+> be a cluster member, or in a dense low-latitude field and not be one. Cluster
+> membership is not a smooth function of \|b\| the way general stellar density is.
+>
+> **2D dust is MUCH LESS likely to survive.** Extinction is a smooth,
+> latitude-dependent quantity -- worst toward the plane -- so it is close to a
+> monotone transform of \|b\| by construction.
+
+## RESULT (A) -- CLUSTER MEMBERSHIP: **prediction HELD.** It is genuinely NOT a sky-position proxy.
+
+| quantity | value |
+|---|---|
+| **rho(cluster_flag, \|b\|)** | **-0.009** |
+| member rate by \|b\| quartile | **1.53% / 1.17% / 2.26% / 0.73%** -- non-monotone |
+| AUC(flag), all sky | **0.4964** |
+| **AUC(flag), inside matched band** | **0.5001** |
+| members inside band | 55 (46 pos / 9 neg) |
+
+**The mechanism claim in the prediction is confirmed numerically.** Membership is
+essentially uncorrelated with galactic latitude and its rate is non-monotone
+across \|b\| quartiles -- unlike stellar density, unlike crowding, unlike dust. It
+**passes** the matched-band test in the only sense the test can grant: nothing
+about its behaviour changes when the sky-region difference is deleted.
+
+**And it is empty.** 0.4964 all-sky becomes 0.5001 in band -- chance, to chance.
+There was no separation to survive.
+
+## RESULT (B) -- 2D DUST: **prediction HELD.** It looks strong, and 65% of that is sky position.
+
+| quantity | all sky | **inside matched band** |
+|---|---|---|
+| **rho(E(B-V), \|b\|)** | **-0.8897** | -- |
+| AUC(`ebv_sandf`) | **0.3396** (\|AUC-0.5\| **0.1604**) | **0.4438** (\|AUC-0.5\| **0.0562**) |
+| AUC(`ebv_sfd`) | 0.3396 | 0.4438 |
+| median E(B-V) pos / neg (SandF) | 0.0804 / **0.1907** | 0.0887 / 0.1013 |
+| **REFERENCE: AUC(\|b\|) itself** | 0.6260 (0.1260) | **0.4112 (0.0888)** |
+| n | 2,331 | 1,348 |
+
+**Read the last two rows together -- that is the whole result.** All-sky, dust
+appears *stronger* than raw latitude (0.1604 vs 0.1260) and the class medians
+differ by 2.4x. Inside the matched band **65% of that separation evaporates**
+(0.1604 -> 0.0562), the medians converge to 0.089 vs 0.101, and **bare \|b\|
+retains more signal than dust does** (0.0888 vs 0.0562).
+
+**A 2D dust proxy is not merely equivalent to sky position here -- inside a
+matched sky region it is a DEGRADED version of it.** It cannot add anything to a
+model that could have used `|b|`, and `|b|` is itself deliberately excluded from
+`FEATURE_COLUMNS` because the pool sits at systematically different latitudes
+than either training class.
+
+## Standing control arms (`control_arms.both_controls()`), run alongside as required
+
+AUC(sector alone) = 0.5907 on this run's rows; the era structure reproduces
+(0.222 / 0.228 / **0.508** / 0.158 / **0.516** / **0.078** / 0.158).
+
+| feature | rho \|b\| | \|b\| spread | rho sector | sector spread | flag |
+|---|---|---|---|---|---|
+| `cluster_flag` | **-0.009** | **0.018** | -0.017 | **0.014** | **ok -- clean on both** |
+| `ebv_sandf` | **-0.890** | **0.227** | +0.239 | 0.085 | **SPATIAL** |
+
+`ebv_sandf`'s \|b\| spread of **0.227** sits in the same failure class as the
+closed `trend_slope` (0.281) and the rejected ellipsoidal amplitudes
+(0.279-0.357). `cluster_flag` is the cleanest pair of control-arm numbers
+recorded here.
+
+**Redundancy against the 33 production features** (threshold 0.80): neither is
+redundant, and both are interesting about *why*.
+
+| feature | max \|rho\| | against | top correlates |
+|---|---|---|---|
+| `cluster_flag` | **0.093** | `var_ls_power` | `var_ls_power` 0.093, `var_excess` 0.083, `var_ls_amp` 0.074 |
+| `ebv_sandf` | **0.438** | `crowd_nearest_arcsec` | `crowd_nearest_arcsec` -0.438, `crowd_flux_ratio_max` 0.273, `st_teff` 0.246 |
+
+Cluster membership's strongest correlates being the three **stellar-variability**
+columns, in the positive direction, is the youth mechanism showing up exactly
+where it should -- at \|rho\| 0.07-0.09, which is to say not at all. Dust's
+strongest correlate being **crowding** is the Galactic-structure axis both share.
+
+# PART 3 -- NOT ENTERED, for either. The reasons differ and both are stated.
+
+**2D/3D dust: barred by the brief's own routing.** The instruction was explicit
+that neither sub-proposal proceeds to modelling without passing its own
+matched-sky-band test. Dust failed it.
+
+**Cluster membership: passed the matched-band test and is still not modelled,
+on effective n.** The arithmetic, so this is a measurement and not a
+preference:
+
+* **78 members in 5,534 training rows** -- the column is **98.6% zeros**.
+* The frozen test set is 1,098 stars, so it contains **~15-16 members**, of which
+  ~3 would be negatives at the observed rate.
+* Single-feature AUC is **0.4964 all-sky and 0.5001 in band** -- chance in both.
+* A feature can only change a model's ranking on rows where it is non-zero. **A
+  chance-level flag that is non-zero for ~15 of 1,098 test stars cannot produce
+  a delta at or above the MDE of 0.0097**, at any hyperparameter setting.
+
+This follows the same discipline as the momentum-dump binary-flag variant (**"not
+modelled"** because a strictly weaker transform of an already-0/12 parent cannot
+clear) and the spectroscopic-chemistry gate (**"Part 2 not entered"**). Running
+12 bootstraps here would produce a number, and the number would not be
+interpretable.
+
+# VERDICTS -- separately, as required
+
+| sub-proposal | verdict |
+|---|---|
+| **1. Stellar cluster / moving-group membership** | **CLOSED ON EFFECTIVE n, not on confounding.** Catalogs accessible; cross-match clean; class-rate gate PASSED (AUC 0.4964); **matched-band test PASSED** (rho vs \|b\| -0.009, 0.4964 -> 0.5001); control arms clean on both axes; non-redundant (0.093). It fails because **78 of 5,534 training stars are cluster members** and the flag is at chance. |
+| **2. 3D dust extinction (Bayestar19)** | **CLOSED AT THE PART 0 AVAILABILITY GATE**, three independent blockers: **0.00-1.35% pool coverage** (dec > -30 footprint vs a southern-CVZ pool); **availability is a label proxy at AUC 0.5966**, worse than the APOGEE figure that closed the chemistry proposal; and the map data returns HTTP 403 here. Per-star distance also does not exist yet. |
+| **2b. 2D dust E(B-V) fallback** | **CLOSED ON THE MATCHED-BAND TEST**, which is the right way for it to close. 100% available, so it reached the decisive test -- and **rho vs \|b\| = -0.8897, AUC 0.3396 -> 0.4438 in band, with bare \|b\| scoring better than dust inside the band.** It is sky position, measured. |
+
+**Recommendation: do not build either. Production stays at 0.9454 / 33 features /
+md5 `fe3fa82f36cc978396c68be07d6057f9`.**
+
+## What would change each -- they are different, and neither is methodology
+
+* **Cluster membership** reopens on **population**, not method: it needs a
+  candidate set that actually contains cluster members. A TESS young-cluster
+  campaign, or a targeted young-association sample, would give a non-degenerate
+  column. Note the pool already carries members at 5.91% -- 4.2x the training
+  rate -- so the *serving* side is less degenerate than the training side, and a
+  training set enriched in cluster hosts is the specific thing missing. **The
+  youth hypothesis itself is untested here and this entry is not evidence against
+  it.** It closes on how few of these stars are in clusters.
+* **3D dust** reopens only on an **all-sky 3D map with per-star distances**.
+  Surveyed in `dustmaps` 1.0.14: `bayestar` is dec > -30; `marshall`, `chen2018`,
+  `iphas` and `decaps` are Galactic-plane strips (worse); `leike2020` /
+  `edenhofer2023` are all-sky but distance-limited to roughly 0.4-1.25 kpc. **No
+  currently-packaged 3D map both covers this southern pool and reaches its
+  distances.** And the 2D all-sky maps that do cover it are the ones just
+  measured to be sky position.
+
+## Method notes
+
+* Both feasibility numbers come from **bulk CDS XMatch on all 5,534 training rows
+  and every candidate population**, not from a sample -- the same infrastructure
+  as the Gaia deployment and the chemistry gate, so the coverage figures are
+  directly comparable to those precedents.
+* Widesector pool coordinates were resolved **69/69 via MAST TIC** after a VizieR
+  query returned nothing; reporting that pool as "0 with coordinates" would have
+  been a tool failure recorded as a real zero, the same distinction the chemistry
+  entry had to make for GALAH/LAMOST.
+* The 2D dust measurement uses a **balanced 2,331-star sample** (all 1,179
+  negatives plus 1,179 random positives, seed 20260829) rather than the full set,
+  because IRSA is queried per position. Balanced by design so the AUC is not a
+  prevalence artifact.
+* SFD98 and Schlafly & Finkbeiner 2011 give **identical AUCs to four decimals**
+  (0.3396 / 0.4438) -- they are monotone rescalings of the same map, as expected,
+  and neither is a distinct proposal from the other.
+
+Artefacts: `cluster_dust_feasibility.py` / `.json`, `cluster_dust_crossmatch.csv`,
+`cluster_dust_matched_band.py` / `.json`, `cluster_dust_ebv.csv`,
+`cluster_dust_control_arms.json`, `cluster_dust_redundancy.json`.
+
+Cross-references: the crowding deployment (whose matched-sky-band method this
+reuses and whose band numbers it reproduces exactly), the spectroscopic-chemistry
+availability gate (the template both dust blockers matched), the SPOC DV
+pool-coverage disqualification, the TIC CTL trap, `control_arms.py`, and the
+STANDING REGISTER at the top of this file.
+
+---
+
+## GALACTIC KINEMATICS (U,V,W, disk membership) -- availability PASSED, the matched-sky-band test KILLED THE STRONGEST FEATURE, and what survived is NULL.
+
+**Date: 2026-08-29. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`, 5,534 rows.** Nothing promoted.
+
+**Related to but DISTINCT from the spectroscopic-chemistry closure.** That one
+died at the availability gate and no feature value was ever examined. This one
+**passed** availability, was built, controlled and modelled in full. Kinematics
+and abundances are correlated but separately measured quantities -- per Bashi et
+al.'s own framing -- and they close for different reasons.
+
+**The proposal was unusually well-informed: it named the galactic-latitude
+confound itself and asked for the matched-sky-band control. That instinct was
+exactly right, and it is what killed the strongest feature.**
+
+### PART 0 -- not recoverable from the Gaia deployment; a fresh query WAS needed
+
+The Gaia RUWE/NSS deployment queried VizieR's `I/355/gaiadr3` but requested only
+`Source, RUWE, NSS, Gmag, +_r`. **`pmRA`, `pmDE`, `Plx` and `RV` were never
+fetched** -- so unlike the TIC/logg case there was no discarded column to
+recover. What it DID retain is `gaia_source` for **99.29%** of training rows, and
+`gaia_gmag`, which turned out to matter (below). The fetch reused the
+deployment's exact proven method: same catalogue, same 5 arcsec match, same
+chunking. 5,534 training + 488 main pool in ~15 min.
+
+### PART 1 -- availability. Two families, two verdicts, as anticipated.
+
+| family | training | POS | NEG | difference | AUC(avail) | main pool |
+|---|---|---|---|---|---|---|
+| **TANGENTIAL** (pm + Plx, no RV) | **97.20%** | 97.66% | 95.50% | **-2.15 pp** | **0.5108** | 59.63% |
+| **FULL 3D** (adds RV) | 77.29% | 75.61% | 83.46% | **+7.85 pp** | 0.4608 | 39.96% |
+| RV present at all | 77.59% | 75.82% | 84.14% | +8.32 pp | 0.4584 | -- |
+
+**Tangential PASSES cleanly** -- |AUC-0.5| = **0.0108**, comparable to the
+`gaia_ruwe`/`gaia_nss` pair that was deployed (1.4 pp). **Full-3D's +7.85 pp is a
+real caveat but nowhere near the 31-43 pp disqualifying range** (CTL trap 31 pp,
+SPOC DV 43.83 pp). Neither family failed the gate.
+
+*(Widesector was NOT fetched -- its candidate list carries no ra/dec. Recorded
+rather than silently omitted.)*
+
+**A PRE-REGISTERED PREDICTION THAT WAS WRONG IN MAGNITUDE.** From the already-
+cached `gaia_gmag`, negatives are ~1.8 mag brighter than positives (median G
+**11.047 vs 12.891**; **AUC(gmag alone) = 0.6432**, |AUC-0.5| **0.1432**; 80.23%
+of negatives brighter than G=13 against 51.00% of positives). Since Gaia DR3 RV
+is magnitude-limited I predicted, before the fetch, that **RV availability would
+favour negatives by ~27-29 pp**. Measured: **+8.32 pp**. Direction correct,
+**magnitude 3.4x too large** -- Gaia DR3 RV reaches fainter than assumed.
+Recorded because it was stated in advance.
+
+**Worth noting on its own: `gaia_gmag` at |AUC-0.5| = 0.1432 is a stronger
+single-feature separator than anything in this investigation, and it is not a
+deployed feature.** That is a brightness/selection artefact of how the classes
+were assembled, not a planet-detection signal -- and a caution for any future
+proposal tempted to add magnitude as a feature.
+
+### PART 2 -- features built
+
+TANGENTIAL: `kin_vtan` (4.74 mu / plx), `kin_absz` (|d sin b|), `kin_dist`.
+FULL 3D: `kin_U`, `kin_V`, `kin_W`, `kin_vtot`, and `kin_thickthin` -- the
+**Bensby et al. 2003** thick/thin probability ratio (closed-form Gaussian
+ellipsoids; chosen over a heavyweight dynamical package because it needs no new
+dependency and is the standard reference for this assignment). Coordinate
+transform via `astropy.coordinates` Galactic.
+
+| feature | coverage | AUC | \|AUC-0.5\| | \|rho\| vs \|b\| | max \|rho\| vs 33 |
+|---|---|---|---|---|---|
+| **`kin_absz`** | 96.17% | 0.5795 | **0.0795** | 0.228 | 0.553 (`chi2red_min`) |
+| `kin_vtan` | 96.17% | 0.5481 | 0.0481 | 0.110 | 0.163 |
+| `kin_thickthin` | 77.11% | 0.5481 | 0.0481 | 0.088 | 0.225 |
+| `kin_dist` | 96.17% | 0.4555 | 0.0445 | **0.412** | 0.690 |
+| `kin_vtot` | 77.11% | 0.5416 | 0.0416 | 0.075 | 0.205 |
+| `kin_V` | 77.11% | 0.4685 | 0.0315 | 0.025 | 0.129 |
+| `kin_U` | 77.11% | 0.5268 | 0.0268 | 0.097 | 0.103 |
+| `kin_W` | 77.11% | 0.4930 | 0.0070 | 0.026 | 0.029 |
+
+**Nothing redundant** (max 0.690). As predicted, stellar kinematics has no analog
+in the current 33 -- low redundancy is real and was itself informative.
+
+### PART 3 -- THE MATCHED-SKY-BAND TEST. The deciding check, and it disqualified the strongest feature.
+
+Reused the crowding investigation's method exactly: restrict both classes to
+`|b|` in [8, 40] deg. **The band reproduces the crowding numbers identically** --
+3,510/5,534 retained (63.4%), median `|b|` **planets 15.9 deg vs FPs 19.7 deg**
+inside, **inverted** from 16.9 vs 12.5 outside. Same band, same inversion,
+confirming the method was applied as specified and not re-derived loosely.
+
+| feature | AUC full | AUC in-band | retained | verdict |
+|---|---|---|---|---|
+| **`kin_absz`** -- the batch's strongest | **0.5795** | 0.5317 | **40%** | **MOSTLY POSITIONAL** |
+| **`kin_dist`** | 0.4555 | 0.5694 | 156% | **SIGN FLIPS -- POSITIONAL** |
+| `kin_W` | 0.4930 | 0.5014 | 21% | sign flip, but full AUC is chance (0.0070) |
+| `kin_U` | 0.5268 | 0.5483 | 180% | survives |
+| `kin_vtan` | 0.5481 | 0.5399 | **83%** | survives |
+| `kin_vtot` | 0.5416 | 0.5297 | 71% | survives |
+| `kin_V` | 0.4685 | 0.4780 | 70% | survives |
+| `kin_thickthin` | 0.5481 | 0.5286 | 59% | survives |
+
+**`kin_absz` -- height above the Galactic plane, the strongest kinematic feature
+at 0.0795 -- is literally `distance x sin(b)`.** It keeps only 40% of its
+separation once the sky band is matched. `kin_dist` outright reverses sign.
+**Both are sky position wearing a kinematic costume, exactly the failure the
+proposal itself named in advance.** A plain correlation check would have passed
+`kin_absz` (rho vs |b| only 0.228); it took the matched band to expose it.
+
+**Two independent methods agree.** `control_arms.both_controls()` flagged
+`kin_absz` and `kin_dist` **SPATIAL *and* TEMPORAL** (|b| spreads 0.372 / 0.393;
+sector spreads 0.363 / 0.433), while all five survivors sit at 0.034-0.088,
+far under the 0.20 flag. The band test and the standing control arms converge on
+the same two features.
+
+### PART 4 -- model test on the five survivors. 12 bootstraps, production's exact recipe.
+
+Base **AUC 0.9389**, Brier 0.0734, ECE 0.0290. Frozen test 1,098.
+
+| arm | features | mean delta | 95% CI | positive | >= MDE | Brier | ECE |
+|---|---|---|---|---|---|---|---|
+| A tangential | `kin_vtan` | **-0.0014** | **[-0.0030, -0.0003]** | **0/12** | 0/12 | 0.0744 | 0.0310 |
+| B full 3D | `kin_U`,`kin_V`,`kin_vtot` | -0.0011 | [-0.0025, +0.0001] | 2/12 | 0/12 | 0.0741 | 0.0306 |
+| **C disk membership** | `kin_thickthin` | **+0.0004** | [-0.0009, +0.0018] | 7/12 | 0/12 | **0.0731** | **0.0283** |
+| D all survivors | all five | -0.0016 | [-0.0029, +0.0000] | 1/12 | 0/12 | 0.0746 | 0.0309 |
+
+**None clears. Arm A is significantly NEGATIVE** -- entire CI below zero, 0/12
+positive.
+
+**One honest nuance.** `kin_thickthin` -- the single feature that directly
+encodes Bashi et al.'s hypothesis -- is the only arm leaning positive, and the
+only one that improves **both** Brier (0.0731 vs 0.0734) and ECE (0.0283 vs
+0.0290). But **+0.0004 is 24x below the 0.0097 MDE**, with a CI straddling zero.
+That is a hint pointing the right way, not a result.
+
+### Does an OCCURRENCE-RATE finding transfer to THIS task? The same question the chemistry proposal raised.
+
+Bashi et al. report that thin-disk stars host **more** small close-in planets
+than thick-disk stars. That is a statement about **how many planets form** in a
+population. This project's task is **"is this particular signal a real planet or
+a false positive?"**
+
+The two connect only through a weak prior: if thin-disk membership raises the
+prior odds that any given candidate is real, a classifier could exploit it. But
+the prior shift is small, it applies equally to every candidate around that star,
+and it carries **no information about the individual signal** -- which is what
+the other 33 features measure directly. **The measurement is consistent with
+that reasoning**: `kin_thickthin` leans the right way and is 24x too weak to
+matter. **A real astrophysical relationship, correctly cited, that does not
+translate into discriminating power for this specific question.**
+
+### Verdict
+
+| element | outcome |
+|---|---|
+| Bashi et al. premise | **REAL.** Not the reason this closes. |
+| Part 0 -- data already cached? | **NO.** pm/Plx/RV never fetched; fresh query needed and done. |
+| Part 1 -- availability | **PASSED.** Tangential 0.0108 (clean); full-3D +7.85 pp (caveat, not disqualifying). |
+| Part 3 -- matched sky band | **`kin_absz` and `kin_dist` are POSITIONAL ARTEFACTS.** Excluded. Confirmed independently by both control arms. |
+| Part 4 -- model | **NULL to significantly negative.** A -0.0014 (0/12), B -0.0011, D -0.0016, C +0.0004. **0/12 at MDE on every arm.** |
+
+**Recommendation: DO NOT PROMOTE. Closed after a full validation cycle.**
+**Production stays at 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.**
+
+### Why this one deserved the full cycle
+
+Unlike the chemistry proposal, this cleared availability and had to be measured.
+**The matched-sky-band test earned its place**: it disqualified the strongest
+feature in the batch, which a correlation-only spatial check (rho = 0.228) would
+have passed straight through to modelling. **Any future proposal whose features
+are computed FROM sky position or proper motion owes this test up front**, not
+the correlation arm alone.
+
+Artefacts: `gaia_kinematics_fetch.py`, `gaia_kinematics_raw.csv`,
+`gaia_kinematics_assess.py` / `.json`, `gaia_kinematics_features.csv`,
+`gaia_kinematics_gate.json`, `gaia_kinematics_validate.py` / `.json`.
+
+Cross-references: the crowding deployment (source of the matched-band method),
+the Gaia DR3 deployment (query infrastructure reused), the spectroscopic-
+chemistry closure (related, distinct, closed earlier and for a different
+reason), and `control_arms.py`.

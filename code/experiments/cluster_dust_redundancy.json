@@ -1,0 +1,56 @@
+{
+ "cluster_flag": {
+  "max_abs_rho": 0.09277146230904562,
+  "max_against": "var_ls_power",
+  "top5": [
+   [
+    "var_ls_power",
+    0.093
+   ],
+   [
+    "var_excess",
+    0.083
+   ],
+   [
+    "var_ls_amp",
+    0.074
+   ],
+   [
+    "var_ls_period",
+    -0.063
+   ],
+   [
+    "odd_even_mismatch",
+    0.053
+   ]
+  ],
+  "redundant_at_0.80": false
+ },
+ "ebv_sandf": {
+  "max_abs_rho": 0.4375380401863777,
+  "max_against": "crowd_nearest_arcsec",
+  "top5": [
+   [
+    "crowd_nearest_arcsec",
+    -0.438
+   ],
+   [
+    "crowd_flux_ratio_max",
+    0.273
+   ],
+   [
+    "st_teff",
+    0.246
+   ],
+   [
+    "st_rad",
+    0.216
+   ],
+   [
+    "depth_duration_ratio",
+    -0.197
+   ]
+  ],
+  "redundant_at_0.80": false
+ }
+}
