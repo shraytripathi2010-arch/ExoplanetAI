@@ -474,7 +474,8 @@
 </section>
 
 <section class="card">
-  <h2>Animated transit illustration</h2>
+  <details class="collapsible">
+  <summary><h2>Animated transit illustration</h2></summary>
   {% if transit_anim.has_data %}
     <p class="muted">
       Simplified illustration, not a literal simulation -- the orbit is sped up to a fixed
@@ -497,6 +498,7 @@
   {% else %}
     <p class="muted">Not enough measured transit parameters on file to drive this illustration.</p>
   {% endif %}
+  </details>
 </section>
 
 <section class="card">
@@ -631,7 +633,8 @@
 </section>
 
 <section class="card">
-  <h2>Status history</h2>
+  <details class="collapsible">
+  <summary><h2>Status history</h2></summary>
   {% if history %}
   <table class="plain-table">
     <thead><tr><th>Date</th><th>Change</th><th>Note</th></tr></thead>
@@ -645,7 +648,10 @@
     <p class="muted">No status changes recorded -- still {{ c.current_status }} since first found on {{ c.first_found_date }}.</p>
   {% endif %}
 
-  <h2>Verification events</h2>
+  </details>
+
+  <details class="collapsible">
+  <summary><h2>Verification events</h2></summary>
   {% if events %}
   <table class="plain-table">
     <thead><tr><th>Date</th><th>Type</th><th>Result</th></tr></thead>
@@ -658,6 +664,7 @@
   {% else %}
     <p class="muted">No manual re-verification runs yet for this candidate.</p>
   {% endif %}
+  </details>
 </section>
 
 {% endblock %}

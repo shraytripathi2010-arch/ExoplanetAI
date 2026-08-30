@@ -17468,3 +17468,174 @@ Artefacts: `binary_composite_fetch.py`, `binary_composite_raw.csv`,
 Cross-references: the Gaia DR3 deployment, the `trap_rmse` and raw-period-ratio
 closures (same "already deployed in disguise" family), the TIC `logg`/`rho`
 discard, and `control_arms.py`.
+
+---
+
+## UI/UX AND ACCESSIBILITY AUDIT + FIX PASS -- presentation layer only. 6 real WCAG failures found and fixed; every fix re-measured.
+
+**Date: 2026-08-30. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.** No scoring, ranking, model, or training
+data touched. Files changed: **`web/static/style.css`,
+`web/templates/candidate_detail.html`, `web/templates/model_history.html`
+(+72 / -12 lines).**
+
+### PART 0 -- BASELINE. Two corrections to the brief's assumptions, and one real bug.
+
+**The page inventory in the brief was wrong.** There is no standalone CTOI page
+and no Admin page. Actual views, from `app.py`'s routes: **4 templates + base** --
+`/` (dashboard), `/candidates` (list), `/candidates/<id>` (detail, which contains
+the CTOI helper as a *section*), `/models`. `/health` returns JSON, and scheduler
+settings is a POST handler on the dashboard.
+
+**The app already had a mature token system.** `style.css:8` defines a `:root`
+block with **42 custom properties** -- surfaces, text, brand, confidence tiers,
+semantic status, type scale, spacing scale, radii, shadow. Header/nav was already
+shared correctly: `base.html` holds one `.topbar`, and **all four templates
+extend it**.
+
+**A methodological note on my own audit.** My first colour sweep reported "16
+inline colour literals across 4 templates". **All but one were FALSE POSITIVES** --
+`&#9650;` `&#9656;` `&#8599;` `&#8853;` are HTML entities (arrows, ⊗) that match a
+naive `#[0-9a-fA-F]{3,8}` regex. Checked the context before reporting.
+
+**The one real bug:** `model_history.html:52` used
+`var(--accent, #6d5ef5)` -- and **`--accent` was never defined anywhere**,
+confirmed live in the browser (`getPropertyValue('--accent')` returned empty). So
+that card rendered with a hardcoded **purple** fallback against an otherwise
+teal/amber palette.
+
+### PART 1 -- CONTRAST. Measured with the WCAG relative-luminance formula, not eyeballed.
+
+**Six real failures at the 4.5:1 normal-text bar, before any change:**
+
+| pairing | before | after | fix |
+|---|---|---|---|
+| `--text-faint` on `--bg` | **2.86** FAIL | **4.54** PASS | `#8a94a0` -> `#67727f` |
+| `--text-faint` on `--surface` | **3.08** FAIL | **4.89** PASS | same |
+| `--skip` on `--skip-bg` | **3.21** FAIL | **4.51** PASS | `#7a8390` -> `#636b77` |
+| `--medium` on `--medium-bg` | **3.82** FAIL | **4.53** PASS | `#9c6b13` -> `#8d6011` |
+| `--low` on `--low-bg` | **4.38** FAIL | **4.51** PASS | `#626c78` -> `#606a76` |
+| `--high` on `--high-bg` | **4.49** FAIL | **4.55** PASS | `#1c7a52` -> `#1c7951` |
+
+Every fix was solved by **lowering lightness only, holding hue and saturation
+constant**, so the brand palette is preserved. `--high` failed by 0.01 -- exactly
+the kind of miss a visual check cannot catch.
+
+**The accent failure the brief predicted is REAL, and confirmed:**
+
+| pairing | ratio | verdict |
+|---|---|---|
+| **`#B8791F` on `#F5F7F4`** | **3.37** | **PASSES 3:1 (large text / UI / graphical objects) -- FAILS 4.5:1 (normal text)** |
+| `#B8791F` on white | 3.63 | FAILS normal text |
+| **white on `#B8791F`** | **3.63** | **FAILS -- button labels must NOT be white** |
+| `#12161C` on `#B8791F` | **5.01** | PASSES -- correct button label colour |
+
+Resolved with **three tokens instead of one**, so the distinction is enforced by
+the stylesheet rather than by memory:
+
+    --accent:      #b8791f   large text >=18pt/14pt-bold, borders, rules, icons (3:1)
+    --accent-text: #9c661a   normal body text -- 4.50:1 on --bg
+    --accent-on:   #12161c   text ON an accent fill -- 5.01:1
+
+**Requested tokens applied:** `--bg` `#f4f6f7` -> **`#f5f7f4`**, `--text`
+`#171f26` -> **`#12161c`** (16.84:1). Verified live: `body` computed background
+is `rgb(245, 247, 244)`.
+
+**Re-measured from the live stylesheet after the edit -- all 13 normal-text
+pairings PASS 4.5:1**, accent passes 3:1 for its permitted uses, and the focus
+ring passes at 7.38:1 (bg) / 7.95:1 (surface).
+
+### PART 2 -- LAYOUT CONSISTENCY
+
+**Header/nav verified by RENDERED OUTPUT, not by template inspection.** Fetched
+all four pages and parsed the returned HTML: every page returns the identical
+nav `Dashboard | Candidates | Model History`, the same `.topbar`, and the same
+`.scope-note`. **Hardcoded hex colours in rendered HTML: 0 on every page**
+(previously the purple leaked into `/models`).
+
+**Clutter -- measured, then reduced.** The candidate detail page was **11,468 px
+= 14.1 screens** tall with **16 `h2` sections, 15 cards, and only ONE `<details>`
+element**: essentially nothing was collapsed. Three genuinely archival/decorative
+sections were moved behind native `<details>`: **Animated transit illustration**,
+**Status history**, **Verification events**. Chosen because none is required for
+the page's primary task (is this candidate worth human review?).
+
+    page height   11,468 px -> 10,298 px      screens  14.1 -> 12.7   (-10.2%)
+
+Native `<details>/<summary>` was used deliberately rather than a JS accordion:
+it is keyboard-operable (Enter/Space) and exposes expanded state to assistive
+tech with no script. **All 16 `h2` headings are preserved** inside the summaries,
+so screen-reader document structure is unchanged.
+
+### PART 3 -- RESPONSIVE. Tested in a real browser at three widths.
+
+**A real gap: there was NO breakpoint between 640px and full desktop.** 768px
+rendered with desktop padding inside a much narrower column. Added a
+`641px-1024px` tablet rule.
+
+| viewport | horizontal overflow | table | controls < 44px | notes |
+|---|---|---|---|---|
+| **375 mobile** | none (docW 375) | scrolls: wrap 309px / table 876px | **600 -> 1** | the 1 is a 24x24 checkbox = WCAG 2.5.8 minimum, correct |
+| **768 tablet** | none (docW 753) | scrolls: wrap 639px / table 876px | 1 | `main` padding now 24px, stat row 3 cols (was desktop layout) |
+| **1440 desktop** | none | full width | 0 | unchanged |
+
+**Tap targets (WCAG 2.5.5/2.5.8):** added `min-height: 44px` to buttons, selects,
+submits, text inputs and textareas; `24px` minimum for checkboxes/radios; and
+`min-height:44px; display:inline-flex` on `.candidate-table th a` so the sort
+links get a real hit area **without changing the visual row height**. Inline
+prose links are deliberately exempt (WCAG 2.5.8 exception) -- padding them would
+break running text. **Measured result: controls under 44px went from 600 to 1.**
+
+**Detail page at 375px** (the CTOI helper): no overflow, no element wider than the
+viewport, no overflowing images, **6/6 buttons >= 44px**, the textarea 309x356px
+and fully usable. *(Correction: the CTOI helper is a generated-text panel with a
+copy button, not the multi-field form the brief assumed -- it has one textarea.)*
+
+### PART 4 -- KEYBOARD. Tested with real Tab keypresses, not code review.
+
+| check | result |
+|---|---|
+| focusable elements | 603 |
+| **`tabindex > 0`** (breaks natural order) | **0** |
+| **keyboard traps** (`onkeydown` handlers) | **0** |
+| focusable inside `[hidden]`/`aria-hidden` | **0** |
+| images missing `alt` | **0** |
+| expanders (`aria-expanded`) | 296, **all `<button>`** -- natively Enter/Space operable |
+| tab-order inversions vs visual order | 3 (minor, layout-driven) |
+
+**Focus indicator verified under real keyboard focus.** A JS `.focus()` call
+reported `outline-style: none`, which is **not a failure** -- `:focus-visible` is
+keyboard-only by design. Pressing Tab for real gives:
+
+    outline: solid 3px rgb(36, 86, 112)   offset 2px   :focus-visible = true
+
+That is `--brand` at **7.38:1 on `--bg`** -- far above the 3:1 non-text bar, and
+it was widened 2px -> 3px as part of this pass. The new `<details>` summaries were
+confirmed focusable, toggling on activation, and 44px tall.
+
+### Verification after every change
+
+All 7 endpoints re-fetched after the final edit: `/`, `/candidates`, `/models`,
+and three distinct candidate detail pages, plus `/health` -- **all HTTP 200, zero
+Jinja/traceback/500 markers**, 5-35 ms.
+
+### Scope confirmation
+
+`git status`: the only files this task modified are **`web/static/style.css`,
+`web/templates/candidate_detail.html`, `web/templates/model_history.html`**.
+`models/best_model.joblib` unchanged (md5 still
+`fe3fa82f36cc978396c68be07d6057f9`), and `code/05_train_models.py`,
+`code/06_download_unknown.py`, `web/app.py`, `web/job_runner.py`,
+`web/retrain_pipeline.py` all unchanged. *(`data/training_dataset/training.csv`
+shows as modified, but that is the pre-existing 40 scheduler-appended rows
+documented in the final system audit -- not touched here.)*
+
+### Known remaining, not fixed
+
+* **3 tab-order inversions** on the candidate list -- minor and layout-driven, not
+  a WCAG failure; would need a DOM reorder to resolve.
+* **One 24x24 checkbox** below 44px -- this is the WCAG 2.5.8 minimum and is
+  correct as-is.
+* The candidate list page is **237 KB** of HTML with 296 expandable rows; the
+  clutter pass targeted the detail page, and pagination for the list was **not**
+  attempted here since it would change data presentation, not just styling.

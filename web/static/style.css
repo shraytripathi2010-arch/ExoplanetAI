@@ -7,15 +7,26 @@
    ===================================================================== */
 :root {
   /* -- surfaces & text -- */
-  --bg: #f4f6f7;
+  --bg: #f5f7f4;              /* requested token */
   --bg-inset: #eaeef0;
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --border: rgba(23, 32, 38, 0.11);
   --border-strong: rgba(23, 32, 38, 0.18);
-  --text: #171f26;
+  --text: #12161c;            /* requested token; 16.84:1 on --bg */
   --text-muted: #5c6773;
-  --text-faint: #8a94a0;
+  --text-faint: #67727f;      /* WAS #8a94a0 = 2.86:1 FAIL -> 4.54:1 */
+
+  /* -- accent --
+     #B8791F measures 3.37:1 on --bg: PASSES the 3:1 bar for LARGE TEXT, UI
+     components and graphical objects (WCAG 1.4.11), but FAILS the 4.5:1 bar for
+     normal text. Two tokens rather than one, so the distinction is enforced by
+     the stylesheet instead of by memory. --accent was previously UNDEFINED,
+     which made model_history.html fall back to a hardcoded purple. */
+  --accent: #b8791f;            /* large text >=18pt/14pt-bold, borders, rules, icons */
+  --accent-text: #9c661a;       /* normal body text: 4.50:1 on --bg */
+  --accent-on: #12161c;         /* text ON an accent fill: 5.01:1 (white would be 3.63 FAIL) */
+  --accent-bg: #f7ecd9;
 
   /* -- brand -- */
   --brand: #245670;
@@ -23,11 +34,11 @@
   --brand-bg: #e3edf1;
 
   /* -- confidence tiers (fixed everywhere they appear) -- */
-  --high: #1c7a52;
+  --high: #1c7951;             /* WAS 4.49:1 FAIL -> 4.55:1 on --high-bg */
   --high-bg: #dcf1e6;
-  --medium: #9c6b13;
+  --medium: #8d6011;           /* WAS 3.82:1 FAIL -> 4.53:1 on --medium-bg */
   --medium-bg: #f5e8c9;
-  --low: #626c78;
+  --low: #606a76;              /* WAS 4.38:1 FAIL -> 4.51:1 on --low-bg */
   --low-bg: #e6e9ec;
 
   /* -- semantic status -- */
@@ -37,7 +48,7 @@
   --caution-bg: #f5e8c9;
   --fail: #a83f2e;
   --fail-bg: #f6e0da;
-  --skip: #7a8390;
+  --skip: #636b77;             /* WAS 3.21:1 FAIL -> 4.51:1 on --skip-bg */
   --skip-bg: #e9ebee;
 
   /* -- type scale -- */
@@ -86,7 +97,20 @@ a:hover { color: var(--brand-dark); }
 .muted { color: var(--text-muted); font-size: var(--text-sm); }
 
 ::selection { background: var(--brand-bg); color: var(--brand-dark); }
-:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+:focus-visible {
+  outline: 3px solid var(--brand);   /* 7.38:1 on --bg, 7.95:1 on --surface -- well over the 3:1 bar */
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* Minimum tap targets. Applied to real controls only -- inline prose links are
+   exempt under WCAG 2.5.8, and padding them would break running text. */
+button, select, input[type="submit"], input[type="button"], .btn, [role="button"] {
+  min-height: 44px;
+}
+input[type="checkbox"], input[type="radio"] { min-width: 24px; min-height: 24px; }
+input[type="text"], input[type="search"], input[type="number"], textarea { min-height: 44px; }
+/* Table sort links: enlarge the hit area without changing the visual row height. */
+.candidate-table th a { min-height: 44px; display: inline-flex; align-items: center; }
 
 /* =====================================================================
    HEADER / NAV
@@ -428,6 +452,14 @@ button.btn-secondary:hover { background: var(--bg-inset); }
 /* =====================================================================
    RESPONSIVE
    ===================================================================== */
+/* Tablet. There was previously NO breakpoint between 640px and full desktop,
+   so 768px rendered with desktop padding inside a much narrower column. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  main { padding: var(--sp-5) var(--sp-5) 3rem; }
+  .stat-row { grid-template-columns: repeat(3, 1fr); }
+  .topbar-inner { padding: 0.75rem var(--sp-5); }
+}
+
 @media (max-width: 640px) {
   main { padding: var(--sp-5) var(--sp-4) 4rem; }
   .card { padding: var(--sp-4); }
@@ -477,4 +509,25 @@ table.conformal-table td.num { font-variant-numeric: tabular-nums; white-space: 
   table.conformal-table thead { display: none; }
   table.conformal-table tr { display: block; padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
   table.conformal-table td { display: block; border: none; padding: 0.2rem 0; }
+}
+
+/* ---------------------------------------------------------------------------
+   Collapsible archival sections (Nielsen minimalism).
+   Native <details>/<summary> deliberately, not a JS accordion: it is keyboard
+   operable (Enter/Space) and exposes expanded state to assistive tech for free.
+--------------------------------------------------------------------------- */
+details.collapsible > summary {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--sp-2);
+  min-height: 44px;                       /* tap target */
+}
+details.collapsible > summary::-webkit-details-marker { display: none; }
+details.collapsible > summary::before {
+  content: "\25B8"; color: var(--accent);  /* 3.37:1 -- graphical object, 3:1 bar */
+  font-size: 0.9em; transition: transform 0.15s ease;
+}
+details.collapsible[open] > summary::before { transform: rotate(90deg); }
+details.collapsible > summary h2 { margin: 0; }
+details.collapsible > summary:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  details.collapsible > summary::before { transition: none; }
 }
