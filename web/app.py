@@ -28,13 +28,76 @@ import conformal
 
 app = Flask(__name__)
 
+# =====================================================================
+# CSRF PROTECTION  (OWASP A01 -- Broken Access Control / CSRF)
+# =====================================================================
+# Implemented natively rather than via Flask-WTF: flask_wtf and wtforms are
+# NOT installed in this environment, and itsdangerous (a Flask dependency,
+# already present) plus Flask's signed session cover the same ground without
+# adding a package to a running production service.
+#
+# Model: a per-session random token, compared in constant time against a token
+# echoed back in either the `csrf_token` form field or the `X-CSRFToken` header
+# (the app's buttons post via fetch(), so the header path is the one most of
+# them use). Enforced by a before_request hook on EVERY mutating method, so a
+# new POST route is protected by default rather than by remembering to add it.
+#
+# The secret key is read from the environment when available so it survives a
+# restart; otherwise a per-process random key is generated, which is safe but
+# invalidates sessions on restart.
+import hmac
+import secrets as _secrets
+from flask import session, abort
+
+app.secret_key = os.environ.get("EXOPLANET_SECRET_KEY") or _secrets.token_hex(32)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,   # JS cannot read the session cookie
+    SESSION_COOKIE_SAMESITE="Lax",  # blocks cross-site POST cookie attachment
+)
+
+CSRF_EXEMPT = set()          # nothing is exempt today; kept explicit, not implicit
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+
+
+def _csrf_token():
+    if "_csrf" not in session:
+        session["_csrf"] = _secrets.token_urlsafe(32)
+    return session["_csrf"]
+
+
+@app.before_request
+def _csrf_protect():
+    if request.method in SAFE_METHODS:
+        return
+    if request.endpoint in CSRF_EXEMPT:
+        return
+    sent = (request.form.get("csrf_token")
+            or request.headers.get("X-CSRFToken")
+            or request.headers.get("X-CSRF-Token"))
+    expected = session.get("_csrf")
+    if not expected or not sent or not hmac.compare_digest(str(sent), str(expected)):
+        # Deliberately terse: no token value, no session detail, no stack trace.
+        return jsonify({"error": "CSRF token missing or invalid"}), 403
+
+
+@app.after_request
+def _csrf_cookie(resp):
+    """Expose the token to same-origin JS so fetch() callers can echo it back.
+    Readable by design (HttpOnly would defeat the purpose); it is useless to a
+    cross-origin attacker, who cannot read it under the same-origin policy."""
+    if request.method in SAFE_METHODS:
+        resp.set_cookie("csrf_token", _csrf_token(), samesite="Lax",
+                        httponly=False, secure=False)
+    return resp
+
 DISCLAIMER = ("This is an unconfirmed candidate ranked by an automated pipeline for human "
               "review. It is NOT a confirmed or discovered exoplanet.")
 
 
 @app.context_processor
 def inject_globals():
-    return {"disclaimer": DISCLAIMER, "running_run": db.get_running_run()}
+    return {"disclaimer": DISCLAIMER, "running_run": db.get_running_run(),
+            "csrf_token": _csrf_token()}
 
 
 @app.route("/")
@@ -76,9 +139,27 @@ def model_history():
 
 @app.route("/scheduler/settings", methods=["POST"])
 def scheduler_settings():
+    # SERVER-SIDE VALIDATION (OWASP A03). The previous code called float()/int()
+    # straight on form input, so "abc" raised ValueError -> HTTP 500 with a
+    # stack trace. Client-side/HTML5 constraints are trivially bypassable, so
+    # the bounds are enforced here regardless of what the browser sent.
     enabled = request.form.get("enabled") == "1"
-    interval_days = float(request.form.get("interval_days", 7))
-    sample_size = int(request.form.get("sample_size", 300))
+
+    def _num(field, default, lo, hi, cast):
+        raw = request.form.get(field, default)
+        try:
+            v = cast(raw)
+        except (TypeError, ValueError):
+            return None, f"{field} must be a number (got {str(raw)[:40]!r})"
+        if not (lo <= v <= hi):
+            return None, f"{field} must be between {lo} and {hi} (got {v})"
+        return v, None
+
+    interval_days, err1 = _num("interval_days", 7, 0.5, 365, float)
+    sample_size, err2 = _num("sample_size", 300, 1, 100000, int)
+    err = err1 or err2
+    if err:
+        return jsonify({"error": err}), 400
     next_run_at = None
     if enabled:
         # (Re)start the countdown from now whenever settings are saved with
@@ -111,9 +192,24 @@ def delete_run(run_id):
 
 @app.route("/candidates")
 def candidate_list():
+    # SERVER-SIDE ENUM VALIDATION (OWASP A03). A dropdown value is client-
+    # supplied and must not be trusted: previously an out-of-set `tier` fell
+    # through to the query and returned a silent empty list with HTTP 200,
+    # which is indistinguishable from "no candidates match" and hides a typo or
+    # a tampered request. `sort` is already whitelisted inside
+    # db.list_candidates, so it cannot reach SQL -- this adds the explicit
+    # rejection the dropdown case was missing.
+    ALLOWED_TIERS = {"High", "Medium", "Low"}
+    ALLOWED_SORTS = {"predicted_probability", "confidence_tier", "first_found_date",
+                     "last_verified_date", "tic_id", "current_status"}
+
     sort_by = request.args.get("sort", "predicted_probability")
+    if sort_by not in ALLOWED_SORTS:
+        return jsonify({"error": f"sort must be one of {sorted(ALLOWED_SORTS)}"}), 400
     ascending = request.args.get("dir", "desc") == "asc"
     tier_filter = request.args.get("tier") or None
+    if tier_filter is not None and tier_filter not in ALLOWED_TIERS:
+        return jsonify({"error": f"tier must be one of {sorted(ALLOWED_TIERS)}"}), 400
     combined_only = request.args.get("combined_only") == "1"
 
     candidates = db.list_candidates(sort_by=sort_by, ascending=ascending,

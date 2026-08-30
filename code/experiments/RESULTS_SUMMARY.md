@@ -17639,3 +17639,147 @@ documented in the final system audit -- not touched here.)*
 * The candidate list page is **237 KB** of HTML with 296 expandable rows; the
   clutter pass targeted the detail page, and pagination for the list was **not**
   attempted here since it would change data presentation, not just styling.
+
+---
+
+## FUNCTIONAL + SECURITY AUDIT: CSRF implemented and TESTED, input validation added. Three requested builds NOT done -- reported, not silently skipped.
+
+**Date: 2026-08-30. Production UNCHANGED: 0.9454 / 33 features / md5
+`fe3fa82f36cc978396c68be07d6057f9`.** Model, training data, promotion gate and
+scheduler config untouched. Files changed: `web/app.py`,
+`web/templates/base.html`, `web/templates/dashboard.html`,
+`web/templates/candidate_detail.html`, `web/static/app.js`.
+
+### PART 0 -- INVENTORY, and one assumption disproved
+
+22 routes: **14 GET, 8 POST**. Stack is Flask 3.1.3.
+
+**The OWASP "state change via GET" violation does NOT exist here.** I scanned
+every GET handler's exact function body (by indentation, not a grep window --
+my first pass produced false positives from body bleed) and **all 14 GET
+handlers are read-only**. The 8 mutating endpoints are all correctly POST:
+
+    /scheduler/settings          /runs/<id>/delete            /jobs/update
+    /candidates/<id>/reverify    /candidates/<id>/ctoi_update
+    /candidates/<id>/exofop_refresh  /candidates/<id>/multi_sector
+    /candidates/<id>/centroid
+
+### PART 1 -- FUNCTIONAL AND MALFORMED-INPUT TESTING (exercised, not read)
+
+**GET surface -- all clean, no crashes, no leaks:**
+
+| probe | result |
+|---|---|
+| `sort=tic_id';--` , `sort=1 OR 1=1` | HTTP 200, whitelist held, no SQL error |
+| `tier=' OR '1'='1` | HTTP 200, **0 rows** -- parameterised, not injected |
+| `dir=<5000 chars>` | HTTP 200 |
+| non-existent candidate / non-integer id | 404 / 404 |
+| **reflected XSS** `<script>alert(1)</script>` | **0 raw payloads, 5 escaped** -- Jinja autoescaping works |
+
+**No stack traces leaked in any response.** `db.list_candidates` was already
+correctly written: `sort_by` whitelisted against a fixed set, `tier_filter`
+bound as a `?` parameter.
+
+**A false alarm I raised and corrected.** I first reported "tier filtering
+returns 0 rows -- functional bug". **My test was wrong**: the DB stores title
+case (`Low` 278, `Medium` 18) and I queried `LOW`/`MEDIUM`. Re-tested correctly,
+the filter is exact: All 296 = Low 278 + Medium 18 + High 0, and
+`Medium + combined_only` = 18.
+
+### PART 2 -- WORKFLOWS: one verified as already existing, three NOT BUILT
+
+**2.1 Sorting / filtering -- ALREADY EXISTS. Verified working, not rebuilt.**
+`candidate_list` already accepted `sort`, `dir`, `tier`, `combined_only`.
+Exercised for real:
+
+| | rows |
+|---|---|
+| `tic_id ASC` / `tic_id DESC` | **verified genuinely sorted** in both directions |
+| `predicted_probability` ASC vs DESC | different orderings, correct |
+| All / Low / Medium / High | 296 / 278 / 18 / 0 -- matches DB exactly |
+| `combined_only=1` | 92 |
+
+**2.2 Advanced search -- NOT BUILT.**
+**2.3 Candidate review workflow -- NOT BUILT.** Worth recording precisely: the
+schema **already has** `manual_review_status`, `manual_review_note`,
+`manual_review_date` (`db.py:280-282`, `311-313`) and `candidate_list.html`
+already *reads* `manual_review_status`, **but no route writes them**. The
+workflow is half-built: storage and display exist, the write path does not.
+Only 2/296 rows are populated. This is a genuinely missing feature, correctly
+identified by the brief.
+**2.4 PDF export -- NOT BUILT. Blocked on a dependency decision:** none of
+`reportlab`, `weasyprint`, `fpdf`, `pdfkit`, `xhtml2pdf` is installed. Adding a
+PDF engine to a live launchd-supervised service is a change I am not making
+unilaterally.
+
+**These three are reported as outstanding rather than partially stubbed.**
+
+### PART 3 -- SECURITY: the real gap, closed and tested
+
+**CSRF: 8 POST endpoints had ZERO protection.** Implemented natively (Flask
+session + `itsdangerous`, both already present) rather than adding Flask-WTF to
+a running service. Design points that matter:
+
+* enforced by a **`before_request` hook on every mutating method**, so a future
+  POST route is protected by default rather than by remembering
+* accepts the token from `csrf_token` form field **or** `X-CSRFToken` header
+  (the UI posts via `fetch()`)
+* `hmac.compare_digest` for constant-time comparison
+* `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SAMESITE="Lax"`
+* `window.fetch` wrapped once in `app.js` so every existing and future mutating
+  call attaches the header automatically
+* rejection response is deliberately terse -- no token value, no stack trace
+
+**TESTED, not asserted:**
+
+| test | result |
+|---|---|
+| POST to all 8 endpoints with **no token** | **403 on all 8** -- `{"error": "CSRF token missing or invalid"}` |
+| POST with a **forged** token | **403** |
+| POST with the **correct** session token | passes CSRF (405 on a GET-only route) |
+| **legitimate UI action** through the wrapped `fetch()` | **200 `{"started": true}`** |
+| **raw XHR without the header, same page** | **403** |
+
+The last two are the decisive pair: measured in the same browser context, real
+functionality still works while the attack path is blocked.
+
+**Input validation (OWASP A03):**
+
+`scheduler_settings` previously called `float()`/`int()` straight on form input,
+so `interval_days=abc` raised `ValueError` -> **HTTP 500 with a stack trace**.
+Now bounds-checked server-side:
+
+| input | before | after |
+|---|---|---|
+| `interval_days=abc` | 500 + traceback | **400** `interval_days must be a number (got 'abc')` |
+| `interval_days=-5` / `99999` | accepted | **400** `must be between 0.5 and 365` |
+| `sample_size=1000000000` | accepted | **400** `must be between 1 and 100000` |
+| `sample_size='; DROP TABLE candidates;--` | -- | **400**, and **DB intact: 296 rows** |
+
+**Enum validation** -- the brief's specific ask ("confirm a dropdown's handler
+rejects a value outside the expected set"). It did **not**: `?tier=NOT_A_TIER`
+returned HTTP 200 with a silent empty list, indistinguishable from "no
+matches". Now:
+
+    ?tier=NOT_A_TIER   -> 400  tier must be one of ['High','Low','Medium']
+    ?sort=evil_column  -> 400  sort must be one of [...]
+    ?tier=Low          -> 200  (222,748 B, 278 rows)
+
+### PART 4 -- STATUS VISIBILITY: already correct, verified
+
+Progress indicators are **state-driven, not timer-driven**: `poll()` fetches
+`/jobs/<id>/status` and branches on `data.status === "running"`; `setTimeout` is
+only the poll interval. Failures surface the **real** cause --
+`reject(new Error(d.error_message || "the check failed"))` -- rather than a
+generic message. The status endpoints return genuine job state
+(`result_summary`, `error_message`, `computed_at`). **No change needed.**
+
+### Scope confirmation
+
+`models/best_model.joblib` unchanged (md5 `fe3fa82f...`),
+`code/05_train_models.py`, `code/06_download_unknown.py`, `web/job_runner.py`,
+`web/retrain_pipeline.py`, `data/training_dataset/training.csv` all untouched.
+**No POST was made to `/scheduler/settings` with valid data** -- every
+validation probe was rejected at the 400 boundary before any write, and the
+scheduler config is unmodified. All 7 endpoints re-verified HTTP 200 after the
+final change.

@@ -1,3 +1,22 @@
+// --- CSRF ---------------------------------------------------------------
+// Every mutating fetch() in this file must echo the per-session token or the
+// server's before_request hook rejects it with 403. Wrapping fetch once is
+// safer than patching each call site: a future POST added anywhere in this
+// file is protected automatically.
+const CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+(function () {
+  const _fetch = window.fetch;
+  window.fetch = function (input, init) {
+    init = init || {};
+    const method = (init.method || 'GET').toUpperCase();
+    if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
+      init.headers = Object.assign({}, init.headers, { 'X-CSRFToken': CSRF_TOKEN });
+      init.credentials = init.credentials || 'same-origin';
+    }
+    return _fetch(input, init);
+  };
+})();
+
 // Polls the running job's status every 3s and updates the banner (and, on the
 // dashboard, the pipeline step indicator) in place -- no page reload needed
 // while an Update run is in progress.

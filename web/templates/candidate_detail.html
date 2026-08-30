@@ -53,6 +53,7 @@
     {% else %}
       <div class="inline-form">
         <form action="{{ url_for('reverify_candidate', tic_id=c.tic_id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit">Re-verify this candidate now</button>
         </form>
         <span class="muted">Re-runs all five external checks (archive/ExoFOP/arXiv/VSX/blend) for this star only, concurrently -- about 25 seconds, and doesn't wait for a full Update.</span>
@@ -101,6 +102,7 @@
     {% endif %}
     <div class="inline-form">
       <form action="{{ url_for('start_exofop_refresh', tic_id=c.tic_id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Check ExoFOP for updates</button>
       </form>
       <a href="{{ exofop_view_url }}" target="_blank" rel="noopener" class="muted">Open this target on ExoFOP &#8599;</a>
@@ -395,6 +397,7 @@
         <tr><td>Computed</td><td>{{ multi_sector.computed_at }}</td></tr>
       </table>
       <form action="{{ url_for('start_multi_sector', tic_id=c.tic_id) }}" method="post" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Re-check for newer sectors</button>
       </form>
     {% elif multi_sector and multi_sector.status == 'running' %}
@@ -406,10 +409,12 @@
     {% elif multi_sector and multi_sector.status == 'failed' %}
       <p class="muted">Last attempt failed: {{ multi_sector.error_message }}</p>
       <form action="{{ url_for('start_multi_sector', tic_id=c.tic_id) }}" method="post" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Try again</button>
       </form>
     {% else %}
       <form action="{{ url_for('start_multi_sector', tic_id=c.tic_id) }}" method="post" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Check for additional sectors</button>
       </form>
     {% endif %}
@@ -433,6 +438,7 @@
         <tr><td>Computed</td><td>{{ centroid.computed_at }}</td></tr>
       </table>
       <form action="{{ url_for('start_centroid', tic_id=c.tic_id) }}" method="post" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Re-run</button>
       </form>
     {% elif centroid and centroid.status == 'running' %}
@@ -444,10 +450,12 @@
     {% elif centroid and centroid.status == 'failed' %}
       <p class="muted">Last attempt failed: {{ centroid.error_message }}</p>
       <form action="{{ url_for('start_centroid', tic_id=c.tic_id) }}" method="post" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Try again</button>
       </form>
     {% else %}
       <form action="{{ url_for('start_centroid', tic_id=c.tic_id) }}" method="post" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit">Run centroid check</button>
       </form>
     {% endif %}
