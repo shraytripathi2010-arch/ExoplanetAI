@@ -51,6 +51,20 @@
     <dict>
         <key>PORT</key>
         <string>5050</string>
+
+        <!-- Signs the Flask session that carries the CSRF token. Without this,
+             app.py refuses to start (a per-process random key would silently
+             invalidate outstanding CSRF tokens on every KeepAlive restart).
+             Value is generated outside the repo; see .env.example. -->
+        <key>EXOPLANET_SECRET_KEY</key>
+        <string>REPLACE_ME_WITH_A_REAL_KEY_SEE_ENV_EXAMPLE</string>
+
+        <!-- job_runner runs IN-PROCESS as daemon threads inside this Flask
+             process (app.py imports it at module scope), so its ADS lookup
+             reads THIS environment. Left empty deliberately: the ADS literature
+             check is optional and is skipped when unset. -->
+        <key>ADS_API_KEY</key>
+        <string></string>
         <!-- launchd starts with a minimal PATH; astroquery/lightkurve shell
              out rarely, but give them a sane one rather than debugging it
              later. -->

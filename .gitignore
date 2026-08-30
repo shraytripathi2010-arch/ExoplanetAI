@@ -97,3 +97,17 @@ data/processed_8sector/
 models/staged_best_model_gaia33*
 data/training_dataset/training_BACKUP_pre_gaia_*.csv
 data/catalogs/*_BACKUP_pre_gaia_*.csv
+
+# --- secrets (added 2026-08-30) ---
+# EXOPLANET_SECRET_KEY signs the Flask session carrying the CSRF token. It is
+# generated OUTSIDE the repo (~/.config/exoplanetai/secret_key, chmod 600) and
+# injected via the launchd plist. Nothing below may ever be committed.
+.env
+.env.*
+!.env.example
+secret_key
+*secret_key*
+*.secret
+*.pem
+*.key
+com.exoplanetai.app.plist.bak-*

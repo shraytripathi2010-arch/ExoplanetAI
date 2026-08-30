@@ -49,7 +49,26 @@ import hmac
 import secrets as _secrets
 from flask import session, abort
 
-app.secret_key = os.environ.get("EXOPLANET_SECRET_KEY") or _secrets.token_hex(32)
+# The key signs the Flask session, and the CSRF token lives in that session.
+# A per-process random fallback therefore invalidates every outstanding CSRF
+# token on each launchd KeepAlive restart -- silently, and only for whoever
+# happened to have a form open. Refusing to start is the honest failure: it is
+# loud, it is immediate, and it cannot be mistaken for working.
+_DEBUG = os.environ.get("EXOPLANET_DEBUG") == "1"
+_SECRET = os.environ.get("EXOPLANET_SECRET_KEY")
+if not _SECRET:
+    if not _DEBUG:
+        raise RuntimeError(
+            "EXOPLANET_SECRET_KEY is not set.\n"
+            "  It signs the Flask session that carries the CSRF token, so a random\n"
+            "  per-process fallback would silently invalidate outstanding tokens on\n"
+            "  every restart. Refusing to start rather than degrade quietly.\n"
+            "  Fix: set EXOPLANET_SECRET_KEY in the launchd plist's\n"
+            "  EnvironmentVariables (see .env.example), or export it in your shell.\n"
+            "  For local development only: EXOPLANET_DEBUG=1 permits a random key."
+        )
+    _SECRET = _secrets.token_hex(32)   # development only; sessions die on restart
+app.secret_key = _SECRET
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,   # JS cannot read the session cookie
     SESSION_COOKIE_SAMESITE="Lax",  # blocks cross-site POST cookie attachment
@@ -779,4 +798,9 @@ if __name__ == "__main__":
     db.init_db()
     job_runner.start_scheduler_thread()
     port = int(os.environ.get("PORT", 5050))
-    app.run(host="127.0.0.1", port=port, debug=True, threaded=True, use_reloader=False)
+    # debug NEVER defaults on. The Werkzeug debugger exposes an interactive
+    # console on any unhandled exception, so leaving it on under launchd would
+    # put a remote-code-execution surface behind an unauthenticated port.
+    # Opt in explicitly with EXOPLANET_DEBUG=1 for local development.
+    app.run(host="127.0.0.1", port=port, debug=_DEBUG,
+            threaded=True, use_reloader=False)
