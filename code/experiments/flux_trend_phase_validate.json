@@ -1,0 +1,96 @@
+{
+  "n_boot": 12,
+  "mde": 0.0097,
+  "arms": {
+    "A slope only": [
+      "ft_slope_phase"
+    ],
+    "B signed c1/s1": [
+      "ft_c1_signed",
+      "ft_s1_signed"
+    ],
+    "C ctrl-normalised": [
+      "ft_slope_over_ctrl",
+      "ft_slope_snr"
+    ],
+    "D all five": [
+      "ft_slope_phase",
+      "ft_c1_signed",
+      "ft_s1_signed",
+      "ft_slope_over_ctrl",
+      "ft_slope_snr"
+    ],
+    "E NULL wrong-period": [
+      "ft_slope_ctrl"
+    ]
+  },
+  "base_auc_mean": 0.9382784010811694,
+  "base_brier_mean": 0.07413463655869222,
+  "base_ece_mean": 0.03235874115186837,
+  "base_auc2_mean": 0.9316713264989128,
+  "A slope only": {
+    "mean_delta": -0.0006936226659409924,
+    "sd": 0.0009765660674393546,
+    "ci_lo": -0.0024394962976277607,
+    "ci_hi": 0.0010254547451781,
+    "n_positive": 2,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0004993499246372934,
+    "auc": 0.9375847784152284,
+    "brier": 0.07461275193338354,
+    "ece": 0.03299860674767279,
+    "clears": false
+  },
+  "B signed c1/s1": {
+    "mean_delta": -0.0017613105848400163,
+    "sd": 0.0012575079927208779,
+    "ci_lo": -0.0032276546982428545,
+    "ci_hi": 0.0005745792077972789,
+    "n_positive": 1,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0014232623428026003,
+    "auc": 0.936517090496329,
+    "brier": 0.07555918281362742,
+    "ece": 0.03261514129622178,
+    "clears": false
+  },
+  "C ctrl-normalised": {
+    "mean_delta": -0.0011230279396369225,
+    "sd": 0.0008241723963260213,
+    "ci_lo": -0.0022627411035714947,
+    "ci_hi": 0.00027649205849894493,
+    "n_positive": 2,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.000942896919908435,
+    "auc": 0.9371553731415324,
+    "brier": 0.07421033814690577,
+    "ece": 0.03244388865897314,
+    "clears": false
+  },
+  "D all five": {
+    "mean_delta": -0.002039675050055645,
+    "sd": 0.0014242454004000117,
+    "ci_lo": -0.004410516434737855,
+    "ci_hi": -6.62831977710337e-05,
+    "n_positive": 1,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.001654528091309726,
+    "auc": 0.9362387260311135,
+    "brier": 0.07526701661288866,
+    "ece": 0.03176891727468637,
+    "clears": false
+  },
+  "E NULL wrong-period": {
+    "mean_delta": -0.0005159520730455095,
+    "sd": 0.0009048281191932634,
+    "ci_lo": -0.0018028780139507567,
+    "ci_hi": 0.00086205605236751,
+    "n_positive": 4,
+    "n_ge_mde": 0,
+    "mean_delta_2min": -0.0006207356782069832,
+    "auc": 0.9377624490081238,
+    "brier": 0.07445066226009174,
+    "ece": 0.030324520150273915,
+    "clears": false
+  }
+}
