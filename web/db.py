@@ -979,7 +979,7 @@ def mark_watch_label_processed(host, n_points):
     with get_conn() as conn:
         conn.execute(
             """UPDATE label_watch_queue SET status = 'processed', n_points = ?,
-               processed_at = ? WHERE host = ?""",
+               processed_at = ?, error_message = NULL WHERE host = ?""",
             (n_points, now_iso(), host),
         )
 
