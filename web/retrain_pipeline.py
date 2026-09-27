@@ -45,6 +45,10 @@ m05 = importlib.import_module("05_train_models")
 PROJECT_ROOT = os.path.join(WEB_DIR, "..")
 TRAINING_CSV = os.path.join(PROJECT_ROOT, "data", "training_dataset", "training.csv")
 RETRAIN_RAW_DIR = os.path.join(PROJECT_ROOT, "data", "retrain_pipeline", "raw")
+# Preprocessed curves for watch-queue stars. NOT data/processed/: that folder is
+# the positive-class input to 03_transit_search.py, and this pipeline handles
+# both labels. Created on first use, not at import.
+RETRAIN_PROCESSED_DIR = os.path.join(PROJECT_ROOT, "data", "retrain_pipeline", "processed")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
 MODEL_VERSIONS_DIR = os.path.join(MODELS_DIR, "versions")
 PRODUCTION_MODEL_PATH = os.path.join(MODELS_DIR, "best_model.joblib")
@@ -271,6 +275,7 @@ def process_and_append_new_examples(max_new=None):
         return 0
 
     print(f"process_and_append_new_examples: {len(pending)} pending stars to process...")
+    os.makedirs(RETRAIN_PROCESSED_DIR, exist_ok=True)
     appended = 0
     for item in pending:
         host, label = item["host"], item["label"]
@@ -287,17 +292,18 @@ def process_and_append_new_examples(max_new=None):
             raw_path = os.path.join(RETRAIN_RAW_DIR, host + ".csv")
             lc.to_pandas().reset_index().to_csv(raw_path, index=False)
 
-            result = m02.process_one_file(raw_path)
+            result = m02.process_one_file(raw_path, output_folder=RETRAIN_PROCESSED_DIR)
             if result["status"] != "Success":
                 db.mark_watch_label_failed(host, f"Preprocess: {result['status']}")
                 continue
-            # process_one_file writes directly to its own OUTPUT_FOLDER
-            # (data/processed/, the SAME canonical folder the rest of this
-            # project's positive-class pipeline uses) -- not a
-            # retrain-pipeline-specific copy, so newly-appended stars'
-            # processed light curves are genuinely part of the same real
-            # dataset going forward, not a parallel shadow copy.
-            processed_path = os.path.join(m02.OUTPUT_FOLDER, host + ".csv")
+            # Same preprocessing function as the bulk pipeline, but written to
+            # data/retrain_pipeline/processed/, never data/processed/. The two
+            # folders are separate because 03_transit_search.py treats every
+            # file in data/processed/ as a confirmed-planet host, while this
+            # pipeline handles BOTH labels -- sharing the folder put 53 label-0
+            # stars into 03's positive input. The 238 files this pipeline
+            # wrote there before 2026-09-27 have NOT been moved.
+            processed_path = os.path.join(RETRAIN_PROCESSED_DIR, host + ".csv")
             if not os.path.exists(processed_path):
                 db.mark_watch_label_failed(host, "Preprocessed output not found where expected")
                 continue

@@ -124,7 +124,12 @@ def output_is_valid(path):
 # pickled and sent to worker processes by ProcessPoolExecutor. All imports
 # used here are at module level for the same reason.
 # =====================================
-def process_one_file(csv_path):
+def process_one_file(csv_path, output_folder=None):
+    """`output_folder` defaults to OUTPUT_FOLDER (data/processed/), the
+    positive-class input to 03_transit_search.py. Callers that are NOT the
+    positive pipeline (the retrain pipeline, the K2/Kepler pilots) must pass
+    their own folder: 03 treats every file in data/processed/ as a
+    confirmed-planet host."""
     filename = os.path.splitext(os.path.basename(csv_path))[0]
     t0 = time.monotonic()
     result = {
@@ -255,7 +260,8 @@ def process_one_file(csv_path):
     result["pct_removed"] = 100.0 * (1 - n_final / n_original) if n_original else None
 
     out_df = pd.DataFrame({"time": time_arr, "flux": flat_flux, "flux_err": flat_err})
-    out_path = os.path.join(OUTPUT_FOLDER, filename + ".csv")
+    out_path = os.path.join(OUTPUT_FOLDER if output_folder is None else output_folder,
+                            filename + ".csv")
     out_df.to_csv(out_path, index=False)
 
     result["status"] = "Success"
