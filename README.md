@@ -278,9 +278,14 @@ Uses public data from MAST (TESS), the NASA Exoplanet Archive, ExoFOP-TESS, and
 Gaia/VSX via Vizier. Please cite those sources and the `transitleastsquares`
 and `lightkurve` papers if you build on this.
 
+The source code is MIT-licensed (`LICENSE`). **The data files and trained
+models are not**: they carry each source archive's own terms, including a
+non-commercial term for everything that uses Gaia data. See `DATA_LICENSE.md`.
+
 Published work that uses this project should carry the acknowledgements those
-archives request. Both are quoted verbatim from the archives' own pages
-(retrieved 2026-09-27):
+archives request. These are quoted verbatim from the archives' own pages
+(retrieved 2026-09-27); `DATA_LICENSE.md` has the full set, including Gaia,
+CDS and IRSA:
 
 - **ExoFOP** ([exofop.ipac.caltech.edu/tess](https://exofop.ipac.caltech.edu/tess/)):
   "This research has made use of the Exoplanet Follow-up Observation Program
@@ -293,6 +298,11 @@ archives request. Both are quoted verbatim from the archives' own pages
   for US Institutions for the TESS mission is provided by the NASA Explorer
   Program. STScI is operated by the Association of Universities for Research
   in Astronomy, Inc., under NASA contract NAS5–26555."
+- **NASA Exoplanet Archive** ([exoplanetarchive.ipac.caltech.edu/docs/acknowledge.html](https://exoplanetarchive.ipac.caltech.edu/docs/acknowledge.html)):
+  "This research has made use of the NASA Exoplanet Archive, which is operated
+  by the California Institute of Technology, under contract with the National
+  Aeronautics and Space Administration under the Exoplanet Exploration
+  Program." The archive also asks you to cite Christiansen et al. (2025).
 
 ExoFOP also asks that data uploaded by individual observers be treated as
 theirs and acknowledged accordingly; see its
