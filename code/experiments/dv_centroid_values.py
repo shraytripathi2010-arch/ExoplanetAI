@@ -5,7 +5,7 @@ import os, re, urllib.request, warnings, numpy as np, pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 warnings.filterwarnings("ignore")
 SCR = os.path.dirname(os.path.abspath(__file__))
-ROOT = "/Users/anujtripathi/Developer/ExoplanetAI"
+ROOT = os.path.normpath(os.path.join(SCR, "..", ".."))
 URL = ("https://archive.stsci.edu/missions/tess/download_scripts/sector/"
        "tesscurl_sector_{}_dv.sh")
 
