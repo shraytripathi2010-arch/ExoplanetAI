@@ -264,7 +264,8 @@ def main():
         print(f"  frac >= {TRIAGE_FLOOR}     {(cp>=TRIAGE_FLOOR).mean():>14.3f}"
               f"{(tp>=TRIAGE_FLOOR).mean():>17.3f}{(fp>=TRIAGE_FLOOR).mean():>17.3f}")
         res["score_distribution"] = {
-            "source_file": os.path.basename(f), "n_unknown": int(len(cp)),
+            "source_file": os.path.relpath(f, ROOT), "n_rows_read": int(len(cand)),
+            "n_unknown": int(len(cp)),
             "unknown_quantiles": {str(q): float(np.quantile(cp, q)) for q in qs},
             "test_positive_quantiles": {str(q): float(np.quantile(tp, q)) for q in qs},
             "test_falsepos_quantiles": {str(q): float(np.quantile(fp, q)) for q in qs},

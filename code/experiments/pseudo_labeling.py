@@ -95,13 +95,36 @@ def ece(y, p, bins=10):
                      for b in range(bins) if (idx == b).any()))
 
 
+# This is a closed investigation: re-running it exists only to reproduce the
+# recorded result, so a pool of any other size -- larger or smaller -- makes the
+# run a different experiment. 307 = n_unlabelled in pseudo_labeling_results.json
+# (2026-08-03): the unique TIC ids across the 254-row main and 54-row widesector
+# ranked_candidates.csv of that date. Those files are rewritten by every 06 run
+# (the main one has held 44 rows since 2026-08-29). There is no bypass.
+EXPECTED_POOL_HOSTS = 307
+
+
+def check_recorded_pool(u, sources):
+    """Returns provenance for the output JSON; raises if the pool differs."""
+    prov = {"n_unique_hosts": int(len(u)), "sources": sources}
+    if len(u) != EXPECTED_POOL_HOSTS:
+        raise SystemExit(
+            f"ABORTED: expected the recorded pool of {EXPECTED_POOL_HOSTS} unique hosts, found "
+            f"{len(u)} (per file: {sources}). A different pool cannot reproduce this closed "
+            f"result. The recorded inputs are "
+            f"`git show 6311b244:results/unknown_candidates/ranked_candidates.csv` and "
+            f"`git show 6311b244:results/unknown_candidates_widesector/ranked_candidates.csv`.")
+    return prov
+
+
 def load_unknowns(m05):
-    frames = []
+    frames, counts = [], []
     for f in UNKNOWN_FILES:
         if os.path.exists(f):
             d = pd.read_csv(f)
             d["_src"] = os.path.basename(os.path.dirname(f))
             frames.append(d)
+            counts.append((f, len(d)))
     u = pd.concat(frames, ignore_index=True)
     if "tic_id" in u.columns:
         u["tic"] = pd.to_numeric(u["tic_id"], errors="coerce")
@@ -110,7 +133,8 @@ def load_unknowns(m05):
             u["host"].astype(str).str.extract(r"(\d+)", expand=False), errors="coerce")
     u = u.dropna(subset=["tic"]).drop_duplicates("tic").reset_index(drop=True)
     u["tic"] = u["tic"].astype("int64")
-    return u
+    prov = check_recorded_pool(u, {os.path.relpath(f, ROOT): int(n) for f, n in counts})
+    return u, prov
 
 
 def main():
@@ -141,7 +165,7 @@ def main():
                        "n_train": int(tr.sum())}
 
     # ---------------- PART 1: pool + verification ----------------
-    u = load_unknowns(m05)
+    u, res["unlabelled_pool"] = load_unknowns(m05)
     Xu, _ = m05.build_feature_matrix(u.assign(label=0))
     Xu = Xu.reset_index(drop=True)
     # recompute with the deployed model, do not trust the stored column

@@ -68,6 +68,43 @@ def _m05():
     return m
 
 
+# This is a closed investigation: re-running it exists only to reproduce the
+# recorded result, so a pool of any other size -- larger or smaller -- makes the
+# run a different experiment. 307 = n_unlabelled in pseudo_labeling_results.json
+# (2026-08-03): the unique TIC ids across the 254-row main and 54-row widesector
+# ranked_candidates.csv of that date. Those files are rewritten by every 06 run
+# (the main one has held 44 rows since 2026-08-29). There is no bypass.
+EXPECTED_POOL_HOSTS = 307
+
+
+def check_recorded_pool(u, sources):
+    """Returns provenance for the output JSON; raises if the pool differs."""
+    prov = {"n_unique_hosts": int(len(u)), "sources": sources}
+    if len(u) != EXPECTED_POOL_HOSTS:
+        raise SystemExit(
+            f"ABORTED: expected the recorded pool of {EXPECTED_POOL_HOSTS} unique hosts, found "
+            f"{len(u)} (per file: {sources}). A different pool cannot reproduce this closed "
+            f"result. The recorded inputs are "
+            f"`git show 6311b244:results/unknown_candidates/ranked_candidates.csv` and "
+            f"`git show 6311b244:results/unknown_candidates_widesector/ranked_candidates.csv`.")
+    return prov
+
+
+def load_unknowns():
+    frames, counts = [], []
+    for f in UNKNOWN_FILES:
+        if os.path.exists(f):
+            frames.append(pd.read_csv(f))
+            counts.append((f, len(frames[-1])))
+    u = pd.concat(frames, ignore_index=True)
+    u["tic"] = (pd.to_numeric(u["tic_id"], errors="coerce") if "tic_id" in u.columns
+                else pd.to_numeric(u["host"].astype(str).str.extract(r"(\d+)", expand=False),
+                                   errors="coerce"))
+    u = u.dropna(subset=["tic"]).drop_duplicates("tic").reset_index(drop=True)
+    prov = check_recorded_pool(u, {os.path.relpath(f, ROOT): int(n) for f, n in counts})
+    return u, prov
+
+
 def main():
     m05 = _m05()
     df = pd.read_csv(TRAINING_CSV)
@@ -80,12 +117,7 @@ def main():
     is_2min = ((c >= 1.0) & (c <= 2.6)).to_numpy() | c.isna().to_numpy()
     te2 = te & is_2min
 
-    frames = [pd.read_csv(f) for f in UNKNOWN_FILES if os.path.exists(f)]
-    u = pd.concat(frames, ignore_index=True)
-    u["tic"] = (pd.to_numeric(u["tic_id"], errors="coerce") if "tic_id" in u.columns
-                else pd.to_numeric(u["host"].astype(str).str.extract(r"(\d+)", expand=False),
-                                   errors="coerce"))
-    u = u.dropna(subset=["tic"]).drop_duplicates("tic").reset_index(drop=True)
+    u, pool_prov = load_unknowns()
     Xu, _ = m05.build_feature_matrix(u.assign(label=0))
     Xu = Xu.reset_index(drop=True)
 
@@ -172,7 +204,7 @@ def main():
     print("=" * 84)
 
     with open(RESULTS, "w") as f:
-        json.dump({"rows": rows, "n_reps": len(r),
+        json.dump({"rows": rows, "n_reps": len(r), "unlabelled_pool": pool_prov,
                    "delta_full_mean": float(r.delta_full.mean()),
                    "delta_full_sd": float(r.delta_full.std()),
                    "delta_2min_mean": float(r.delta_2min.mean()),
