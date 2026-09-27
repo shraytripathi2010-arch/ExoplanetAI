@@ -111,3 +111,6 @@ secret_key
 *.pem
 *.key
 com.exoplanetai.app.plist.bak-*
+
+# Local audit notes -- never published
+audit/
