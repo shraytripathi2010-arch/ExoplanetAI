@@ -237,6 +237,57 @@ the host->sector map. **Do not rebuild this.** On its first use it flagged two
 features as TEMPORAL that the `|b|` arm alone passed, and independently
 replicated AUC(sector alone) = 0.5908 vs 0.5803.
 
+## E. PER-RUN FILES ARE NOT THE POOL -- added 2026-09-27
+
+**`results/unknown_candidates/ranked_candidates.csv` and
+`ranked_candidates_in_distribution.csv` are rewritten by every 06 run with only
+that run's stars. They are NOT cumulative.** run_id **32** (2026-08-29 15:06:40
+EDT, `--sample-size 300`) cut them from 254 to **44** rows and from 179 to
+**29** rows. Eight experiment scripts read them as the whole pool: cluster_dust_feasibility,
+conformal_prediction, cluster1_pool_evidence, som_cluster_diagnostic, the three
+pseudo_labeling scripts and ranking_metrics (detail: `audit/cumulative_read_traps.md`).
+
+**The current 44 rows are not a fair subsample of the former 254.** They are the
+first 300 of the candidate list (median list position 134 vs 965), sit at higher
+|galactic latitude| (median 44.2 vs 33.7 deg) and higher probability (share
+>= 0.9: 0.45 vs 0.36), and their stored probabilities mix model versions (the
+same 44 stars differ by up to **0.51** from the 2026-08-05 file). **Any pool
+statistic computed from them is wrong, not merely noisy.**
+
+**CLOSED, with a caveat.** No committed result, register figure or
+promoted-feature justification was computed from a truncated pool. Every
+consumer's output predates run 32; **six of eight recorded their pool size and
+all six match the full file** (254; 254 + 54; 307 unique hosts; 179).
+
+**UNRESOLVABLE: `pseudo_labeling_replication` and `pseudo_labeling_seedcheck`
+(both 2026-08-03) record no pool size**, and their inputs cannot be
+reconstructed. Evidence favours a full pool: no 06 run appears in the job logs or
+transcripts between 2026-07-29 and 2026-08-29, and the file was committed at
+254 rows on 2026-08-05, after both runs. But shell history stops 2026-08-15, and
+a manual run that left no trace cannot be excluded. **Treat their recorded
+results as unverified provenance, not as confirmed.**
+
+**STANDING RULE: any script that reads a pool must record, in its own output,
+the row count and the source file it read.** That is the difference between an
+answerable provenance question and an unanswerable one.
+
+**`processing_mode.csv` has no reader.** It is committed in `ce695533` and sits
+among the cumulative catalogs. CORRECTION to the brief this entry was written
+from and to both audit files (`truncation_blast_radius.md` section 7,
+`cumulative_read_traps.md` section 2): it does **NOT** hold run 32's 300 rows.
+`audit_processing_mode` (06, ~line 1081) lists every file in
+`data/processed_unknown/`, so each run rewrites it with every processed curve on
+disk -- **2,555 rows** at `ce695533`, 2,454 of them in `unknown_features.csv`. It
+is rewritten per run but not scoped to the run.
+
+**Fix merged 2026-09-27 (`44aacb99`, `1f893c0d`):** the four open analyses read the pool from
+`unknown_features*.csv` plus the candidate list via
+`code/experiments/candidate_pool.py` (06's own selection rule: 253 main / 54
+widesector, versus the committed 254 / 54; the one difference, TIC_207109256, has
+no `crowd_nearest_arcsec`). The three pseudo-labeling scripts refuse to run on
+any pool other than the recorded 307 unique hosts. All eight record their pool
+size and source.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
