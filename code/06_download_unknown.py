@@ -2253,7 +2253,18 @@ def main():
     else:
         candidates_df = build_candidate_pool(excluded_tics, args.sample_size)
     candidates_df = fetch_stellar_params(candidates_df)
-    candidates_df.to_csv(CANDIDATE_LIST_PATH, index=False)
+    # BUG FIXED (found 2026-09-26): a --sample-size smaller than the cached
+    # list reuses its first N rows (resume support, above), and this save
+    # then wrote those N rows back over the cache -- a 300-star run on
+    # 2026-08-29 cut the shipped 2,000-row list to 300. Never shrink the
+    # cache; resume only ever reads tic_id/sector from it, so skipping the
+    # save loses nothing.
+    cached_n = len(pd.read_csv(CANDIDATE_LIST_PATH)) if os.path.exists(CANDIDATE_LIST_PATH) else 0
+    if len(candidates_df) >= cached_n:
+        candidates_df.to_csv(CANDIDATE_LIST_PATH, index=False)
+    else:
+        print(f"Keeping the cached {cached_n}-row {CANDIDATE_LIST_PATH} "
+              f"(this run uses its first {len(candidates_df)}); not overwriting.")
 
     download_candidates(candidates_df)
     preprocess_candidates()
