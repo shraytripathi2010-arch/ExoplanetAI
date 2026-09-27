@@ -176,6 +176,56 @@ def load_negative_stellar_params(path):
     return grouped.reset_index()
 
 
+def label_problems(final, catalog_canon, existing_path):
+    """Every reason this build's labels cannot be trusted, as printable lines.
+    Empty list means the build may be written. Each check aborts the build
+    rather than warning: a wrong label is invisible to every later stage,
+    including the promotion gate."""
+    problems = []
+    canon = final["host"].apply(canonical_key)
+    pos = final["label"] == 1
+
+    # 1. Label values.
+    bad_values = sorted(set(final["label"].unique()) - {0, 1})
+    if bad_values:
+        problems.append(f"label column has values outside {{0, 1}}: {bad_values}")
+
+    # 2. The same confirmed star under a second name. The retrain pipeline names
+    # stars TIC_<id>; the positive class is named by archive hostname. canonical_key
+    # cannot join those two spellings, and confirmed_planets.csv carries no tic_id,
+    # so a TIC_<id> positive that is not itself a catalog hostname cannot be proven
+    # NOT to duplicate a hostname-named row. Refuse it. (54 real positives ARE
+    # catalog hostnames of the form "TIC <id>" and pass.)
+    tic_named = final["host"].astype(str).str.fullmatch(r"TIC_\d+")
+    dual = final.loc[pos & tic_named & ~canon.isin(catalog_canon), "host"].tolist()
+    if dual:
+        problems.append(f"{len(dual)} label-1 row(s) named TIC_<id> are not catalog hostnames -- "
+                        f"likely a second name for a star already present under its hostname: "
+                        f"{sorted(dual)[:20]}")
+
+    # 3. Every other label-1 row must have matched the confirmed-planet catalog.
+    unmatched = final.loc[pos & ~tic_named & ~canon.isin(catalog_canon), "host"].tolist()
+    if unmatched:
+        problems.append(f"{len(unmatched)} label-1 row(s) did not match {CATALOG_PATH}: "
+                        f"{sorted(unmatched)[:20]}")
+
+    # 4. No host may change label relative to the training set being replaced.
+    if os.path.exists(existing_path):
+        old = pd.read_csv(existing_path, usecols=["host", "label"])
+        old["canon"] = old["host"].apply(canonical_key)
+        old = old.drop_duplicates(subset="canon")
+        new = pd.DataFrame({"canon": canon, "host": final["host"], "label": final["label"]})
+        both = new.merge(old[["canon", "label"]], on="canon", suffixes=("", "_existing"))
+        flipped = both[both["label"] != both["label_existing"]]
+        if len(flipped):
+            problems.append(f"{len(flipped)} host(s) would FLIP label relative to {existing_path}: "
+                            + ", ".join(f"{h} {int(e)}->{int(n)}" for h, e, n in
+                                        flipped[["host", "label_existing", "label"]].values[:20]))
+    else:
+        print(f"NOTE: {existing_path} does not exist -- no label-flip cross-check possible.")
+    return problems
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Merge TLS features + QC stats + catalog metadata into one labeled training table."
@@ -305,11 +355,14 @@ def main():
     print(f"Duplicate star rows: {dupe_count} "
           f"{'OK' if dupe_count == 0 else '-- WARNING: dedup logic may have a gap, investigate before training'}")
 
-    label_values = set(final["label"].unique())
-    if label_values <= {0, 1}:
-        print(f"Label column OK -- values present: {sorted(label_values)}")
-    else:
-        print(f"WARNING: label column has unexpected values: {label_values}")
+    problems = label_problems(final, set(catalog["canon"]), OUTPUT_PATH)
+    if problems:
+        print(f"\nABORTED -- {OUTPUT_PATH} was NOT written:", file=sys.stderr)
+        for line in problems:
+            print(f"  * {line}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Labels OK -- values {sorted(set(final['label'].unique()))}, every label-1 row matched "
+          f"the catalog, no second names, no flips against the existing training set.")
 
     print(f"\nSaving to {OUTPUT_PATH}")
     final.to_csv(OUTPUT_PATH, index=False)

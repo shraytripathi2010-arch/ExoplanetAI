@@ -38,7 +38,10 @@ MAX_WORKERS or TLS_THREADS_PER_WORKER):
 Author: Ray's Exoplanet AI Project
 """
 
+import argparse
+import importlib
 import os
+import sys
 import time
 import warnings
 from collections import deque
@@ -94,6 +97,49 @@ INPUT_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "processed")
 CATALOG_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "catalogs")
 RESULTS_PATH = os.path.join(CATALOG_FOLDER, "transit_search_results.csv")
 LOG_PATH = os.path.join(CATALOG_FOLDER, "transit_search_log.csv")
+
+
+# =====================================
+# CLASS GUARD
+#
+# The class of every input file comes from the confirmed-planet catalog, not
+# from the folder it sits in. data/processed/ used to be written by the retrain
+# pipeline for BOTH labels, and 04 stamps every row of RESULTS_PATH label=1, so
+# directory membership alone once put 53 false positives and an unlabeled
+# candidate into the positive input. Any file whose host is not a catalog
+# hostname (matched with 04's own canonical_key) refuses the WHOLE run before
+# anything is searched or written. There is no flag that lets one through.
+# =====================================
+SOURCE_LIST_PATH = os.path.join(CATALOG_FOLDER, "confirmed_planets.csv")
+SOURCE_LIST_DESC = "confirmed-planet hosts (confirmed_planets.csv hostname)"
+
+
+def source_list_keys(canonical_key):
+    if not os.path.exists(SOURCE_LIST_PATH):
+        sys.exit(f"ERROR: {SOURCE_LIST_PATH} not found -- the class of no file can be established.")
+    return set(pd.read_csv(SOURCE_LIST_PATH)["hostname"].map(canonical_key))
+
+
+def refuse_unclassifiable(all_files, list_only):
+    """Returns only when every file is classifiable and list_only is False."""
+    canonical_key = importlib.import_module("04_build_training_dataset").canonical_key
+    known = source_list_keys(canonical_key)
+    refused = [f for f in all_files if canonical_key(os.path.splitext(f)[0]) not in known]
+    if list_only:
+        print(f"--list-refused: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} are not "
+              f"{SOURCE_LIST_DESC}. Nothing was searched or written.")
+        for f in refused:
+            print(f"  {os.path.join(INPUT_FOLDER, f)}")
+        sys.exit(0)
+    if refused:
+        print(f"REFUSED: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} are not "
+              f"{SOURCE_LIST_DESC}, so their class cannot be established. Nothing was searched "
+              f"or written. First {min(5, len(refused))}:", file=sys.stderr)
+        for f in refused[:5]:
+            print(f"  {os.path.join(INPUT_FOLDER, f)}", file=sys.stderr)
+        print("Move these files out of this folder (--list-refused prints all of them). "
+              "This script will not guess a class.", file=sys.stderr)
+        sys.exit(2)
 
 os.makedirs(CATALOG_FOLDER, exist_ok=True)
 
@@ -209,8 +255,15 @@ def main():
     print(f"Settings: OVERSAMPLING_FACTOR={OVERSAMPLING_FACTOR}, DURATION_GRID_STEP={DURATION_GRID_STEP}, "
           f"MAX_WORKERS={MAX_WORKERS}, BATCH_SIZE={BATCH_SIZE}")
 
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument("--list-refused", action="store_true",
+                        help="List every file whose class cannot be established, then exit 0 "
+                             "without searching or writing anything.")
+    args = parser.parse_args()
+
     all_files = sorted(f for f in os.listdir(INPUT_FOLDER) if f.endswith(".csv"))
     print(f"{len(all_files)} cleaned light curves found in {INPUT_FOLDER}")
+    refuse_unclassifiable(all_files, args.list_refused)
 
     already_done = set()
     if os.path.exists(LOG_PATH):

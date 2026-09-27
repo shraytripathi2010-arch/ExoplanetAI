@@ -20,7 +20,10 @@ features. Keep these two scripts' settings in sync if you ever tune one.
 Author: Ray's Exoplanet AI Project
 """
 
+import argparse
+import importlib
 import os
+import sys
 import time
 import warnings
 from collections import deque
@@ -96,6 +99,54 @@ INPUT_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "processed_negative")
 CATALOG_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "catalogs")
 RESULTS_PATH = os.path.join(CATALOG_FOLDER, "transit_search_results_negative.csv")
 LOG_PATH = os.path.join(CATALOG_FOLDER, "transit_search_log_negative.csv")
+
+
+# =====================================
+# CLASS GUARD
+#
+# The class of every input file comes from the TOI false-positive / false-alarm
+# catalogs written by 01_download_negative.py, not from the folder it sits in.
+# 04 stamps every row of RESULTS_PATH label=0. processed_negative/ is clean
+# today; this keeps it that way. Any file whose host is not TIC_<tid> for a tid
+# in those catalogs (matched with 04's own canonical_key) refuses the WHOLE run
+# before anything is searched or written. There is no flag that lets one through.
+# =====================================
+SOURCE_LIST_PATHS = [os.path.join(CATALOG_FOLDER, "toi_false_positives.csv"),
+                     os.path.join(CATALOG_FOLDER, "toi_false_alarms.csv")]
+SOURCE_LIST_DESC = "TOI false positives / false alarms (toi_false_*.csv tid)"
+
+
+def source_list_keys(canonical_key):
+    keys = set()
+    for path in SOURCE_LIST_PATHS:
+        if os.path.exists(path):
+            tids = pd.read_csv(path)["tid"].dropna().astype("int64")
+            keys |= set(("TIC_" + tids.astype(str)).map(canonical_key))
+    if not keys:
+        sys.exit(f"ERROR: none of {SOURCE_LIST_PATHS} found -- the class of no file can be established.")
+    return keys
+
+
+def refuse_unclassifiable(all_files, list_only):
+    """Returns only when every file is classifiable and list_only is False."""
+    canonical_key = importlib.import_module("04_build_training_dataset").canonical_key
+    known = source_list_keys(canonical_key)
+    refused = [f for f in all_files if canonical_key(os.path.splitext(f)[0]) not in known]
+    if list_only:
+        print(f"--list-refused: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} are not "
+              f"{SOURCE_LIST_DESC}. Nothing was searched or written.")
+        for f in refused:
+            print(f"  {os.path.join(INPUT_FOLDER, f)}")
+        sys.exit(0)
+    if refused:
+        print(f"REFUSED: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} are not "
+              f"{SOURCE_LIST_DESC}, so their class cannot be established. Nothing was searched "
+              f"or written. First {min(5, len(refused))}:", file=sys.stderr)
+        for f in refused[:5]:
+            print(f"  {os.path.join(INPUT_FOLDER, f)}", file=sys.stderr)
+        print("Move these files out of this folder (--list-refused prints all of them). "
+              "This script will not guess a class.", file=sys.stderr)
+        sys.exit(2)
 
 os.makedirs(CATALOG_FOLDER, exist_ok=True)
 
@@ -199,8 +250,15 @@ def main():
     print(f"Settings: OVERSAMPLING_FACTOR={OVERSAMPLING_FACTOR}, DURATION_GRID_STEP={DURATION_GRID_STEP}, "
           f"MAX_WORKERS={MAX_WORKERS}, BATCH_SIZE={BATCH_SIZE}")
 
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument("--list-refused", action="store_true",
+                        help="List every file whose class cannot be established, then exit 0 "
+                             "without searching or writing anything.")
+    args = parser.parse_args()
+
     all_files = sorted(f for f in os.listdir(INPUT_FOLDER) if f.endswith(".csv"))
     print(f"{len(all_files)} cleaned light curves found in {INPUT_FOLDER}")
+    refuse_unclassifiable(all_files, args.list_refused)
 
     already_done = set()
     if os.path.exists(LOG_PATH):
