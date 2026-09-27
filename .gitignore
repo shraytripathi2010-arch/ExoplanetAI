@@ -117,3 +117,6 @@ audit/
 
 # Per-star ExoFOP TFOP imaging summary: observer-uploaded data, regenerate locally (see README)
 code/experiments/exofop_imaging_star.csv
+
+# Local Claude Code configuration (machine-specific; contains absolute paths)
+.claude/
