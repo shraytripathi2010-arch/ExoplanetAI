@@ -270,6 +270,26 @@ Uses public data from MAST (TESS), the NASA Exoplanet Archive, ExoFOP-TESS, and
 Gaia/VSX via Vizier. Please cite those sources and the `transitleastsquares`
 and `lightkurve` papers if you build on this.
 
+Published work that uses this project should carry the acknowledgements those
+archives request. Both are quoted verbatim from the archives' own pages
+(retrieved 2026-09-27):
+
+- **ExoFOP** ([exofop.ipac.caltech.edu/tess](https://exofop.ipac.caltech.edu/tess/)):
+  "This research has made use of the Exoplanet Follow-up Observation Program
+  (ExoFOP; DOI: 10.26134/ExoFOP5) website, which is operated by the California
+  Institute of Technology, under contract with the National Aeronautics and
+  Space Administration under the Exoplanet Exploration Program."
+- **TESS / MAST** ([archive.stsci.edu/publishing/mission-acknowledgements](https://archive.stsci.edu/publishing/mission-acknowledgements)):
+  "This paper includes data collected with the TESS mission, obtained from the
+  MAST data archive at the Space Telescope Science Institute (STScI). Funding
+  for US Institutions for the TESS mission is provided by the NASA Explorer
+  Program. STScI is operated by the Association of Universities for Research
+  in Astronomy, Inc., under NASA contract NAS5–26555."
+
+ExoFOP also asks that data uploaded by individual observers be treated as
+theirs and acknowledged accordingly; see its
+[Data Use and Professional Conduct Policy](https://exofop.ipac.caltech.edu/tess/pcp.php).
+
 ---
 
 ## Reproducibility: what has actually been verified
