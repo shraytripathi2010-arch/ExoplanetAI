@@ -56,16 +56,17 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
+sys.path.insert(0, SCRIPT_DIR)
+from candidate_pool import load_scored_pool
 
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 PROD = os.path.join(ROOT, "models", "best_model.joblib")
+# (name, candidate_pool key). The scored pool is rebuilt from the cumulative
+# files, NOT read from ranked_candidates.csv, which holds only the latest run's
+# stars (candidate_pool.py; audit/cumulative_read_traps.md).
 POOLS = [
-    ("pool A", os.path.join(ROOT, "data", "catalogs", "unknown_features.csv"),
-     os.path.join(ROOT, "results", "unknown_candidates", "ranked_candidates.csv")),
-    ("pool B (widesector)",
-     os.path.join(ROOT, "data", "catalogs", "unknown_features_widesector.csv"),
-     os.path.join(ROOT, "results", "unknown_candidates_widesector",
-                  "ranked_candidates.csv")),
+    ("pool A", "main"),
+    ("pool B (widesector)", "widesector"),
 ]
 OUT = os.path.join(SCRIPT_DIR, "som_cluster_diagnostic.json")
 
@@ -293,14 +294,8 @@ def main():
     print("PART 2.3 -- candidate pools: any region with no training support?")
     print("=" * 92)
     res["pools"] = {}
-    for pname, feat_path, rank_path in POOLS:
-        if not (os.path.exists(feat_path) and os.path.exists(rank_path)):
-            print(f"  {pname}: files missing, skipped")
-            continue
-        f = pd.read_csv(feat_path)
-        r = pd.read_csv(rank_path)
-        keep = [c for c in ["host", "st_rad", "st_teff"] if c in r.columns]
-        merged = f.merge(r[keep], on="host", how="inner")
+    for pname, pool in POOLS:
+        merged, prov = load_scored_pool(pool)
         P = pd.to_numeric(merged.get("period"), errors="coerce")
         T = pd.to_numeric(merged.get("duration"), errors="coerce")
         merged = merged[(P > 0) & (T > 0)]
@@ -332,7 +327,7 @@ def main():
             elif o["pool_pct"] >= 2 * max(o["train_pct"], 0.5):
                 flag = "  <- over-represented in pool"
             print(f"    {o['cluster']:<9}{o['train_pct']:>9.1f}{o['pool_pct']:>8.1f}{flag}")
-        res["pools"][pname] = {"n": int(len(merged)), "pct_beyond_train_p95": far,
+        res["pools"][pname] = {"source": prov, "n": int(len(merged)), "pct_beyond_train_p95": far,
                                "median_qerr_pool": float(np.median(pq)),
                                "median_qerr_train": float(np.median(qerr)),
                                "occupancy": occ}

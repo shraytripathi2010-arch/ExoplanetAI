@@ -67,6 +67,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
+sys.path.insert(0, SCRIPT_DIR)
+from candidate_pool import load_scored_pool
 
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 CADENCE = os.path.join(SCRIPT_DIR, "cadence_per_star.csv")
@@ -78,18 +80,10 @@ ALPHAS = [0.10, 0.05, 0.01]
 N_SPLITS = 300
 SEED = 42
 
-# (ranked candidate export, the feature table that pool was scored FROM).
-# Paired, not pooled: the wide-sector run has its own feature table and the two
-# must not be crossed -- a host present in both pools has different TLS features
-# in each (different sector baseline), so joining a row against the wrong table
-# would silently attach another run's measurements.
-CANDIDATE_POOLS = [
-    (os.path.join(ROOT, "results", "unknown_candidates", "ranked_candidates.csv"),
-     os.path.join(ROOT, "data", "catalogs", "unknown_features.csv")),
-    (os.path.join(ROOT, "results", "unknown_candidates_widesector",
-                  "ranked_candidates.csv"),
-     os.path.join(ROOT, "data", "catalogs", "unknown_features_widesector.csv")),
-]
+# Each pool is loaded from its own feature table and never joined across: a
+# host present in both has different TLS features in each (different sector
+# baseline).
+CANDIDATE_POOLS = ["main", "widesector"]
 
 
 def _m05():
@@ -205,113 +199,36 @@ def save_results(out):
     print(f"  saved {RESULTS}")
 
 
-# --------------------------------------------- unknown candidates, re-joined
+# --------------------------------------------- unknown candidates
 def load_unknown_candidates(m05, verbose=True):
     """The unknown-candidate pools as a frame carrying all FEATURE_COLUMNS.
 
-    WHY THIS IS A JOIN AND NOT `pd.read_csv`.
+    Rebuilt from the cumulative files by candidate_pool.load_scored_pool, NOT
+    read from ranked_candidates.csv. That export is rewritten by every 06 run
+    with only that run's stars (254 -> 44 on 2026-08-29), and before that it
+    went stale on columns: FEATURE_COLUMNS gained var_* and gaia_* after the
+    last full export, which broke this section for eight days
+    (2026-08-06 -> 2026-08-14). unknown_features*.csv carries every feature
+    column and every run's stars, so neither failure applies.
 
-    It used to be a bare read, and that is what broke this section for eight
-    days (2026-08-06 -> 2026-08-14, found during the Optuna deployment). The
-    ranked exports on disk were written 2026-08-05 12:37 and carry 37 and 34
-    columns; FEATURE_COLUMNS has since gained the five `var_*` (promoted
-    2026-08-06) and the two `gaia_*` (promoted 2026-08-14), so
-    `build_feature_matrix` raised SystemExit on all seven. Because that happens
-    AFTER models/conformal_calibration.json is written, the deployment artifact
-    kept succeeding and only the exit code complained -- which nobody read.
-
-    *** THE EXPORT WRITER IS NOT THE BUG, SO IT IS NOT WHAT IS FIXED HERE. ***
-    Checked before choosing: `06_download_unknown.score_candidates` builds the
-    ranked frame FROM `unknown_features*.csv` and hard-fails on a missing
-    feature column (`missing_required` -> SystemExit, 06_download_unknown.py
-    ~1686), then writes that whole frame. A run today would export all 33
-    columns unprompted. The CSVs are simply STALE -- the pipeline has not run
-    since 2026-08-05 -- and the only way to refresh them is a fresh MAST
-    download + TLS search that would also overwrite the live candidate tables.
-    Making an offline diagnostic depend on that is the wrong dependency; the
-    columns it needs already exist on disk, keyed identically.
-
-    So the missing columns are joined back from the same per-pool feature table
-    the exports were built from. This also matches the newest precedent in the
-    repo: `cluster1_pool_evidence.py` reads `unknown_features*.csv` as the
-    feature source and merges the stellar params in from ranked_candidates.csv
-    -- the same join, in the other direction.
-
-    The join is `host`-keyed and exact -- 254/254 and 54/54 matched, feature
-    tables unique on `host`, `var_*` 100% present, `gaia_*` 96.1%/100%. Gaia
-    NaNs are left as NaN on purpose: they are OPTIONAL_FEATURES, imputed inside
-    the fitted pipeline at serve time, and `domain_report` imputes with a
-    median inside its own CV pipeline, so this is what production sees too.
-
-    Returns (frame, provenance list). Raises if a column cannot be sourced --
-    a domain-shift number measured on a silently-truncated feature set would be
-    worse than no number at all.
+    Returns (frame, provenance list). Raises if a feature column is missing --
+    a domain-shift number measured on a truncated feature set would be worse
+    than no number at all.
     """
     need = list(m05.FEATURE_COLUMNS)
     frames, prov = [], []
-
-    for ranked_path, feat_path in CANDIDATE_POOLS:
-        if not os.path.exists(ranked_path):
-            continue
-        pool = os.path.basename(os.path.dirname(ranked_path))
-        r = pd.read_csv(ranked_path)
-        missing = [c for c in need if c not in r.columns]
-        info = {"pool": pool, "n_rows": int(len(r)),
-                "export": os.path.relpath(ranked_path, ROOT),
-                "missing_from_export": missing, "joined": []}
-        if verbose:
-            print(f"\n  {pool}: {len(r)} ranked rows, "
-                  f"{len(need) - len(missing)}/{len(need)} feature columns present")
-
+    for pool in CANDIDATE_POOLS:
+        d, info = load_scored_pool(pool)
+        missing = [c for c in need if c not in d.columns]
         if missing:
-            if not os.path.exists(feat_path):
-                raise FileNotFoundError(
-                    f"{pool}: the export lacks {missing} and its feature table "
-                    f"{feat_path} does not exist to join them from.")
-            f = pd.read_csv(feat_path)
-            unsourceable = [c for c in missing if c not in f.columns]
-            if unsourceable:
-                raise KeyError(
-                    f"{pool}: {unsourceable} are in neither {os.path.basename(ranked_path)} "
-                    f"nor {os.path.basename(feat_path)}. If these were just promoted into "
-                    f"FEATURE_COLUMNS, the candidate pool has not been re-extracted yet.")
-            if f["host"].duplicated().any():
-                raise ValueError(
-                    f"{pool}: {os.path.basename(feat_path)} has duplicate 'host' values; "
-                    f"a many-to-many join would silently multiply candidate rows.")
-            # many_to_one: strict on the side that supplies the values, tolerant
-            # of the export, which is the object under study rather than the key.
-            # `_matched` rather than "any joined value is non-null": a host CAN
-            # legitimately match a row whose gaia_* are both NaN (no Gaia source
-            # within 3 arcsec), and counting that as a failed join would
-            # under-report the join and over-report a data problem.
-            r = r.merge(f[["host"] + missing].assign(_matched=True), on="host",
-                        how="left", validate="many_to_one")
-            matched = int(r.pop("_matched").eq(True).sum())
-            info["joined"] = missing
-            info["source"] = os.path.relpath(feat_path, ROOT)
-            info["hosts_matched"] = matched
-            info["coverage"] = {c: float(r[c].notna().mean()) for c in missing}
-            if verbose:
-                print(f"    joined {len(missing)} column(s) from "
-                      f"{os.path.basename(feat_path)} on host -- "
-                      f"{matched}/{len(r)} rows matched")
-                for c in missing:
-                    print(f"      {c:<16} {r[c].notna().mean() * 100:5.1f}% non-null")
-
-        frames.append(r)
+            raise KeyError(f"{pool}: {missing} missing from {info['sources']}. If these "
+                           f"were just promoted into FEATURE_COLUMNS, the candidate pool "
+                           f"has not been re-extracted yet.")
+        if verbose:
+            print(f"\n  {pool}: {len(d)} scored candidates from {', '.join(info['sources'])}")
+        frames.append(d)
         prov.append(info)
-
-    if not frames:
-        raise FileNotFoundError(
-            "no ranked_candidates.csv found in either candidate pool -- "
-            "run 06_download_unknown.py first.")
-
-    u = pd.concat(frames, ignore_index=True)
-    still = [c for c in need if c not in u.columns]
-    if still:
-        raise KeyError(f"after joining, still missing: {still}")
-    return u, prov
+    return pd.concat(frames, ignore_index=True), prov
 
 
 def main():

@@ -56,14 +56,15 @@ CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
 sys.path.insert(0, SCRIPT_DIR)
+from candidate_pool import load_scored_pool
 
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 OUT = os.path.join(SCRIPT_DIR, "cluster1_pool_evidence.json")
 SEED = 42
+# (name, candidate_pool key, results/ subfolder for characterized_candidates.csv)
 POOLS = [
-    ("pool A", "unknown_features.csv", "unknown_candidates"),
-    ("pool B (widesector)", "unknown_features_widesector.csv",
-     "unknown_candidates_widesector"),
+    ("pool A", "main", "unknown_candidates"),
+    ("pool B (widesector)", "widesector", "unknown_candidates_widesector"),
 ]
 
 
@@ -122,20 +123,15 @@ def main():
     res = {"training_cluster1_share_pct": float((sup_tr == 1).mean() * 100),
            "pools": {}}
 
-    for pname, feat_file, tag in POOLS:
+    for pname, pool, tag in POOLS:
         print("=" * 100)
         print(f"{pname}")
         print("=" * 100)
-        fp = os.path.join(ROOT, "data", "catalogs", feat_file)
-        rp = os.path.join(ROOT, "results", tag, "ranked_candidates.csv")
         cp = os.path.join(ROOT, "results", tag, "characterized_candidates.csv")
-        if not (os.path.exists(fp) and os.path.exists(rp)):
-            print("  required files missing; skipped\n")
-            continue
-        f = pd.read_csv(fp)
-        r = pd.read_csv(rp)
-        d = f.merge(r[[c for c in ["host", "st_rad", "st_teff"] if c in r.columns]],
-                    on="host", how="inner")
+        # The scored pool is rebuilt from the cumulative files, NOT read from
+        # ranked_candidates.csv, which holds only the latest run's stars
+        # (candidate_pool.py; audit/cumulative_read_traps.md).
+        d, prov = load_scored_pool(pool)
         P = pd.to_numeric(d.get("period"), errors="coerce")
         T = pd.to_numeric(d.get("duration"), errors="coerce")
         d = d[(P > 0) & (T > 0)].reset_index(drop=True)
@@ -155,7 +151,7 @@ def main():
               f"vs {(sup_tr==1).mean()*100:.1f}% of training "
               f"-> {c1.mean()/((sup_tr==1).mean()):.2f}x over-representation")
 
-        pe = {"n": int(len(d)), "n_cluster1": int(c1.sum()),
+        pe = {"source": prov, "n": int(len(d)), "n_cluster1": int(c1.sum()),
               "pct_cluster1": float(c1.mean() * 100),
               "over_representation": float(c1.mean() / (sup_tr == 1).mean())}
 

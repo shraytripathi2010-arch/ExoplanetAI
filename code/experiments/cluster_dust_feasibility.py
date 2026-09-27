@@ -32,6 +32,9 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from candidate_pool import load_scored_pool
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..")
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
@@ -83,21 +86,32 @@ def tic_coords(tic_ids, tag):
     return out
 
 
+POOL_SOURCES = {}   # pool name -> {"n_rows", "sources"}; written into the output JSON
+
+
 def pools():
     """Every candidate population this feature would have to serve, with coords."""
     P = {}
-    p = pd.read_csv(os.path.join(RES, "unknown_candidates", "ranked_candidates.csv"))
+    # The scored pool is rebuilt from the cumulative files, NOT read from
+    # ranked_candidates.csv, which holds only the latest run's stars
+    # (candidate_pool.py; audit/cumulative_read_traps.md).
+    p, prov = load_scored_pool("main")
     P["main_scored"] = p[["host", "ra", "dec"]].copy()
+    POOL_SOURCES["main_scored"] = prov
 
     cl = pd.read_csv(os.path.join(CAT, "unknown_candidate_list.csv"))
     if {"ra", "dec"}.issubset(cl.columns):
         cl = cl.copy()
         cl["host"] = ["TIC_%d" % int(t) for t in cl.tic_id]
         P["main_target_list"] = cl[["host", "ra", "dec"]]
+        POOL_SOURCES["main_target_list"] = {
+            "n_rows": int(len(cl)), "sources": ["data/catalogs/unknown_candidate_list.csv"]}
 
     w = pd.read_csv(os.path.join(CAT, "unknown_features_widesector.csv"))
     if "status" in w.columns:
         w = w[w.status.astype(str).str.startswith("Success")]
+    POOL_SOURCES["widesector"] = {
+        "n_rows": int(len(w)), "sources": ["data/catalogs/unknown_features_widesector.csv"]}
     tics = [int(re.match(r"TIC[_ ]?(\d+)", str(h)).group(1))
             for h in w.host if re.match(r"TIC[_ ]?(\d+)", str(h))]
     m = tic_coords(tics, "widesector")
@@ -234,6 +248,7 @@ def main():
               f"{d[f'pool_{k}_median_dec']:+.1f}", flush=True)
 
     out.to_csv(OUT_CSV, index=False)
+    res["pool_sources"] = POOL_SOURCES
     json.dump(res, open(OUT_JSON, "w"), indent=1, default=str)
     print(f"\nsaved {OUT_JSON}\nsaved {OUT_CSV}", flush=True)
 
