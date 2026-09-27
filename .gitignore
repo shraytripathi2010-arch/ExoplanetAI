@@ -114,3 +114,6 @@ com.exoplanetai.app.plist.bak-*
 
 # Local audit notes -- never published
 audit/
+
+# Per-star ExoFOP TFOP imaging summary: observer-uploaded data, regenerate locally (see README)
+code/experiments/exofop_imaging_star.csv

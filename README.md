@@ -263,6 +263,14 @@ Regenerable or machine-local, deliberately excluded (see `.gitignore`):
 - `models/bootstrap_ensemble/` (~140 MB) — rebuild via `09_build_bootstrap_ensemble.py`
 - `web/*.db`, `web/job_logs/`, `web/static/plots/` — live app state
 - Experiment `.log` files — the scripts and result JSON/CSVs are tracked
+- `code/experiments/exofop_imaging_star.csv` — per-star TFOP high-resolution
+  imaging summary, withheld because ExoFOP treats observer-uploaded data as the
+  observers' property. Regenerate: save
+  `https://exofop.ipac.caltech.edu/tess/download_imaging.php?output=csv` as
+  `download_imaging.csv` and
+  `https://exofop.ipac.caltech.edu/tess/download_toi.php?output=csv` as
+  `download_toi.csv` in `$EXOFOP_SCRATCH` (default `code/experiments/`), then
+  run `python3 code/experiments/exofop_imaging_gate.py`.
 
 ## License / data attribution
 
