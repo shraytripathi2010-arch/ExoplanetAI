@@ -31,6 +31,7 @@ Author: Ray's Exoplanet AI Project
 """
 
 import os
+import sys
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, TimeoutError as FutureTimeoutError
@@ -68,8 +69,8 @@ def bin_lightcurve(time_arr, flux_arr, flux_err_arr):
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROCESSED_POS_DIR = os.path.join(SCRIPT_DIR, "..", "data", "processed")
-PROCESSED_NEG_DIR = os.path.join(SCRIPT_DIR, "..", "data", "processed_negative")
+sys.path.insert(0, os.path.join(SCRIPT_DIR, "experiments"))
+from lightcurve_resolver import CurveResolver
 CATALOG_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "catalogs")
 TRAINING_PATH = os.path.join(SCRIPT_DIR, "..", "data", "training_dataset", "training.csv")
 OUTPUT_PATH = os.path.join(CATALOG_FOLDER, "v3_stellar_ttv_features.csv")
@@ -193,6 +194,22 @@ def save_progress(rows):
     df.to_csv(OUTPUT_PATH, index=False)
 
 
+def build_work_list(training, already_done):
+    """Training rows still to do, with their processed curve. The curve is
+    looked up in the training scope, NOT by label: label 0 is not confined to
+    processed_negative (see code/experiments/lightcurve_resolver.py)."""
+    resolver = CurveResolver("training")
+    work_list = []
+    for _, row in training.iterrows():
+        host = row["host"]
+        if host in already_done:
+            continue
+        path = resolver.find(host)
+        if path is not None:
+            work_list.append((path, host, int(row["label"]), row.get("st_rad"), row.get("st_mass")))
+    return work_list, resolver
+
+
 def main():
     training = pd.read_csv(TRAINING_PATH)
     already_done = set()
@@ -205,15 +222,9 @@ def main():
     print(f"{n_non_solar}/{len(training)} stars deviate >20% from solar radius -- this is why "
           f"per-star R_star/M_star matters here, not just a cosmetic change.")
 
-    work_list = []
-    for _, row in training.iterrows():
-        host = row["host"]
-        if host in already_done:
-            continue
-        subdir = PROCESSED_POS_DIR if row["label"] == 1 else PROCESSED_NEG_DIR
-        path = os.path.join(subdir, host + ".csv")
-        if os.path.exists(path):
-            work_list.append((path, host, int(row["label"]), row.get("st_rad"), row.get("st_mass")))
+    work_list, resolver = build_work_list(training, already_done)
+    # A star with no processed curve used to be dropped here without a count.
+    print(resolver.summary())
 
     print(f"{len(work_list)} stars to process with {MAX_WORKERS} workers, batches of {BATCH_SIZE}...")
 

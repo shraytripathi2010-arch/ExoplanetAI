@@ -18,11 +18,10 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import injection as inj
 import phase_fold_views as pfv
+from lightcurve_resolver import CurveResolver
 
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 TRAINING_CSV = os.path.join(PROJECT_ROOT, "data", "training_dataset", "training.csv")
-PROCESSED_DIR = os.path.join(PROJECT_ROOT, "data", "processed")
-PROCESSED_NEG_DIR = os.path.join(PROJECT_ROOT, "data", "processed_negative")
 OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cnn_dataset.npz")
 
 N_SYNTHETIC_POSITIVE = 2000
@@ -30,22 +29,19 @@ N_SYNTHETIC_NEGATIVE = 2000
 RANDOM_SEED = 42
 
 
-def _real_lightcurve_path(host):
-    p1 = os.path.join(PROCESSED_DIR, f"{host}.csv")
-    if os.path.exists(p1):
-        return p1
-    p2 = os.path.join(PROCESSED_NEG_DIR, f"{host}.csv")
-    if os.path.exists(p2):
-        return p2
-    return None
+def resolve_curves(hosts):
+    """Processed curve per host, training scope (lightcurve_resolver.py)."""
+    resolver = CurveResolver("training")
+    return resolver.resolve(hosts), resolver
 
 
 def build_real_examples():
     df = pd.read_csv(TRAINING_CSV)
+    paths, resolver = resolve_curves(df["host"])
+    print(resolver.summary())
     globals_, locals_, labels, hosts, synth_flags = [], [], [], [], []
     n_missing = 0
-    for _, row in df.iterrows():
-        path = _real_lightcurve_path(row["host"])
+    for path, (_, row) in zip(paths, df.iterrows()):
         if path is None:
             n_missing += 1
             continue

@@ -98,14 +98,17 @@ import pandas as pd
 from scipy.optimize import least_squares
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+from lightcurve_resolver import CurveResolver
 ROOT = os.path.join(SCRIPT_DIR, "..", "..")
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 CATALOGS = os.path.join(ROOT, "data", "catalogs")
-PROC_DIRS = [os.path.join(ROOT, "data", "processed"),
-             os.path.join(ROOT, "data", "processed_negative"),
-             os.path.join(ROOT, "data", "processed_unknown"),
-             os.path.join(ROOT, "data", "processed_unknown_widesector")]
-
+# Each source's curves are looked up in that population's scope ONLY
+# (lightcurve_resolver.SCOPES), and the scope names match the source names.
+# This used to be one first-match search over all four folders, which sent
+# the 50 widesector hosts that also have a single-sector curve to
+# processed_unknown/. 13 of the committed widesector rows were fitted on the
+# wrong curve; they are NOT recomputed (RESULTS_SUMMARY.md register F).
 SOURCES = {
     "training": (TRAINING, os.path.join(SCRIPT_DIR, "trapezoid_shape_features.csv")),
     "pool": (os.path.join(CATALOGS, "unknown_features.csv"),
@@ -127,12 +130,12 @@ DIAGNOSTICS = ["trap_vshape_err", "trap_depth", "trap_depth_snr", "trap_rmse",
                "trap_nbins", "trap_status"]
 
 
-def _find(host):
-    for d in PROC_DIRS:
-        p = os.path.join(d, str(host) + ".csv")
-        if os.path.exists(p):
-            return p
-    return None
+def resolve_curves(hosts, source):
+    """Processed curve per host, in `source`'s own scope. Resolved in the
+    parent, so the count is reported once and each worker gets the path it
+    was counted under."""
+    resolver = CurveResolver(source)
+    return resolver.resolve(hosts), resolver
 
 
 def trapezoid(phi, base, depth, t14, w, phi0):
@@ -147,14 +150,13 @@ def trapezoid(phi, base, depth, t14, w, phi0):
 
 
 def fit_one(args):
-    host, period, t0, duration, depth_lvl = args
+    host, path, period, t0, duration, depth_lvl = args
     out = {"host": host}
     for c in FEATURES + DIAGNOSTICS:
         out[c] = np.nan
     out["trap_nbins"] = 0
     out["trap_status"] = "ok"
 
-    path = _find(host)
     if path is None:
         out["trap_status"] = "no light curve"
         return out
@@ -269,7 +271,9 @@ def run(source):
     path, outpath = SOURCES[source]
     df = pd.read_csv(path)
     depth_col = pd.to_numeric(df["depth"], errors="coerce") if "depth" in df else pd.Series(np.nan, index=df.index)
-    args = list(zip(df["host"],
+    paths, resolver = resolve_curves(df["host"], source)
+    print(f"\n[{source}] {resolver.summary()}")
+    args = list(zip(df["host"], paths,
                     pd.to_numeric(df["period"], errors="coerce"),
                     pd.to_numeric(df["T0"], errors="coerce"),
                     pd.to_numeric(df["duration"], errors="coerce"),

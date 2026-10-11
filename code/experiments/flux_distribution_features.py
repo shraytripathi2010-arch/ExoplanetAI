@@ -39,8 +39,8 @@ FEATURES AND WHY EACH ONE
       dozens -- the small-lift round already showed that adding many weakly
       motivated columns just adds chances for one to pass by luck.
 
-Uses the already-preprocessed light curves in data/processed[_negative]/ and
-the ephemeris already in training.csv. No downloads, no re-preprocessing, no
+Uses the already-preprocessed training light curves (lightcurve_resolver.py,
+training scope) and the ephemeris already in training.csv. No downloads, no re-preprocessing, no
 TLS re-run. Resumable: re-running skips hosts already in the output.
 """
 import os
@@ -54,12 +54,12 @@ from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait as cwa
 warnings.filterwarnings("ignore")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+from lightcurve_resolver import CurveResolver
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 
 TRAINING_CSV = os.path.join(ROOT, "data", "training_dataset", "training.csv")
-PROC_DIRS = [os.path.join(ROOT, "data", "processed"),
-             os.path.join(ROOT, "data", "processed_negative")]
 OUT_CSV = os.path.join(SCRIPT_DIR, "flux_distribution_features.csv")
 
 N_WORKERS = 8
@@ -72,12 +72,12 @@ class _Stalled(Exception):
     pass
 
 
-def _find(host):
-    for d in PROC_DIRS:
-        p = os.path.join(d, host + ".csv")
-        if os.path.exists(p):
-            return p
-    return None
+def resolve_curves(hosts):
+    """Processed curve per host, training scope (lightcurve_resolver.py).
+    Resolved here in the parent, so the count is reported once and each
+    worker gets the path it was counted under."""
+    resolver = CurveResolver("training")
+    return resolver.resolve(hosts), resolver
 
 
 def _moments(x):
@@ -117,10 +117,9 @@ def _haar_details(x, levels=3):
 
 
 def compute_one(args):
-    host, period, t0, duration = args
+    host, path, period, t0, duration = args
     out = {"host": host}
     try:
-        path = _find(host)
         if path is None:
             return {**out, "status": "no processed file"}
         if not all(np.isfinite([period, t0, duration])) or period <= 0 or duration <= 0:
@@ -191,8 +190,11 @@ def main():
         done = set(prev["host"])
         print(f"resuming: {len(done)} hosts already computed")
 
-    jobs = [(r["host"], r.get("period"), r.get("T0"), r.get("duration"))
-            for _, r in df.iterrows() if r["host"] not in done]
+    todo = df[~df["host"].isin(done)]
+    paths, resolver = resolve_curves(todo["host"])
+    print(resolver.summary())
+    jobs = [(r["host"], p, r.get("period"), r.get("T0"), r.get("duration"))
+            for p, (_, r) in zip(paths, todo.iterrows())]
     print(f"{len(jobs)} hosts to process with {N_WORKERS} workers")
     if not jobs:
         print("nothing to do")

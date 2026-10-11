@@ -42,10 +42,11 @@ import numpy as np
 import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+from lightcurve_resolver import CurveResolver
+
 PROJECT_ROOT = os.path.join(SCRIPT_DIR, "..", "..")
 TRAINING_CSV = os.path.join(PROJECT_ROOT, "data", "training_dataset", "training.csv")
-PROCESSED_POS_DIR = os.path.join(PROJECT_ROOT, "data", "processed")
-PROCESSED_NEG_DIR = os.path.join(PROJECT_ROOT, "data", "processed_negative")
 RESULTS_PATH = os.path.join(SCRIPT_DIR, "new_features_results.csv")
 
 N_WORKERS = 8
@@ -116,16 +117,26 @@ def _worker(args):
                 "power_ratio_half_period": None, "power_ratio_double_period": None}
 
 
-def main():
-    df = pd.read_csv(TRAINING_CSV)
+def build_jobs(df):
+    """One job per training row that has a processed curve. Looked up in the
+    training scope, NOT by label: label 0 is not confined to
+    processed_negative (see lightcurve_resolver.py)."""
+    resolver = CurveResolver("training")
     jobs = []
     for _, row in df.iterrows():
         host = row["host"]
-        folder = PROCESSED_POS_DIR if row["label"] == 1 else PROCESSED_NEG_DIR
-        path = os.path.join(folder, host + ".csv")
-        if not os.path.exists(path):
+        path = resolver.find(host)
+        if path is None:
             continue
         jobs.append((host, int(row["label"]), path, row.get("st_rad"), row.get("st_mass")))
+    return jobs, resolver
+
+
+def main():
+    df = pd.read_csv(TRAINING_CSV)
+    jobs, resolver = build_jobs(df)
+    # A star with no processed curve used to be dropped here without a count.
+    print(resolver.summary())
 
     results = []
     already_done = set()

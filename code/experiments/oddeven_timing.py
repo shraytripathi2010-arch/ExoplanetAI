@@ -45,13 +45,11 @@ import numpy as np
 import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+from lightcurve_resolver import CurveResolver
 ROOT = os.path.join(SCRIPT_DIR, "..", "..")
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 OUT = os.path.join(SCRIPT_DIR, "oddeven_timing_features.csv")
-PROC_DIRS = [os.path.join(ROOT, "data", "processed"),
-             os.path.join(ROOT, "data", "processed_negative"),
-             os.path.join(ROOT, "data", "processed_unknown"),
-             os.path.join(ROOT, "data", "processed_unknown_widesector")]
 
 MIN_BASELINE = 100
 MIN_EPOCHS_PER_GROUP = 2      # need >=2 distinct epochs per parity to compare
@@ -60,12 +58,12 @@ N_WORKERS = 6
 FEATURES = ["oe_timing_offset_frac", "oe_timing_significance"]
 
 
-def _find(host):
-    for d in PROC_DIRS:
-        p = os.path.join(d, str(host) + ".csv")
-        if os.path.exists(p):
-            return p
-    return None
+def resolve_curves(hosts):
+    """Processed curve per host, training scope (lightcurve_resolver.py).
+    Resolved here in the parent, so the count is reported once and each
+    worker gets the path it was counted under."""
+    resolver = CurveResolver("training")
+    return resolver.resolve(hosts), resolver
 
 
 def _group_centroid(ph, fl, oot_level):
@@ -86,11 +84,10 @@ def _group_centroid(ph, fl, oot_level):
 
 
 def measure(args):
-    host, period, t0, duration = args
+    host, path, period, t0, duration = args
     out = {"host": host, "oe_timing_offset_frac": np.nan,
            "oe_timing_significance": np.nan, "oe_n_epochs_odd": 0,
            "oe_n_epochs_even": 0, "oe_status": "ok"}
-    path = _find(host)
     if path is None:
         out["oe_status"] = "no light curve"
         return out
@@ -150,7 +147,9 @@ def measure(args):
 
 def main():
     df = pd.read_csv(TRAINING)
-    args = list(zip(df["host"],
+    paths, resolver = resolve_curves(df["host"])
+    print(resolver.summary())
+    args = list(zip(df["host"], paths,
                     pd.to_numeric(df["period"], errors="coerce"),
                     pd.to_numeric(df["T0"], errors="coerce"),
                     pd.to_numeric(df["duration"], errors="coerce")))

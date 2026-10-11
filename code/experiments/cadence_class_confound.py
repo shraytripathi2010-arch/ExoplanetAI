@@ -28,13 +28,12 @@ import numpy as np
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from lightcurve_resolver import CurveResolver
 ROOT = os.path.join(HERE, "..", "..")
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
 OUT_CSV = os.path.join(HERE, "cadence_class_confound.csv")
 OUT_JSON = os.path.join(HERE, "cadence_class_confound.json")
-
-CURVE_DIRS = [os.path.join(ROOT, "data", "processed"),
-              os.path.join(ROOT, "data", "processed_negative")]
 
 # buckets, matching the GP-pilot entry's breakdown
 EDGES = [0, 1.0, 2.6, 11.0, 31.0, 1e9]
@@ -42,19 +41,23 @@ LABELS = ["20-sec", "2-min", "10-min", "30-min", ">30-min"]
 TARGET_HOURS = 401 * 2.0 / 60.0          # the 2-min design intent, 13.3667 h
 
 
-def measure_cadence(host):
-    for d in CURVE_DIRS:
-        p = os.path.join(d, host + ".csv")
-        if os.path.exists(p):
-            try:
-                t = pd.read_csv(p, usecols=["time"])["time"].to_numpy()
-            except Exception:
-                return np.nan, 0
-            t = np.sort(t[np.isfinite(t)])
-            if len(t) < 100:
-                return np.nan, len(t)
-            return float(np.median(np.diff(t)) * 1440.0), len(t)
-    return np.nan, 0
+def resolve_curves(hosts):
+    """Processed curve per host, training scope (lightcurve_resolver.py)."""
+    resolver = CurveResolver("training")
+    return resolver.resolve(hosts), resolver
+
+
+def measure_cadence(p):
+    if p is None:
+        return np.nan, 0
+    try:
+        t = pd.read_csv(p, usecols=["time"])["time"].to_numpy()
+    except Exception:
+        return np.nan, 0
+    t = np.sort(t[np.isfinite(t)])
+    if len(t) < 100:
+        return np.nan, len(t)
+    return float(np.median(np.diff(t)) * 1440.0), len(t)
 
 
 def main():
@@ -63,9 +66,13 @@ def main():
     print(f"training.csv: {len(df)} rows, "
           f"{int((df.label==1).sum())} positive / {int((df.label==0).sum())} negative")
 
+    # A star with no processed curve used to be folded silently into "no
+    # readable processed curve" below; it is now counted on its own.
+    paths, resolver = resolve_curves(df.host)
+    print(resolver.summary())
     rows = []
-    for i, (h, lab) in enumerate(zip(df.host, df.label), 1):
-        cad, n = measure_cadence(h)
+    for i, (h, lab, p) in enumerate(zip(df.host, df.label, paths), 1):
+        cad, n = measure_cadence(p)
         rows.append({"host": h, "label": int(lab), "cadence_min": cad, "n_points": n})
         if i % 1000 == 0:
             print(f"  measured {i}/{len(df)}", flush=True)
@@ -73,8 +80,10 @@ def main():
     c.to_csv(OUT_CSV, index=False)
 
     have = c[c.cadence_min.notna()].copy()
+    n_unres = resolver.provenance()["n_unresolved"]
     print(f"\ncadence measured for {len(have)}/{len(c)} training stars "
-          f"({len(c)-len(have)} have no readable processed curve)")
+          f"({n_unres} have no processed curve, "
+          f"{len(c)-len(have)-n_unres} have one that is unreadable or too short)")
     have["bucket"] = pd.cut(have.cadence_min, EDGES, labels=LABELS)
     # the window each star ACTUALLY gets today vs what the design intends
     have["window_pts_now"] = np.minimum(401, have.n_points - 1)
@@ -136,6 +145,7 @@ def main():
                "fisher_or": float(orr), "fisher_p": float(fp),
                "chi2": float(chi2), "chi2_p": float(cp), "z": float(z),
                "gate_passed": bool(CLEAN),
+               "curve_resolution": resolver.provenance(),
                "bucket_counts": {str(k): int(v) for k, v in
                                  have.bucket.value_counts().items()}},
               open(OUT_JSON, "w"), indent=2)

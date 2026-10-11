@@ -31,13 +31,12 @@ from sklearn.metrics import roc_auc_score
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import phase_fold_views as pfv
+from lightcurve_resolver import CurveResolver
 from train_cnn import LocalGlobalCNN, DEVICE
 
 RANDOM_SEED = 42
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 TRAINING_CSV = os.path.join(PROJECT_ROOT, "data", "training_dataset", "training.csv")
-PROCESSED_DIR = os.path.join(PROJECT_ROOT, "data", "processed")
-PROCESSED_NEG_DIR = os.path.join(PROJECT_ROOT, "data", "processed_negative")
 RESULTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ensemble_results.json")
 
 FEATURE_COLUMNS = [
@@ -49,12 +48,10 @@ FEATURE_COLUMNS = [
 ]
 
 
-def _real_lightcurve_path(host):
-    for d in (PROCESSED_DIR, PROCESSED_NEG_DIR):
-        p = os.path.join(d, f"{host}.csv")
-        if os.path.exists(p):
-            return p
-    return None
+def resolve_curves(hosts):
+    """Processed curve per host, training scope (lightcurve_resolver.py)."""
+    resolver = CurveResolver("training")
+    return resolver.resolve(hosts), resolver
 
 
 def main():
@@ -70,8 +67,9 @@ def main():
     # small attrition (~2%) is applied identically to train and test, and
     # the ensemble comparison is restricted to rows where all 3 models can
     # predict, stated explicitly rather than silently mismatched.
-    has_lc = df["host"].apply(lambda h: _real_lightcurve_path(h) is not None)
-    valid_mask = has_lc.to_numpy()
+    curve_paths, resolver = resolve_curves(df["host"])
+    print(resolver.summary())
+    valid_mask = np.array([p is not None for p in curve_paths])
     idx_train_v = idx_train[valid_mask[idx_train]]
     idx_test_v = idx_test[valid_mask[idx_test]]
     print(f"Rows usable by all 3 models: train {len(idx_train_v)}/{len(idx_train)}, "
@@ -81,8 +79,7 @@ def main():
         gviews, lviews = [], []
         for i in indices:
             row = df.iloc[i]
-            path = _real_lightcurve_path(row["host"])
-            lc = pd.read_csv(path)
+            lc = pd.read_csv(curve_paths[i])
             g, l = pfv.make_views(lc["time"].to_numpy(), lc["flux"].to_numpy(),
                                    row["period"], row["T0"], row["duration"])
             gviews.append(g); lviews.append(l)
@@ -166,6 +163,7 @@ def main():
         "cnn_alone_test_auc": float(roc_auc_score(y_test_v, cnn_test)),
         "ensemble_test_auc": float(ensemble_auc), "meta_coefficients": meta.coef_[0].tolist(),
         "n_train": len(idx_train_v), "n_test": len(idx_test_v),
+        "curve_resolution": resolver.provenance(),
         "note": "Evaluated on the subset of rows with a real light curve file available for the CNN "
                 "(~2% attrition applied identically to train/test); HGB-alone AUC here is computed on "
                 "this same restricted subset, so it differs slightly from the full-dataset production "

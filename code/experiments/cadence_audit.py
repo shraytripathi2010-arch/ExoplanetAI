@@ -44,10 +44,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
+sys.path.insert(0, SCRIPT_DIR)
+from lightcurve_resolver import CurveResolver
 
 TRAINING_CSV = os.path.join(ROOT, "data", "training_dataset", "training.csv")
-PROC_DIRS = [os.path.join(ROOT, "data", "processed"),
-             os.path.join(ROOT, "data", "processed_negative")]
 OUT_CSV = os.path.join(SCRIPT_DIR, "cadence_per_star.csv")
 RESULTS = os.path.join(SCRIPT_DIR, "cadence_audit_results.json")
 
@@ -63,16 +63,16 @@ def _load_m05():
     return m
 
 
-def _find(host):
-    for d in PROC_DIRS:
-        p = os.path.join(d, str(host) + ".csv")
-        if os.path.exists(p):
-            return p
-    return None
+def resolve_curves(hosts):
+    """Processed curve per host, training scope (lightcurve_resolver.py).
+    Resolved here in the parent, so the count is reported once and each
+    worker gets the path it was counted under."""
+    resolver = CurveResolver("training")
+    return resolver.resolve(hosts), resolver
 
 
-def measure(host):
-    p = _find(host)
+def measure(args):
+    host, p = args
     if p is None:
         return {"host": host, "cadence_min": np.nan, "n_points": 0,
                 "baseline_days": np.nan}
@@ -115,8 +115,11 @@ def main():
     hosts = df["host"].astype(str).tolist()
     print(f"measuring cadence for {len(hosts)} training stars...")
 
+    paths, resolver = resolve_curves(hosts)
+    print(resolver.summary())
+    res["curve_resolution"] = resolver.provenance()
     with ProcessPoolExecutor(max_workers=8) as ex:
-        rows = list(ex.map(measure, hosts, chunksize=50))
+        rows = list(ex.map(measure, zip(hosts, paths), chunksize=50))
     cad = pd.DataFrame(rows)
     cad.to_csv(OUT_CSV, index=False)
 

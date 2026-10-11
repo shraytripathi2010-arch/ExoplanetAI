@@ -61,10 +61,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CODE_DIR = os.path.join(SCRIPT_DIR, "..")
 ROOT = os.path.join(CODE_DIR, "..")
 sys.path.insert(0, CODE_DIR)
+sys.path.insert(0, SCRIPT_DIR)
+from lightcurve_resolver import CurveResolver
 
 TRAINING = os.path.join(ROOT, "data", "training_dataset", "training.csv")
-PROC_DIRS = [os.path.join(ROOT, "data", "processed"),
-             os.path.join(ROOT, "data", "processed_negative")]
 OUT_CSV = os.path.join(SCRIPT_DIR, "weak_secondary_features.csv")
 
 N_WORKERS = 8
@@ -72,23 +72,22 @@ MIN_IN_WINDOW = 5
 MIN_BASELINE = 50
 
 
-def _find(host):
-    for d in PROC_DIRS:
-        p = os.path.join(d, str(host) + ".csv")
-        if os.path.exists(p):
-            return p
-    return None
+def resolve_curves(hosts):
+    """Processed curve per host, training scope (lightcurve_resolver.py).
+    Resolved here in the parent, so the count is reported once and each
+    worker gets the path it was counted under."""
+    resolver = CurveResolver("training")
+    return resolver.resolve(hosts), resolver
 
 
 def measure(args):
     """Weak-secondary statistics for one star. Returns NaNs rather than raising
     -- a star with too little data is a legitimate non-detection, not an error,
     and conflating the two would bias the class-rate comparison."""
-    host, period, t0, duration = args
+    host, path, period, t0, duration = args
     out = {"host": host, "sec_depth_windowed": np.nan,
            "sec_significance": np.nan, "sec_sigma_eff": np.nan,
            "sec_n_in_window": 0, "sec_status": "ok"}
-    path = _find(host)
     if path is None:
         out["sec_status"] = "no light curve"
         return out
@@ -144,7 +143,9 @@ def measure(args):
 
 def main():
     df = pd.read_csv(TRAINING)
-    jobs = list(zip(df["host"].astype(str),
+    paths, resolver = resolve_curves(df["host"].astype(str))
+    print(resolver.summary())
+    jobs = list(zip(df["host"].astype(str), paths,
                     pd.to_numeric(df["period"], errors="coerce"),
                     pd.to_numeric(df["T0"], errors="coerce"),
                     pd.to_numeric(df["duration"], errors="coerce")))
