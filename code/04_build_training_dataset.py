@@ -67,6 +67,8 @@ OUTPUT_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "training_dataset")
 RESULTS_PATH = os.path.join(CATALOG_FOLDER, "transit_search_results.csv")
 QC_PATH = os.path.join(CATALOG_FOLDER, "preprocess_qc_summary.csv")
 CATALOG_PATH = os.path.join(CATALOG_FOLDER, "confirmed_planets.csv")
+FP_CATALOG_PATH = os.path.join(CATALOG_FOLDER, "toi_false_positives.csv")
+FA_CATALOG_PATH = os.path.join(CATALOG_FOLDER, "toi_false_alarms.csv")
 OUTPUT_PATH = os.path.join(OUTPUT_FOLDER, "training.csv")
 
 # TLS feature columns carried into the final table. Deliberately excludes
@@ -276,16 +278,40 @@ def main():
         negative = load_tls_results(args.negative_results, label=0)
         print(f"Loaded {len(negative)} negative-class (false positive) stars from {args.negative_results}")
 
+        # The negative class is TOI false positives ONLY, matching
+        # 03_transit_search_negative.py. FA was never adopted (register D3);
+        # adopting it means changing both scripts. A row whose star is on
+        # neither list has no established class and aborts the build.
+        fp_tics = set(pd.read_csv(FP_CATALOG_PATH)["tid"].dropna().astype("int64"))
+        fa_tics = (set(pd.read_csv(FA_CATALOG_PATH)["tid"].dropna().astype("int64"))
+                   if os.path.exists(FA_CATALOG_PATH) else set())
+        neg_tic = negative["host"].map(resolve)
+        on_fp = neg_tic.isin(fp_tics)
+        fa_only = ~on_fp & neg_tic.isin(fa_tics)
+        foreign = negative.loc[~on_fp & ~fa_only, "host"]
+        if len(foreign):
+            sys.exit(f"ABORTED -- {OUTPUT_PATH} was NOT written: {len(foreign)} negative row(s) are on "
+                     f"neither {os.path.basename(FP_CATALOG_PATH)} nor "
+                     f"{os.path.basename(FA_CATALOG_PATH)}, so their class cannot be established: "
+                     f"{sorted(foreign)[:20]}")
+        if fa_only.any():
+            print(f"EXCLUDED: {int(fa_only.sum())} negative row(s) are FA-only stars (TOI false "
+                  f"alarms are not adopted as negatives; register D3)")
+            negative = negative[on_fp]
+
         # Same star in both classes, compared by TIC id: a name comparison
-        # cannot see that TIC_150151262 is TOI-712.
-        pos_keys = set(positive["host"].map(lambda h: identity_key(h, resolve)))
+        # cannot see that TIC_158555987 is Kepler-1517.
+        pos_host_by_key = dict(zip(positive["host"].map(lambda h: identity_key(h, resolve)),
+                                   positive["host"]))
         neg_keys = negative["host"].map(lambda h: identity_key(h, resolve))
-        overlap = neg_keys.isin(pos_keys)
+        overlap = neg_keys.isin(set(pos_host_by_key))
         if overlap.any():
             print(f"WARNING: {int(overlap.sum())} stars appear in BOTH positive and negative sets -- "
                   f"keeping the positive-class label for these (a confirmed planet host takes "
-                  f"precedence over a false-positive TOI disposition for the same star): "
-                  f"{sorted(negative.loc[overlap, 'host'])}")
+                  f"precedence over a false-positive TOI disposition for the same star). "
+                  f"Dropped negative rows:")
+            for h, k in sorted(zip(negative.loc[overlap, "host"], neg_keys[overlap])):
+                print(f"  {h}  (same star as positive row {pos_host_by_key[k]})")
             negative = negative[~overlap]
 
         frames.append(negative)

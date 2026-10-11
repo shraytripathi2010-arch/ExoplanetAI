@@ -123,11 +123,17 @@ LOG_PATH = os.path.join(CATALOG_FOLDER, "transit_search_log_negative.csv")
 #      (confirmed_hosts.py; register section D3.)
 #
 # processed_negative/ itself is NOT clean: it holds 98 FA-only curves and 3
-# FP-listed confirmed hosts (101 files) from before these checks existed, so
-# this script refuses on it until they are moved out.
+# FP-listed confirmed hosts (101 files) from before these checks existed. They
+# stay on disk and are listed, one row each with its reason, in
+# code/experiments/negative_exclusions.csv, which build_negative_exclusions.py
+# generates from these same checks. Files listed there are skipped and counted.
+# That manifest is the ONLY way a refused file is passed over: any refused file
+# not in it still refuses the whole run.
 # =====================================
 SOURCE_LIST_PATHS = [os.path.join(CATALOG_FOLDER, "toi_false_positives.csv")]
 SOURCE_LIST_DESC = "TOI false positives (toi_false_positives.csv tid)"
+EXCLUSIONS_PATH = os.path.join(SCRIPT_DIR, "experiments", "negative_exclusions.csv")
+EXCLUSION_REASONS = ("fa_only", "confirmed_host")
 
 
 def source_list_keys(canonical_key):
@@ -141,8 +147,9 @@ def source_list_keys(canonical_key):
     return keys
 
 
-def refuse_unclassifiable(all_files, list_only):
-    """Returns only when every file is classifiable and list_only is False."""
+def classify_refusals(all_files):
+    """(unlisted, hosts): the files the class guard refuses, by reason --
+    not on the FP list, or FP-listed but the star hosts a confirmed planet."""
     canonical_key = importlib.import_module("04_build_training_dataset").canonical_key
     known = source_list_keys(canonical_key)
     confirmed, prov = confirmed_hosts.confirmed_host_tics()
@@ -151,6 +158,33 @@ def refuse_unclassifiable(all_files, list_only):
     unlisted = [f for f in all_files if canonical_key(os.path.splitext(f)[0]) not in known]
     hosts = [f for f in all_files if f not in set(unlisted)
              and resolve(os.path.splitext(f)[0]) in confirmed]
+    return unlisted, hosts
+
+
+def apply_exclusions(all_files):
+    """Drops the files listed in EXCLUSIONS_PATH and prints how many, by reason."""
+    if not os.path.exists(EXCLUSIONS_PATH):
+        print(f"no exclusion manifest at {EXCLUSIONS_PATH} -- nothing skipped")
+        return all_files
+    ex = pd.read_csv(EXCLUSIONS_PATH, dtype=str)
+    missing = {"filename", "tic", "reason", "source"} - set(ex.columns)
+    bad = sorted(set(ex["reason"]) - set(EXCLUSION_REASONS)) if "reason" in ex else []
+    if missing or bad or ex["filename"].duplicated().any():
+        sys.exit(f"ERROR: {EXCLUSIONS_PATH} is malformed (missing columns {sorted(missing)}, "
+                 f"unknown reasons {bad}, or a filename listed twice) -- nothing searched or written.")
+    reason = dict(zip(ex["filename"], ex["reason"]))
+    skipped = [f for f in all_files if f in reason]
+    counts = {r: sum(reason[f] == r for f in skipped) for r in EXCLUSION_REASONS}
+    absent = len(set(reason) - set(all_files))
+    print(f"exclusion manifest: skipped {len(skipped)} of {len(all_files)} files "
+          f"({', '.join(f'{n} {r}' for r, n in counts.items())}); "
+          f"{absent} listed file(s) not in this folder")
+    return [f for f in all_files if f not in reason]
+
+
+def refuse_unclassifiable(all_files, list_only):
+    """Returns only when every file is classifiable and list_only is False."""
+    unlisted, hosts = classify_refusals(all_files)
     groups = [(unlisted, f"are not {SOURCE_LIST_DESC}, so their class cannot be established"),
               (hosts, "are TOI false positives whose star hosts a confirmed planet")]
     if list_only:
@@ -167,8 +201,10 @@ def refuse_unclassifiable(all_files, list_only):
                       f"First {min(5, len(refused))}:", file=sys.stderr)
                 for f in refused[:5]:
                     print(f"  {os.path.join(INPUT_FOLDER, f)}", file=sys.stderr)
-        print("Nothing was searched or written. Move these files out of this folder "
-              "(--list-refused prints all of them). This script will not guess a class.",
+        print("Nothing was searched or written. These files are not in the exclusion manifest "
+              f"({EXCLUSIONS_PATH}); move them out of this folder, or regenerate the manifest "
+              "with experiments/build_negative_exclusions.py if they are FA-only or confirmed "
+              "hosts. --list-refused prints all of them. This script will not guess a class.",
               file=sys.stderr)
         sys.exit(2)
 
@@ -282,6 +318,7 @@ def main():
 
     all_files = sorted(f for f in os.listdir(INPUT_FOLDER) if f.endswith(".csv"))
     print(f"{len(all_files)} cleaned light curves found in {INPUT_FOLDER}")
+    all_files = apply_exclusions(all_files)
     refuse_unclassifiable(all_files, args.list_refused)
 
     already_done = set()
@@ -299,6 +336,10 @@ def main():
     if PROCESS_LIMIT is not None:
         work_list = work_list[:PROCESS_LIMIT]
         print(f"PROCESS_LIMIT is set -- only running on {len(work_list)} stars (timing test).")
+
+    if not work_list:
+        print("\nNothing to search: every eligible star already has a successful TLS result.")
+        return
 
     print(f"\n{len(work_list)} stars to search with {MAX_WORKERS} worker processes "
           f"(TLS use_threads={TLS_THREADS_PER_WORKER} per worker), in batches of {BATCH_SIZE}...\n")
