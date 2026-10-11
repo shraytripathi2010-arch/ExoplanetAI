@@ -290,6 +290,57 @@ dropped.** In `web/retrain_pipeline.py`:
 
 A pending row is never removed, so the next tick picks up whatever is left.
 
+## D3. A TOI DISPOSITION IS PER CANDIDATE; A LABEL IS PER STAR -- added 2026-10-11
+
+**`tfopwg_disp` belongs to one candidate signal. This project's label belongs
+to a whole star.** A star can carry an FP or FA candidate and still host
+confirmed planets. **Six such stars sit in `data/processed_negative/`**, found
+by TIC id against the confirmed-host set:
+
+| file | listed as | candidate | confirmed host (training row) |
+|---|---|---|---|
+| TIC_29781292 | FA | TOI-282.02 | HD_28109, label 1 |
+| TIC_150151262 | FA | TOI-712.03 | TOI-712, label 1 |
+| TIC_404518509 | FA | TOI-4320.02 | HD_21520, label 1 |
+| TIC_158555987 | FP | TOI-4594.01 | Kepler-1517, label 1 |
+| TIC_207468071 | FP | TOI-1836.02 | TOI-1836, label 1 |
+| TIC_441738827 | FP | TOI-2084.02 | TOI-2084, label 1 |
+
+**History.** The 2026-07-16 training set held the three FP stars under BOTH
+labels, e.g. `TOI-1836` (1) and `TIC_207468071` (0). The name-based overlap
+check in 04 could not see that they were the same star. The 2026-08-02 TIC
+dedup (`dedupe_training_by_tic.py`, `41ead27f`) removed the three label-0
+copies; `dedupe_report.json` lists them as its three conflicting-label TICs.
+**Training is clean today: 0 label-0 rows are confirmed hosts, and 0 TIC ids
+carry both labels.**
+
+**`cnn_dataset.npz` (committed 2026-07-16) carries the old contamination.** It
+used five of the six as injection backgrounds for 18 of its 4,000 synthetic
+examples, and holds three stars as real examples under both labels: the three
+FP stars above, beside their hostname rows. **CNN experiment only, not
+production, and NOT regenerated.**
+
+**Stale queue status.** `label_watch_queue` shows TIC_150151262 as label 1,
+`processed` (2026-07-31). The retrain pipeline did append it, twice, before
+membership was checked by TIC id. The 2026-08-02 dedup removed both rows and
+kept `TOI-712`. The status was never updated. The queue was NOT edited.
+
+**Guards added 2026-10-11.** Identity and the confirmed-host set now live in
+`code/experiments/confirmed_hosts.py`, using the dedup's own priority order.
+The set is the union of `archive_all_confirmed_tic.csv`,
+`positive_class_tic_ids.csv` and the queue's `pscomppars_confirmed` rows:
+4,635 TICs today, or 4,550 without the database. It is used by:
+- **`03_transit_search_negative.py`:** the source list is FP only, because FA
+  was never adopted. A confirmed host refuses the whole run. On today's folder
+  it refuses on 101 files (98 FA-only, 3 FP-listed confirmed hosts) until they
+  are moved out.
+- **`04_build_training_dataset.py`:** the cross-class overlap and label-flip
+  checks compare by TIC id. A label-0 confirmed host aborts the build.
+- **`injection.py`:** the background pool excludes confirmed hosts, 1,247 of
+  1,253 files.
+
+No curve was moved and nothing was rebuilt.
+
 ## E. PER-RUN FILES ARE NOT THE POOL -- added 2026-09-27
 
 **`results/unknown_candidates/ranked_candidates.csv` and
@@ -12897,11 +12948,25 @@ an opportunity.**
       of those 91: 88 SKIPPED "Non-standard schema (missing ...)" at preprocessing
                     3 passed preprocessing AND transit search
       -> REALISTIC YIELD: 3 rows (TIC 158555987, 207468071, 441738827)
+         [STRUCK 2026-10-11 -- WRONG. All three are CONFIRMED PLANET HOSTS,
+          already in training as label 1: TIC 158555987 = Kepler-1517,
+          TIC 207468071 = TOI-1836, TIC 441738827 = TOI-2084. Each FP is one
+          candidate (TOI-4594.01, TOI-1836.02, TOI-2084.02), not the star. Adding
+          them as label 0 would have put each star in training under BOTH labels.
+          They are "absent" because the 2026-08-02 TIC dedup removed exactly these
+          label-0 copies. Real yield: 0. Register section D3.]
 
     toi_false_alarms.csv        99 unique TICs       0 in training (0.0%)
       FA is a DOCUMENTED OPTIONAL expansion (04_build_training_dataset.py:235-240),
       a deliberate un-taken choice, NOT an oversight. Never downloaded, so yield
       is unknown and would face the same schema wall.
+         [STRUCK 2026-10-11 -- "never downloaded" is WRONG. All 99 FA stars were
+          downloaded on 2026-07-11 (data/known_lightcurves_negative/); 98 were
+          preprocessed into data/processed_negative/ and transit-searched into
+          transit_search_results_negative.csv (TIC_452972453 hit the schema
+          wall). None was adopted: 0 are label-0 rows in training. The download
+          step is in no commit (it ran before the first, 2026-07-16). 3 of the
+          99 are confirmed planet hosts. Register section D3.]
 
 The 88 blocked rows hit **the same QLP-vs-SPOC schema wall** that limited the
 `var_*` backfill to 3 of 17 rows: `02_preprocess.validate_schema` requires
