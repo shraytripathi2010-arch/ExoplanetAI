@@ -237,6 +237,59 @@ the host->sector map. **Do not rebuild this.** On its first use it flagged two
 features as TEMPORAL that the `|b|` arm alone passed, and independently
 replicated AUC(sector alone) = 0.5908 vs 0.5803.
 
+## D2. STANDING SELECTION EFFECT ON THE NEGATIVE CLASS -- added 2026-10-11
+
+**Preprocessing skips light curves without `pdcsap_flux`.**
+`02_preprocess.validate_schema` (`REQUIRED_COLUMNS`, line 68) rejects any file
+that lacks `pdcsap_flux` / `pdcsap_flux_err`. Measured on the retrain label queue
+(`label_watch_queue`) on 2026-10-11, this has failed:
+- **98 of 156 label-0 stars (63%)**
+- **158 of 492 label-1 stars (32%)**
+
+The denominators exclude the 3,998 rows marked `skipped_duplicate`.
+
+**False positives are more often faint stars without 2-minute SPOC data.** So the
+label-0 rows that reach training are a brighter subset of the true negative
+population. The file types support the "no 2-minute data" half: **87 of the 98**
+label-0 failures are QLP full-frame-image products (`kspsap_flux`). The
+"brighter" half is inferred, not yet measured in magnitudes. The same mechanism
+is visible in the original bulk set: the QLP files in
+`data/known_lightcurves_negative` (section "var_* gap backfill").
+
+**Any feature correlated with brightness or data quality is partly learning data
+availability rather than planet-hood.** This is a property of the training set,
+not of a single batch.
+
+**Related: 256 of the 373 failed labels fail for this same missing-column
+reason.** On the SAP-flux pilot, two facts need to be kept together:
+1. **The pilot as scoped does not cover these files.** It covers the 52 pool
+   stars whose PDCSAP is present but broken (entry "SAP flux fallback --
+   MEASURED"). These 256 have no PDCSAP column at all.
+2. **Extending a SAP fallback to them would be strongly class-asymmetric.**
+   - All 98 label-0 failures carry `sap_flux`: 87 QLP and 11 with SAP only.
+   - Only 27 of the 158 label-1 failures do. The other 131 carry only
+     `flux` / `flux_err`.
+   - So a fallback would recover nearly all label-0 losses but few label-1
+     losses. Almost every SAP-derived training row would be a false positive,
+     and photometry pipeline would become a label proxy. That is the domain
+     shift the pilot entry warns about, aimed at the label.
+
+   Any such extension needs a provenance column and a check that the model
+   cannot separate classes on it.
+
+**Not yet quantified as a bias on any deployed feature. No model change is
+implied by this entry.**
+
+**Queue ordering: label 0 is delayed behind label 1 in a mixed batch, never
+dropped.** In `web/retrain_pipeline.py`:
+- `find_new_labeled_examples` queues confirmed stars (line 153) before false
+  positives (line 160).
+- `db.get_pending_watch_labels` (`web/db.py:972`) has no `ORDER BY`, so pending
+  rows come back in insertion order.
+- Each tick processes at most `PER_TICK_MAX_NEW = 25` of them (lines 273, 595).
+
+A pending row is never removed, so the next tick picks up whatever is left.
+
 ## E. PER-RUN FILES ARE NOT THE POOL -- added 2026-09-27
 
 **`results/unknown_candidates/ranked_candidates.csv` and
