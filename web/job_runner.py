@@ -978,14 +978,30 @@ def _load_06():
     return importlib.import_module("06_download_unknown")
 
 
+def plot_inputs_missing(char):
+    """The stored fields a folded plot needs and this candidate lacks.
+
+    A non-empty answer means the plot CANNOT be made, whatever is on disk. The
+    page says so rather than blaming a missing light curve: 191 candidates had
+    period/T0 stranded in _dup columns while their curves were present."""
+    missing = []
+    for k in ("period", "T0"):
+        v = (char or {}).get(k)
+        if v is None or (isinstance(v, float) and v != v):
+            missing.append(k)
+    return missing
+
+
 def generate_plot_for_candidate(candidate, out_path):
-    m06 = _load_06()
     char = candidate["characterization"]
     host = candidate["host"]
+    missing = plot_inputs_missing(char)
+    if missing:
+        return False, (f"no {'/'.join(missing)} in the stored characterization -- the plot "
+                       f"needs the transit ephemeris; the light curve is not the problem")
+    m06 = _load_06()
     period = char.get("period")
     t0 = char.get("T0")
-    if period is None or t0 is None:
-        return False, "missing period/T0 in stored characterization"
 
     csv_path = os.path.join(PROJECT_ROOT, "data", "processed_unknown", f"{host}.csv")
     if not os.path.exists(csv_path):

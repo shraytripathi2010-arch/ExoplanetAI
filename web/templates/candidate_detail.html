@@ -31,7 +31,7 @@
 
   <div class="stat-row">
     <div class="stat"><span class="stat-label">Classifier probability</span>
-      <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if c.uncertainty_std is not none %} <span class="uncertainty-band">&plusmn; {{ '%.3f'|format(c.uncertainty_std) }}</span>{% endif %}</span>
+      <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if prob_provenance.label %} <span class="muted">({{ prob_provenance.label }})</span>{% endif %}{% if c.uncertainty_std is not none %} <span class="uncertainty-band">&plusmn; {{ '%.3f'|format(c.uncertainty_std) }}</span>{% endif %}</span>
       {% if c.uncertainty_std is not none %}
         <span class="muted param-uncertainty">68% of {{ c.uncertainty_n_members }} bootstrap models fall in
           {{ '%.3f'|format(c.uncertainty_p16) }}&ndash;{{ '%.3f'|format(c.uncertainty_p84) }}</span>
@@ -474,9 +474,11 @@
   <h2>Folded light curve</h2>
   {% if has_plot %}
     <img class="lightcurve-plot" src="{{ url_for('candidate_plot', tic_id=c.tic_id) }}" alt="Folded light curve for {{ c.host }}">
+  {% elif plot_missing %}
+    <p class="muted">Plot unavailable: the stored characterization has no {{ plot_missing|join('/') }} for this candidate, and the plot needs the transit ephemeris. This is not a missing light curve.</p>
   {% else %}
     <img class="lightcurve-plot" src="{{ url_for('candidate_plot', tic_id=c.tic_id) }}" alt="Folded light curve for {{ c.host }}"
-         onerror="this.outerHTML='<p class=\'muted\'>Plot unavailable (processed light curve not found on disk).</p>'">
+         onerror="this.outerHTML='<p class=\'muted\'>Plot unavailable: it could not be generated (open the plot link for the reason).</p>'">
   {% endif %}
   <p class="figure-caption">The real TESS photometry for {{ c.host }}, phase-folded on the detected period and binned for clarity.</p>
 </section>

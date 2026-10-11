@@ -1652,7 +1652,14 @@ def score_candidates(features_df, candidates_df, feature_columns):
     print("STAGE G: scoring with the saved model")
     print("=" * 60)
 
-    model = joblib.load(os.path.join(MODELS_FOLDER, "best_model.joblib"))
+    # The md5 is taken from the very bytes that are unpickled, so the provenance
+    # stamped below cannot name a model file that was swapped in between.
+    import hashlib
+    import io
+    with open(os.path.join(MODELS_FOLDER, "best_model.joblib"), "rb") as f:
+        model_bytes = f.read()
+    model_md5 = hashlib.md5(model_bytes).hexdigest()
+    model = joblib.load(io.BytesIO(model_bytes))
 
     # BUG FIXED: st_mass was fetched from the TIC catalog (fetch_stellar_params)
     # and even used to run the actual TLS fit above (see _tls_worker/work_list),
@@ -1720,6 +1727,10 @@ def score_candidates(features_df, candidates_df, feature_columns):
     X = success[feature_columns]
     proba = model.predict_proba(X)[:, 1]
     success["predicted_probability"] = proba
+    # Provenance for every probability: 08 carries it into characterized_candidates.csv,
+    # and the app labels any probability not scored by the current production model.
+    success["scored_model_md5"] = model_md5
+    success["scored_at"] = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
     ranked = success.sort_values("predicted_probability", ascending=False).reset_index(drop=True)
 
     ranked.to_csv(RANKED_OUTPUT_PATH, index=False)

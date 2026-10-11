@@ -109,6 +109,48 @@ def _csrf_cookie(resp):
                         httponly=False, secure=False)
     return resp
 
+# =====================================================================
+# PROBABILITY PROVENANCE
+# =====================================================================
+# A stored probability is only the current model's if 06 stamped it with the
+# md5 of the model file now in production. Anything else (an older model, or
+# "unknown" for scores written before provenance was recorded) is shown as
+# "unscored by current model" -- never silently presented as current.
+_PRODUCTION_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                                      "models", "best_model.joblib")
+_model_md5_cache = {}
+
+
+def _production_model_md5():
+    """md5 of models/best_model.joblib, recomputed only when the file changes
+    (a promotion swaps it while the app keeps running)."""
+    import hashlib
+    try:
+        st = os.stat(_PRODUCTION_MODEL_PATH)
+    except OSError:
+        return None
+    key = (st.st_mtime_ns, st.st_size)
+    if key not in _model_md5_cache:
+        with open(_PRODUCTION_MODEL_PATH, "rb") as f:
+            _model_md5_cache.clear()
+            _model_md5_cache[key] = hashlib.md5(f.read()).hexdigest()
+    return _model_md5_cache[key]
+
+
+def _probability_provenance(c):
+    """{"current": bool, "scored_by": md5 or "unknown", "label": str or None} for a candidate row."""
+    import json
+    ch = c.get("characterization")
+    if ch is None and c.get("characterization_json"):
+        ch = json.loads(c["characterization_json"])
+    scored_by = (ch or {}).get("scored_model_md5") or "unknown"
+    current = c.get("predicted_probability") is not None and scored_by == _production_model_md5()
+    label = None
+    if c.get("predicted_probability") is not None and not current:
+        label = "unscored by current model"
+    return {"current": current, "scored_by": scored_by, "label": label}
+
+
 DISCLAIMER = ("This is an unconfirmed candidate ranked by an automated pipeline for human "
               "review. It is NOT a confirmed or discovered exoplanet.")
 
@@ -233,6 +275,8 @@ def candidate_list():
 
     candidates = db.list_candidates(sort_by=sort_by, ascending=ascending,
                                      tier_filter=tier_filter, combined_only=combined_only)
+    for c in candidates:
+        c["prob_provenance"] = _probability_provenance(c)
     counts = db.summary_counts()
     recent_runs = db.list_runs(limit=1)
     last_run = recent_runs[0] if recent_runs else None
@@ -257,6 +301,7 @@ def candidate_detail(tic_id):
     plot_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "plots",
                               f"{candidate['host']}_folded.png")
     has_plot = os.path.exists(plot_path)
+    plot_missing = job_runner.plot_inputs_missing(char)
     multi_sector = db.get_multi_sector_evidence(tic_id)
     centroid = db.get_centroid_evidence(tic_id)
     reverify = db.get_reverify_status(tic_id)
@@ -284,12 +329,23 @@ def candidate_detail(tic_id):
     return render_template("candidate_detail.html", c=candidate, char=char, history=history,
                             events=events, exofop_view_url=exofop_view_url,
                             exofop_account_url=exofop_account_url, has_plot=has_plot,
+                            plot_missing=plot_missing,
+                            prob_provenance=_probability_provenance(candidate),
                             multi_sector=multi_sector, centroid=centroid, reverify=reverify,
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
                             transit_anim=transit_anim, evidence_items=evidence_items,
                             conformal_view=conformal_view,
                             model_evidence=model_evidence,
                             tfop=tfop)
+
+
+def _probability_caveat(candidate):
+    """Suffix for the CTOI line: says when the probability is not the current model's."""
+    p = _probability_provenance(candidate)
+    if p["label"] is None:
+        return ""
+    by = "an unrecorded model" if p["scored_by"] == "unknown" else f"model {p['scored_by'][:8]}"
+    return f" ({p['label']}; scored by {by})"
 
 
 def _fmt(value, spec, fallback="?"):
@@ -319,7 +375,8 @@ def _build_ctoi_summary(candidate, char, multi_sector, centroid, exofop_refresh)
         f"Transit duration: {_fmt(char.get('transit_duration_hours'), '.3f')} hours",
         f"Derived planet radius: {_fmt(char.get('planet_radius_earth'), '.2f')} R_earth",
         f"Host spectral type (rough): {char.get('stellar_spectral_type_rough') or '?'}",
-        f"Classifier probability: {_fmt(candidate.get('predicted_probability'), '.3f')}",
+        f"Classifier probability: {_fmt(candidate.get('predicted_probability'), '.3f')}"
+        + _probability_caveat(candidate),
         f"Confidence tier: {candidate.get('confidence_tier') or '?'} "
         f"(NOT a confirmation -- automated screening only)",
         f"Plausibility verdict: {char.get('plausibility_verdict')}",
@@ -509,6 +566,7 @@ def _candidate_summary_json(c):
     return {
         "tic_id": c["tic_id"], "host": c["host"],
         "predicted_probability": c.get("predicted_probability"),
+        "probability_provenance": _probability_provenance(c),
         "confidence_tier": c.get("confidence_tier"),
         "combined_filter_pass": bool(c.get("combined_filter_pass")),
         "combined_filter_tier": c.get("combined_filter_tier"),

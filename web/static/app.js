@@ -305,6 +305,13 @@ function fmt(n, digits) {
   return n === null || n === undefined ? "--" : Number(n).toFixed(digits);
 }
 
+// A probability not stamped with the current production model's md5 is labelled,
+// never shown as if it were current (see _probability_provenance in app.py).
+function probabilityCaveat(d) {
+  const p = d.probability_provenance;
+  return p && p.label ? ` (${p.label})` : "";
+}
+
 function renderCandidateDetail(d) {
   const filterLabel = d.combined_filter_pass
     ? `PASS (${d.combined_filter_tier})`
@@ -315,7 +322,7 @@ function renderCandidateDetail(d) {
     <div class="inline-detail">
       <div class="inline-detail-row">
         <span class="badge tier-badge-${(d.confidence_tier || "").toLowerCase()}">${d.confidence_tier || "?"} confidence</span>
-        <span class="muted">P(planet) = ${fmt(d.predicted_probability, 3)}</span>
+        <span class="muted">P(planet) = ${fmt(d.predicted_probability, 3)}${probabilityCaveat(d)}</span>
         <span class="muted">Combined filter: ${filterLabel}</span>
         <a href="${d.detail_url}">Full page &rarr;</a>
       </div>
@@ -395,7 +402,7 @@ document.querySelectorAll(".run-batch").forEach((batch) => {
                 <span class="arrow-glyph">&#9656;</span>
                 <span class="mono">${d.host}</span>
                 <span class="badge tier-badge-${(d.confidence_tier || "").toLowerCase()}">${d.confidence_tier || "?"}</span>
-                <span class="muted">P=${fmt(d.predicted_probability, 3)}</span>
+                <span class="muted">P=${fmt(d.predicted_probability, 3)}${probabilityCaveat(d)}</span>
               </button>
               <div class="batch-candidate-body" hidden></div>
             </div>`

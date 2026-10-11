@@ -10,7 +10,9 @@ Deliberately does NOT recompute anything -- it only reads columns 08 already
 wrote to disk (characterized_candidates.csv, final_best_candidates.csv,
 needs_manual_blend_review.csv) and stores them as-is.
 """
+import csv
 import os
+import re
 import sys
 
 import pandas as pd
@@ -23,6 +25,26 @@ RESULTS_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
 CHARACTERIZED_PATH = os.path.join(RESULTS_FOLDER, "characterized_candidates.csv")
 BEST_CANDIDATES_PATH = os.path.join(RESULTS_FOLDER, "final_best_candidates.csv")
 NEEDS_REVIEW_PATH = os.path.join(RESULTS_FOLDER, "needs_manual_blend_review.csv")
+
+DUP_COLUMN = re.compile(r"_dup(\.\d+)?$")
+
+
+def _read_canonical(path):
+    """read_csv, but refuses a file with _dup or repeated column names.
+
+    Such a file has the stacked layers 08 used to write: the canonical
+    predicted_probability held each star's first-ever value (empty for 191 of
+    296) while newer values sat in _dup columns that pandas renames silently.
+    Syncing it would publish those empty or stale values, so it fails loudly.
+    Collapse the file with code/migrate_characterized_dup_columns.py first."""
+    with open(path, newline="") as f:
+        header = next(csv.reader(f), [])
+    bad = sorted({c for c in header if DUP_COLUMN.search(c) or header.count(c) > 1})
+    if bad:
+        raise RuntimeError(f"{path} has {len(bad)} _dup/repeated column name(s), e.g. {bad[:3]} -- "
+                           f"refusing to sync it. Collapse it with "
+                           f"code/migrate_characterized_dup_columns.py.")
+    return pd.read_csv(path)
 
 
 def _status_for_row(row):
@@ -59,16 +81,16 @@ def sync_from_csvs(run_id=None):
     if not os.path.exists(CHARACTERIZED_PATH):
         return {"synced": 0, "new": 0, "status_changed": 0, "error": "characterized_candidates.csv not found"}
 
-    full = pd.read_csv(CHARACTERIZED_PATH)
+    full = _read_canonical(CHARACTERIZED_PATH)
     best_tics = set()
     best_tier = {}
     if os.path.exists(BEST_CANDIDATES_PATH):
-        best = pd.read_csv(BEST_CANDIDATES_PATH)
+        best = _read_canonical(BEST_CANDIDATES_PATH)
         best_tics = set(best["host"])
         best_tier = dict(zip(best["host"], best["combined_tier"]))
     review_tics = set()
     if os.path.exists(NEEDS_REVIEW_PATH):
-        review = pd.read_csv(NEEDS_REVIEW_PATH)
+        review = _read_canonical(NEEDS_REVIEW_PATH)
         review_tics = set(review["host"])
 
     n_new, n_status_changed = 0, 0

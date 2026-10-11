@@ -142,7 +142,10 @@ only one would hide that stringency choice from the user.
 Usage:
     python3 08_characterize_candidates.py
 """
+import csv
 import os
+import re
+import sys
 import time
 import warnings
 from datetime import datetime, timezone
@@ -160,6 +163,98 @@ STELLAR_VERIFICATION_PATH = os.path.join(RESULTS_FOLDER, "trustworthy_candidates
 OUTPUT_PATH = os.path.join(RESULTS_FOLDER, "characterized_candidates.csv")
 BEST_CANDIDATES_PATH = os.path.join(RESULTS_FOLDER, "final_best_candidates.csv")
 NEEDS_REVIEW_PATH = os.path.join(RESULTS_FOLDER, "needs_manual_blend_review.csv")
+
+# Fields 08 takes from this run's ranked file (06's scoring output) rather than
+# computing itself.
+#
+# BUG FIXED (2026-10-11): these used to be joined with
+# merge(..., suffixes=("", "_dup")) onto a frame reloaded from the previous
+# characterized_candidates.csv. That frame already carried every field, so each
+# run's fresh value landed in a NEW `_dup` column (pandas renames repeats to
+# _dup.1, _dup.2 ... on the next read), and the canonical column kept each star's
+# FIRST-ever value forever. 191 of 296 candidates had an empty canonical
+# probability, and no displayed probability came from the current model.
+# They are now written in place by
+# apply_scored_fields(). Each field keeps exactly one history column,
+# <field>_prev, holding the value it replaced.
+SCORED_FIELDS = ["predicted_probability", "SDE", "SNR", "FAP", "distinct_transit_count",
+                 "period", "duration", "T0", "st_rad", "st_teff", "st_mass"]
+# Where every written probability came from. scored_model_md5 is the md5 of the
+# model file 06 actually scored with; "unknown" means nobody recorded it, and
+# such a probability must never be presented as the current model's.
+PROVENANCE_COLS = ["scored_model_md5", "scored_at", "scored_source"]
+DUP_COLUMN = re.compile(r"_dup(\.\d+)?$")
+
+
+def refuse_dup_columns(path):
+    """Exits if `path` carries _dup columns (or a repeated column name).
+
+    Read from the raw header on purpose: pandas renames repeated names on read
+    (x, x.1, x.2), which is exactly how the stacked layers stayed invisible.
+    Collapse such a file with code/migrate_characterized_dup_columns.py first."""
+    with open(path, newline="") as f:
+        header = next(csv.reader(f), [])
+    dups = sorted({c for c in header if DUP_COLUMN.search(c)})
+    repeated = sorted({c for c in header if header.count(c) > 1})
+    if dups or repeated:
+        sys.exit(f"ERROR: {path} has {len(dups)} _dup column name(s) and {len(repeated)} repeated "
+                 f"name(s) (e.g. {(dups or repeated)[:3]}). Refusing to read it: pandas would rename "
+                 f"them silently. Collapse it with code/migrate_characterized_dup_columns.py.")
+
+
+def _differs(old, new):
+    """Element-wise "would writing `new` over `old` change the value"."""
+    out = []
+    for a, b in zip(old, new):
+        if pd.isna(a) or pd.isna(b):
+            out.append(pd.isna(a) != pd.isna(b))
+            continue
+        try:
+            out.append(abs(float(a) - float(b)) > 1e-12)
+        except (TypeError, ValueError):
+            out.append(str(a) != str(b))
+    return np.array(out, dtype=bool)
+
+
+def apply_scored_fields(full, scored, run_timestamp):
+    """Writes this run's SCORED_FIELDS into the canonical columns of `full`.
+
+    A star in `scored` (this run's ranked rows) gets its new value, and a star
+    not in this run keeps its own. When a value changes, the value it replaced
+    goes to <field>_prev; the history never grows past one column per field.
+    Provenance is written for every star whose probability is written."""
+    full = full.copy()
+    s = scored.drop_duplicates(subset="host", keep="last").set_index("host")
+    fields = [c for c in SCORED_FIELDS if c in s.columns]
+    for c in fields + [f"{c}_prev" for c in fields]:
+        if c not in full.columns:
+            full[c] = np.nan
+    for c in PROVENANCE_COLS + ["scored_model_md5_prev"]:
+        full[c] = full[c].astype(object) if c in full.columns else pd.Series(None, index=full.index, dtype=object)
+    run = full.index[full["host"].isin(s.index)]
+    hosts = full.loc[run, "host"]
+    prob_written = pd.Index([])
+    for c in fields:
+        new = hosts.map(s[c])
+        changed = run[_differs(full.loc[run, c].values, new.values)]
+        replaced = changed[full.loc[changed, c].notna().values]
+        full.loc[replaced, f"{c}_prev"] = full.loc[replaced, c]
+        if c == "predicted_probability":
+            full.loc[replaced, "scored_model_md5_prev"] = full.loc[replaced, "scored_model_md5"]
+            prob_written = changed
+        full.loc[run, c] = new.values
+    # Provenance follows the probability and is never assumed: a ranked file
+    # without 06's scored_model_md5 / scored_at yields "unknown".
+    ph = full.loc[prob_written, "host"]
+    for c in ("scored_model_md5", "scored_at"):
+        full.loc[prob_written, c] = (ph.map(s[c]).fillna("unknown").values if c in s.columns
+                                     else "unknown")
+    full.loc[prob_written, "scored_source"] = (f"08 run {run_timestamp} from "
+                                               f"{os.path.basename(IN_DIST_PATH)}")
+    # A probability nobody attributed is labelled, never left blank.
+    unattributed = full["predicted_probability"].notna() & full["scored_model_md5"].isna()
+    full.loc[unattributed, "scored_model_md5"] = "unknown"
+    return full
 
 R_SUN_IN_R_EARTH = 109.076
 R_JUP_IN_R_EARTH = 11.209
@@ -958,6 +1053,7 @@ def main():
 
     already_done = set()
     if os.path.exists(OUTPUT_PATH):
+        refuse_dup_columns(OUTPUT_PATH)
         old = pd.read_csv(OUTPUT_PATH)
         already_done = set(old["host"])
         print(f"{len(already_done)} already characterized -- resuming.")
@@ -1070,11 +1166,8 @@ def main():
     out_df = pd.DataFrame(results)
     out_df.to_csv(OUTPUT_PATH, index=False)
 
-    # ---- merge in classifier/TLS fields needed for the combined filter + confidence tier ----
-    merge_cols = ["host", "predicted_probability", "SDE", "SNR", "FAP", "distinct_transit_count",
-                  "period", "duration", "T0", "st_rad", "st_teff", "st_mass"]
-    merge_cols = [c for c in merge_cols if c in candidates.columns]
-    full = out_df.merge(candidates[merge_cols], on="host", how="left", suffixes=("", "_dup"))
+    # ---- write this run's classifier/TLS fields in place (combined filter + confidence tier) ----
+    full = apply_scored_fields(out_df, candidates, run_timestamp)
 
     tiers, supports, doubts = [], [], []
     for _, r in full.iterrows():

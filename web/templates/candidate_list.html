@@ -56,7 +56,7 @@
       <tr class="tier-row-{{ c.confidence_tier|lower }} candidate-row" data-tic="{{ c.tic_id }}">
         <td><button type="button" class="expand-arrow" aria-expanded="false" aria-label="Expand details">&#9656;</button></td>
         <td><a href="{{ url_for('candidate_detail', tic_id=c.tic_id) }}">{{ c.host }}</a></td>
-        <td class="num">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}</td>
+        <td class="num">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if c.prob_provenance.label %}<br><span class="muted">{{ c.prob_provenance.label }}</span>{% endif %}</td>
         <td><span class="badge tier-badge-{{ c.confidence_tier|lower }}">{{ c.confidence_tier or '--' }}</span></td>
         <td>
           {% if c.combined_filter_pass %}
