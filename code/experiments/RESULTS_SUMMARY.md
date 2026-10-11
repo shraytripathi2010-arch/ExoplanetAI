@@ -441,6 +441,78 @@ re-running the 13 fits on their widesector curves. A population-scoped curve
 resolver, so that a widesector run can only see `processed_unknown_widesector/`,
 removes the cause.
 
+## G. CANDIDATE SCORES WERE STALE AND MIXED-MODEL -- added 2026-10-11
+
+**The committed candidate CSVs up to `ce695533` carry stale, mixed-model
+scores.** 08 joined each run's scores with `merge(suffixes=("", "_dup"))` onto
+the previous `characterized_candidates.csv`, which already carried them. Each
+run's fresh value therefore went into a new `_dup` column (13 layers per field by
+`ce695533`), and the canonical column kept each star's first-ever value.
+- **Probability:** 191 of 296 candidates had an empty canonical
+  `predicted_probability` (shown as "--", with CTOI text "probability: ?").
+- **Other fields:** `SDE`, `FAP`, `distinct_transit_count`, `period`,
+  `duration`, `T0`, `st_rad`, `st_teff` (191 each) and `st_mass` (111) were
+  stranded the same way.
+- **Current model:** no displayed probability came from the current
+  production model.
+
+**Layer attribution across the 296** (newest layer per star, matched value for
+value to the committed `ranked_candidates_in_distribution.csv` of its era):
+
+| model | stars |
+|---|---|
+| `341f1a39` (24 features, retired 2026-08-05) | **172** |
+| unknown (scored before the first commit) | **95** |
+| `fe3fa82f` (production) | **29** |
+
+**Fixed in `e5c78ad7`:**
+- 08 writes scored fields in place, with one `<field>_prev` and
+  `scored_model_md5`/`scored_at`/`scored_source`.
+- 06 stamps the model md5.
+- 08 and `sync.py` refuse `_dup` files.
+- The app labels any probability not stamped with the production md5
+  "unscored by current model".
+
+**Migrated and rescored 2026-10-11** (`1216260d`, `7fbe522b`; `migrate_characterized_dup_columns.py`, then
+`rescore_candidates.py`). **294 of 296** are now scored by `fe3fa82f`. Gates:
+- **0:** model md5 is `fe3fa82f`.
+- **1:** the 29 existing `fe3fa82f` probabilities were reproduced, max |diff|
+  1.1e-16.
+- **1b:** `st_rad`/`st_teff` are identical in the candidate list and the
+  characterized file for all 201 stars in both, which licensed using the
+  characterized values for the other 95.
+- **2:** `final_best` (92) and needs-review (8) membership is unchanged.
+
+| previously scored by | n | median \|new-old\| | p90 | max | > 0.1 | > 0.3 |
+|---|---|---|---|---|---|---|
+| `341f1a39` | 172 | 0.076 | 0.326 | 0.534 | 69 | 22 |
+| unknown | 93 | 0.057 | 0.410 | 0.657 | 33 | 13 |
+| `fe3fa82f` | 29 | 0 | 0 | 0 | 0 | 0 |
+
+**Tiers.** 46 Low->Medium and 1 Medium->Low (TIC_199730918, 0.922 -> 0.731).
+Before: 278 Low / 18 Medium. After: 233 Low / 63 Medium; none High.
+
+**`final_best` ranking.** Only 1 of the committed top 10 (TIC_403153811) is in
+the new top 10. Membership did not change, because the combined filter never
+used the probability; the ordering did.
+
+**TIC 447400458** (the candidate with the ExoFOP refresh history): 0.9935 ->
+**0.9787**, still Low, and still failing the combined filter (HIGH blend risk).
+
+**Not scored -- they keep their old probability, labelled unscored.**
+TIC_101949434 (0.661) and TIC_401838575 (0.636): `crowd_nearest_arcsec` is NaN,
+and 06 does not score a NaN in a required feature either.
+
+**Live DB synced 2026-10-11 22:32 UTC.** 296/296 have a probability, and tiers
+match the CSV. A pre-sync backup is kept outside the repo.
+
+**OPEN -- uncertainty bands.** `backfill_uncertainty.py` banded **284**, not 294.
+- It requires every feature, including the four the model imputes itself, so it
+  skipped 10 stars with NaN `gaia_ruwe`/`gaia_nss` as well as the 2 unscored ones.
+- **7 of those 12 still carry a band from 2026-07-29**, computed against an older
+  model: 5 of them now sit next to an `fe3fa82f` probability.
+- Not fixed.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**

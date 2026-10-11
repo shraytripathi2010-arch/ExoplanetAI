@@ -199,6 +199,19 @@ data was assembled scored 8 of 9 correctly (89%), with 1 of 10 unable to be
 processed at all. See `code/experiments/RESULTS_SUMMARY.md` for the full record
 of what worked and what didn't, including the negative results.
 
+**Candidate CSVs before 2026-10-11 carry stale, mixed-model scores.** In the
+versions of `results/unknown_candidates/characterized_candidates.csv`,
+`final_best_candidates.csv` and `needs_manual_blend_review.csv` committed up to
+`ce695533`:
+- most probabilities predate the current production model;
+- 191 rows have an empty probability column, with the value stranded in `_dup`
+  columns.
+
+Do not rank or filter on those versions. They were migrated and rescored with
+the production model on 2026-10-11, and each row now records the model that
+scored it in `scored_model_md5`. See register section G in
+`code/experiments/RESULTS_SUMMARY.md`.
+
 ---
 
 ## Web app
