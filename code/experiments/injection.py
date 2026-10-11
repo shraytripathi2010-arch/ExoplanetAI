@@ -21,8 +21,12 @@ through to any downstream training/reporting -- this is enforced by
 returning it explicitly in the result dict, not left to the caller to infer.
 """
 import os
+import sys
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import confirmed_hosts
 
 PROJECT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 PROCESSED_NEGATIVE_DIR = os.path.join(PROJECT_ROOT, "data", "processed_negative")
@@ -71,7 +75,18 @@ def sample_real_params(rng):
 
 
 def list_real_negative_lightcurves():
-    return sorted(f for f in os.listdir(PROCESSED_NEGATIVE_DIR) if f.endswith(".csv"))
+    """Background curves for injection. Excludes every star that hosts a
+    confirmed planet: its curve carries real transits, so an injected-EB
+    "negative" built on it is mislabelled. Six such stars sit in
+    processed_negative/ (register D3); five of them were backgrounds for 18
+    examples in the committed cnn_dataset.npz."""
+    confirmed, prov = confirmed_hosts.confirmed_host_tics()
+    resolve = confirmed_hosts.tic_resolver()
+    files = sorted(f for f in os.listdir(PROCESSED_NEGATIVE_DIR) if f.endswith(".csv"))
+    keep = [f for f in files if resolve(os.path.splitext(f)[0]) not in confirmed]
+    print(f"injection backgrounds: {len(keep)} of {len(files)} files in {PROCESSED_NEGATIVE_DIR} "
+          f"({len(files) - len(keep)} confirmed hosts excluded; {confirmed_hosts.summary(prov)})")
+    return keep
 
 
 def load_real_lightcurve(fname):

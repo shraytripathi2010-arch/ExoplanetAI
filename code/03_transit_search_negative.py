@@ -95,6 +95,8 @@ def bin_lightcurve(time_arr, flux_arr, flux_err_arr):
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(SCRIPT_DIR, "experiments"))
+import confirmed_hosts
 INPUT_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "processed_negative")
 CATALOG_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "catalogs")
 RESULTS_PATH = os.path.join(CATALOG_FOLDER, "transit_search_results_negative.csv")
@@ -104,16 +106,28 @@ LOG_PATH = os.path.join(CATALOG_FOLDER, "transit_search_log_negative.csv")
 # =====================================
 # CLASS GUARD
 #
-# The class of every input file comes from the TOI false-positive / false-alarm
-# catalogs written by 01_download_negative.py, not from the folder it sits in.
-# 04 stamps every row of RESULTS_PATH label=0. processed_negative/ is clean
-# today; this keeps it that way. Any file whose host is not TIC_<tid> for a tid
-# in those catalogs (matched with 04's own canonical_key) refuses the WHOLE run
-# before anything is searched or written. There is no flag that lets one through.
+# The class of every input file comes from the TOI false-positive catalog
+# written by 01_download_negative.py, not from the folder it sits in. 04 stamps
+# every row of RESULTS_PATH label=0. Any file that fails either check below
+# refuses the WHOLE run before anything is searched or written. There is no
+# flag that lets one through.
+#
+#   1. Its host must be TIC_<tid> for a tid in toi_false_positives.csv (matched
+#      with 04's own canonical_key). FP only: that is what training uses. The
+#      99 TOI false alarms were downloaded and searched on 2026-07-11 but never
+#      adopted, and adopting them is a separate decision -- so an FA-only star
+#      refuses like any other unclassifiable file.
+#   2. Its TIC must not host a confirmed planet. A TOI disposition belongs to one
+#      candidate, the label to the whole star: TIC_158555987 carries an FP
+#      candidate (TOI-4594.01) and is Kepler-1517, a confirmed host.
+#      (confirmed_hosts.py; register section D3.)
+#
+# processed_negative/ itself is NOT clean: it holds 98 FA-only curves and 3
+# FP-listed confirmed hosts (101 files) from before these checks existed, so
+# this script refuses on it until they are moved out.
 # =====================================
-SOURCE_LIST_PATHS = [os.path.join(CATALOG_FOLDER, "toi_false_positives.csv"),
-                     os.path.join(CATALOG_FOLDER, "toi_false_alarms.csv")]
-SOURCE_LIST_DESC = "TOI false positives / false alarms (toi_false_*.csv tid)"
+SOURCE_LIST_PATHS = [os.path.join(CATALOG_FOLDER, "toi_false_positives.csv")]
+SOURCE_LIST_DESC = "TOI false positives (toi_false_positives.csv tid)"
 
 
 def source_list_keys(canonical_key):
@@ -131,21 +145,31 @@ def refuse_unclassifiable(all_files, list_only):
     """Returns only when every file is classifiable and list_only is False."""
     canonical_key = importlib.import_module("04_build_training_dataset").canonical_key
     known = source_list_keys(canonical_key)
-    refused = [f for f in all_files if canonical_key(os.path.splitext(f)[0]) not in known]
+    confirmed, prov = confirmed_hosts.confirmed_host_tics()
+    resolve = confirmed_hosts.tic_resolver()
+    print(confirmed_hosts.summary(prov))
+    unlisted = [f for f in all_files if canonical_key(os.path.splitext(f)[0]) not in known]
+    hosts = [f for f in all_files if f not in set(unlisted)
+             and resolve(os.path.splitext(f)[0]) in confirmed]
+    groups = [(unlisted, f"are not {SOURCE_LIST_DESC}, so their class cannot be established"),
+              (hosts, "are TOI false positives whose star hosts a confirmed planet")]
     if list_only:
-        print(f"--list-refused: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} are not "
-              f"{SOURCE_LIST_DESC}. Nothing was searched or written.")
-        for f in refused:
-            print(f"  {os.path.join(INPUT_FOLDER, f)}")
+        for refused, why in groups:
+            print(f"--list-refused: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} {why}.")
+            for f in refused:
+                print(f"  {os.path.join(INPUT_FOLDER, f)}")
+        print("Nothing was searched or written.")
         sys.exit(0)
-    if refused:
-        print(f"REFUSED: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} are not "
-              f"{SOURCE_LIST_DESC}, so their class cannot be established. Nothing was searched "
-              f"or written. First {min(5, len(refused))}:", file=sys.stderr)
-        for f in refused[:5]:
-            print(f"  {os.path.join(INPUT_FOLDER, f)}", file=sys.stderr)
-        print("Move these files out of this folder (--list-refused prints all of them). "
-              "This script will not guess a class.", file=sys.stderr)
+    if unlisted or hosts:
+        for refused, why in groups:
+            if refused:
+                print(f"REFUSED: {len(refused)} of {len(all_files)} files in {INPUT_FOLDER} {why}. "
+                      f"First {min(5, len(refused))}:", file=sys.stderr)
+                for f in refused[:5]:
+                    print(f"  {os.path.join(INPUT_FOLDER, f)}", file=sys.stderr)
+        print("Nothing was searched or written. Move these files out of this folder "
+              "(--list-refused prints all of them). This script will not guess a class.",
+              file=sys.stderr)
         sys.exit(2)
 
 os.makedirs(CATALOG_FOLDER, exist_ok=True)
@@ -252,8 +276,8 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("--list-refused", action="store_true",
-                        help="List every file whose class cannot be established, then exit 0 "
-                             "without searching or writing anything.")
+                        help="List every file that would be refused (not an FP-list star, or a "
+                             "confirmed host), then exit 0 without searching or writing anything.")
     args = parser.parse_args()
 
     all_files = sorted(f for f in os.listdir(INPUT_FOLDER) if f.endswith(".csv"))

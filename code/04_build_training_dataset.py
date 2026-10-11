@@ -59,6 +59,8 @@ import sys
 import pandas as pd
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(SCRIPT_DIR, "experiments"))
+import confirmed_hosts
 CATALOG_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "catalogs")
 OUTPUT_FOLDER = os.path.join(SCRIPT_DIR, "..", "data", "training_dataset")
 
@@ -176,7 +178,15 @@ def load_negative_stellar_params(path):
     return grouped.reset_index()
 
 
-def label_problems(final, catalog_canon, existing_path):
+def identity_key(host, resolve):
+    """Star identity for joins across classes: the TIC id where one resolves,
+    else the canonical name. A name cannot join "TOI-712" to "TIC_150151262";
+    the TIC id can (confirmed_hosts.py)."""
+    tic = resolve(host)
+    return f"tic:{tic}" if tic is not None else f"name:{canonical_key(host)}"
+
+
+def label_problems(final, catalog_canon, existing_path, resolve, confirmed):
     """Every reason this build's labels cannot be trusted, as printable lines.
     Empty list means the build may be written. Each check aborts the build
     rather than warning: a wrong label is invisible to every later stage,
@@ -209,20 +219,30 @@ def label_problems(final, catalog_canon, existing_path):
         problems.append(f"{len(unmatched)} label-1 row(s) did not match {CATALOG_PATH}: "
                         f"{sorted(unmatched)[:20]}")
 
-    # 4. No host may change label relative to the training set being replaced.
+    # 4. No STAR may change label relative to the training set being replaced.
+    # Compared by TIC id, so a star cannot flip by changing its name.
     if os.path.exists(existing_path):
         old = pd.read_csv(existing_path, usecols=["host", "label"])
-        old["canon"] = old["host"].apply(canonical_key)
-        old = old.drop_duplicates(subset="canon")
-        new = pd.DataFrame({"canon": canon, "host": final["host"], "label": final["label"]})
-        both = new.merge(old[["canon", "label"]], on="canon", suffixes=("", "_existing"))
+        old["key"] = old["host"].map(lambda h: identity_key(h, resolve))
+        old = old.drop_duplicates(subset="key")
+        new = pd.DataFrame({"key": final["host"].map(lambda h: identity_key(h, resolve)),
+                            "host": final["host"], "label": final["label"]})
+        both = new.merge(old[["key", "host", "label"]], on="key", suffixes=("", "_existing"))
         flipped = both[both["label"] != both["label_existing"]]
         if len(flipped):
-            problems.append(f"{len(flipped)} host(s) would FLIP label relative to {existing_path}: "
-                            + ", ".join(f"{h} {int(e)}->{int(n)}" for h, e, n in
-                                        flipped[["host", "label_existing", "label"]].values[:20]))
+            problems.append(f"{len(flipped)} star(s) would FLIP label relative to {existing_path}: "
+                            + ", ".join(f"{h} {int(e)}->{int(n)} (existing row {eh})" for h, e, n, eh in
+                                        flipped[["host", "label_existing", "label", "host_existing"]].values[:20]))
     else:
         print(f"NOTE: {existing_path} does not exist -- no label-flip cross-check possible.")
+
+    # 5. No label-0 row may be a star that hosts a confirmed planet. A TOI
+    # disposition is per candidate; the label is per star (register D3).
+    neg_tics = final.loc[~pos, "host"].map(resolve)
+    hit = final.loc[~pos & neg_tics.isin(confirmed), "host"]
+    if len(hit):
+        problems.append(f"{len(hit)} label-0 row(s) are stars that host a confirmed planet: "
+                        + ", ".join(f"{h} (TIC {resolve(h)})" for h in sorted(hit)[:20]))
     return problems
 
 
@@ -238,6 +258,9 @@ def main():
     args = parser.parse_args()
 
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+    resolve = confirmed_hosts.tic_resolver()
+    confirmed, prov = confirmed_hosts.confirmed_host_tics()
+    print(confirmed_hosts.summary(prov))
 
     # ---- load positive class (required) ----
     if not os.path.exists(RESULTS_PATH):
@@ -253,13 +276,17 @@ def main():
         negative = load_tls_results(args.negative_results, label=0)
         print(f"Loaded {len(negative)} negative-class (false positive) stars from {args.negative_results}")
 
-        overlap = set(positive["canon"]) & set(negative["canon"])
-        if overlap:
-            print(f"WARNING: {len(overlap)} stars appear in BOTH positive and negative sets -- "
+        # Same star in both classes, compared by TIC id: a name comparison
+        # cannot see that TIC_150151262 is TOI-712.
+        pos_keys = set(positive["host"].map(lambda h: identity_key(h, resolve)))
+        neg_keys = negative["host"].map(lambda h: identity_key(h, resolve))
+        overlap = neg_keys.isin(pos_keys)
+        if overlap.any():
+            print(f"WARNING: {int(overlap.sum())} stars appear in BOTH positive and negative sets -- "
                   f"keeping the positive-class label for these (a confirmed planet host takes "
                   f"precedence over a false-positive TOI disposition for the same star): "
-                  f"{sorted(overlap)}")
-            negative = negative[~negative["canon"].isin(overlap)]
+                  f"{sorted(negative.loc[overlap, 'host'])}")
+            negative = negative[~overlap]
 
         frames.append(negative)
     else:
@@ -355,14 +382,15 @@ def main():
     print(f"Duplicate star rows: {dupe_count} "
           f"{'OK' if dupe_count == 0 else '-- WARNING: dedup logic may have a gap, investigate before training'}")
 
-    problems = label_problems(final, set(catalog["canon"]), OUTPUT_PATH)
+    problems = label_problems(final, set(catalog["canon"]), OUTPUT_PATH, resolve, confirmed)
     if problems:
         print(f"\nABORTED -- {OUTPUT_PATH} was NOT written:", file=sys.stderr)
         for line in problems:
             print(f"  * {line}", file=sys.stderr)
         sys.exit(1)
     print(f"Labels OK -- values {sorted(set(final['label'].unique()))}, every label-1 row matched "
-          f"the catalog, no second names, no flips against the existing training set.")
+          f"the catalog, no second names, no flips against the existing training set, "
+          f"no label-0 confirmed host.")
 
     print(f"\nSaving to {OUTPUT_PATH}")
     final.to_csv(OUTPUT_PATH, index=False)
