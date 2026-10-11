@@ -288,6 +288,48 @@ no `crowd_nearest_arcsec`). The three pseudo-labeling scripts refuse to run on
 any pool other than the recorded 307 unique hosts. All eight record their pool
 size and source.
 
+## F. FOLDER ORDER SENT 13 WIDESECTOR FITS TO THE WRONG CURVE -- added 2026-10-11
+
+**`code/experiments/trapezoid_shape.py`'s `_find` (lines 130-135) searches four
+folders and returns the first match.** Those folders are `processed`,
+`processed_negative`, `processed_unknown` and `processed_unknown_widesector`, in
+that order. 50 of the 271 widesector hosts also have a single-sector curve in
+`processed_unknown/`, so for those 50 the widesector run fitted the single-sector
+curve.
+
+**Damage: 13 rows of one file.** 37 of the 50 have no usable ephemeris and fail
+on either curve. The other **13 of the 69 scorable rows** in
+`code/experiments/trapezoid_shape_widesector.csv` are wrong: 10 `ok`, 2 too few
+bins and 1 T14 hit bound. The hosts are listed in the caveats.
+
+**The file is public.** It was committed in `bb2e2a3d` (2026-08-05) and is on
+origin, as are the two outputs that read it:
+- `trapezoid_checks.json` (`bb2e2a3d`; `trapezoid_checks.py:43`, coverage at
+  lines 125-143)
+- `trap_residual_assess.json` (`a48a641b`; `trap_residual_assess.py:50,90`)
+
+They feed the two widesector rows annotated in place: the trapezoid coverage
+table and the `trap_rmse`/`trap_bic` availability table. **Those rows can move
+81.2-100% (converged and availability) and 21.7-40.6% (usable).**
+
+**No conclusion depends on these rows.** The widesector figures are coverage
+context only. **`trap_vshape`'s decline is unaffected:** its evaluation,
+`trapezoid_validate.py` (lines 79, 81, 141, 146), reads `training.csv` and
+`trapezoid_shape_features.csv` only. Every training host resolves to its own
+`processed`/`processed_negative` curve. The `trap_rmse` verdict is likewise
+training-only (`trap_residual_validate.py:37`).
+
+**Also unaffected:**
+- `trapezoid_shape_pool.csv`: all 2,454 hosts resolve to `processed_unknown`.
+- `oddeven_timing` and `timeseries_stats`: they have the same four-folder
+  `_find` but read only `training.csv`.
+
+**The rows were NOT recomputed.** The three files are left as committed; the
+correction lives here and in the two caveats. Replacing the values means
+re-running the 13 fits on their widesector curves. A population-scoped curve
+resolver, so that a widesector run can only see `processed_unknown_widesector/`,
+removes the cause.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
@@ -4412,7 +4454,19 @@ parameter is formally unconstrained. Usable requires `depth_snr >= 3` and
 |---|---|---|---|---|
 | training | 5,486 | 5,486 | **93.6%** | **31.2%** |
 | candidate pool | 2,454 | **488** | 99.2% | 47.1% |
-| widesector pool | 271 | **69** | 97.1% | 23.2% |
+| widesector pool | 271 | **69** | 97.1% (13 rows wrong, see caveat) | 23.2% (13 rows wrong, see caveat) |
+
+**CAVEAT on the widesector row (added 2026-10-11; register section F).** 13 of
+the 69 scorable widesector rows were fitted on the star's **single-sector**
+curve, not its widesector curve. The cause is folder order: `trapezoid_shape.py`'s
+`_find` returns the first match, and `processed_unknown/` is searched before
+`processed_unknown_widesector/`. The 13 are TIC_1988410166, TIC_1988436721,
+TIC_1988576229, TIC_277800037, TIC_295046932, TIC_300316029, TIC_301687690,
+TIC_361861044, TIC_364486973, TIC_371836310, TIC_396118466, TIC_410397673 and
+TIC_469878140; 11 of them converged and 1 was usable. Fitted on their own curves,
+the row could be anywhere in **81.2-100% converged** and **21.7-40.6% usable**.
+The 56 correctly routed hosts alone give **100% converged** and **26.8% usable**.
+These rows were not recomputed, and no conclusion in this section depends on them.
 
 **The pool denominator is not the row count, and using the row count would have
 been wrong.** Only 488 of 2,454 pool rows carry a full ephemeris at all; the
@@ -10051,7 +10105,16 @@ varies per star -- so it is a genuinely different ordering for a tree model.
 |---|---|---|---|
 | training | 5,494 | **93.5%** | 93.5% |
 | main pool (Success) | 488 | **99.2%** | 99.2% |
-| widesector pool (Success) | 69 | **97.1%** | 97.1% |
+| widesector pool (Success) | 69 | **97.1%** (13 rows wrong, see caveat) | 97.1% (13 rows wrong, see caveat) |
+
+**CAVEAT on the widesector row (added 2026-10-11; register section F).** This
+row is computed from `trapezoid_shape_widesector.csv`, where 13 of the 69 rows
+were fitted on the single-sector curve because of folder order. They are the
+same 13 hosts listed under the trapezoid coverage table. 11 of the 13 have a
+`trap_rmse`. Fitted on their own curves, availability could be anywhere in
+**81.2-100%**; the 56 correctly routed hosts alone give **100%**. These rows were
+not recomputed, and the residual investigation's verdict rests on training rows
+only (`trap_residual_validate.py:37`).
 
 **Class-rate gate: PASSES.** avail 93.62% positive vs 93.06% negative, Fisher
 OR 1.094, **p = 0.502**, AUC(availability) **0.5028**.
