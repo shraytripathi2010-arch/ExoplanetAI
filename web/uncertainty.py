@@ -9,9 +9,16 @@ cheap predict_proba calls.
 WHAT IS AND IS NOT BEING REPORTED
 ---------------------------------
 The point estimate stays the PRODUCTION model's probability, unchanged. That
-is the number validated at test ROC-AUC 0.9032, and swapping in the bootstrap
-mean would silently restate every score in the project against a figure that
-was never validated. The ensemble contributes the BAND around it, nothing else.
+is the number validated on the frozen test set (test_roc_auc in
+models/best_model_metadata.json -- 0.9454 for fe3fa82f), and swapping in the
+bootstrap mean would silently restate every score in the project against a
+figure that was never validated. The ensemble contributes a SEPARATE number:
+the spread of production-recipe models refit on resampled training data.
+
+It is NOT an interval around the production score. The deployed model is not
+one of the members, so its score need not lie inside their spread, and measured
+on 2026-10-11 it often does not. The page shows the score as a point and the
+spread separately, and says so whenever the score falls outside the spread.
 
 The band is epistemic uncertainty from training-set resampling: how much this
 candidate's probability moves when the model is refit on a different draw of
@@ -39,6 +46,15 @@ _load_lock = threading.Lock()
 
 def ensemble_available():
     return os.path.exists(MANIFEST_PATH)
+
+
+def ensemble_target():
+    """{model_md5, built_at, n_members} from the manifest. model_md5 is None for
+    an ensemble built before 09 recorded which model it describes."""
+    with open(MANIFEST_PATH) as f:
+        m = json.load(f)
+    return {"model_md5": m.get("target_model_md5"), "built_at": m.get("built_at"),
+            "n_members": m.get("n_members")}
 
 
 def _load():

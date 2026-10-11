@@ -317,22 +317,43 @@ MIGRATIONS = {
         ("uncertainty_n_members", "INTEGER"),
         ("bootstrap_mean", "REAL"),
         ("uncertainty_computed_at", "TEXT"),
+        # Which model the band describes: the ensemble's target_model_md5 and
+        # build time. A band is only shown next to a score from that same
+        # model (app.py _band_view).
+        ("uncertainty_model_md5", "TEXT"),
+        ("uncertainty_ensemble_built_at", "TEXT"),
     ],
 }
 
 
-def save_candidate_uncertainty(tic_id, rec):
+def save_candidate_uncertainty(tic_id, rec, model_md5, ensemble_built_at):
     """Additive only -- never touches predicted_probability or
     confidence_tier, following the same 'new evidence never silently
-    re-scores an existing candidate' rule as every other check here."""
+    re-scores an existing candidate' rule as every other check here.
+    The band is stamped with the model it describes."""
     with get_conn() as conn:
         conn.execute(
             """UPDATE candidates SET uncertainty_std = ?, uncertainty_p16 = ?,
                  uncertainty_p84 = ?, uncertainty_n_members = ?, bootstrap_mean = ?,
-                 uncertainty_computed_at = ?
+                 uncertainty_computed_at = ?, uncertainty_model_md5 = ?,
+                 uncertainty_ensemble_built_at = ?
                WHERE tic_id = ?""",
             (rec["uncertainty_std"], rec["uncertainty_p16"], rec["uncertainty_p84"],
-             rec["uncertainty_n_members"], rec["bootstrap_mean"], now_iso(), tic_id),
+             rec["uncertainty_n_members"], rec["bootstrap_mean"], now_iso(), model_md5,
+             ensemble_built_at, tic_id),
+        )
+
+
+def clear_candidate_uncertainty(tic_id):
+    """Removes a band that no longer describes this candidate's score."""
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE candidates SET uncertainty_std = NULL, uncertainty_p16 = NULL,
+                 uncertainty_p84 = NULL, uncertainty_n_members = NULL, bootstrap_mean = NULL,
+                 uncertainty_computed_at = NULL, uncertainty_model_md5 = NULL,
+                 uncertainty_ensemble_built_at = NULL
+               WHERE tic_id = ?""",
+            (tic_id,),
         )
 
 

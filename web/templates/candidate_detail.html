@@ -31,10 +31,15 @@
 
   <div class="stat-row">
     <div class="stat"><span class="stat-label">Classifier probability</span>
-      <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if prob_provenance.label %} <span class="muted">({{ prob_provenance.label }})</span>{% endif %}{% if c.uncertainty_std is not none %} <span class="uncertainty-band">&plusmn; {{ '%.3f'|format(c.uncertainty_std) }}</span>{% endif %}</span>
-      {% if c.uncertainty_std is not none %}
-        <span class="muted param-uncertainty">68% of {{ c.uncertainty_n_members }} bootstrap models fall in
-          {{ '%.3f'|format(c.uncertainty_p16) }}&ndash;{{ '%.3f'|format(c.uncertainty_p84) }}</span>
+      <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if prob_provenance.label %} <span class="muted">({{ prob_provenance.label }})</span>{% endif %}</span>
+      {% if band and band.hidden %}
+        <span class="muted param-uncertainty">{{ band.note }}</span>
+      {% elif band %}
+        <span class="muted param-uncertainty">Spread of {{ band.n }} models refit on resampled training data (16&ndash;84%):
+          {{ '%.3f'|format(band.p16) }}&ndash;{{ '%.3f'|format(band.p84) }}</span>
+        {% if band.outside %}
+        <span class="muted param-uncertainty">This score lies outside that spread. The score comes from the deployed model, which is not one of the refit models, so it need not fall inside their range.</span>
+        {% endif %}
       {% endif %}
     </div>
     <div class="stat"><span class="stat-label">Combined filter</span><span class="stat-value">{{ 'PASS ('+c.combined_filter_tier+')' if c.combined_filter_pass else ('needs review' if c.needs_manual_review else 'fail') }}</span></div>

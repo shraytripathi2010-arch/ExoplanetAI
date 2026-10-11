@@ -6,11 +6,18 @@ Same standard as every prior feature in this project: a new evidence type is
 applied retroactively to the existing candidate list, so the site never shows
 a mix of candidates that have it and candidates that silently don't.
 
-The model's raw feature vectors are NOT stored in the candidates table (only 7
-of the 24 columns survive into characterization_json), so they are re-read from
-the pipeline's own ranked-candidates CSV, which is the same table the
-production score was computed from. Candidates with no row there cannot be
-scored and are left null rather than guessed at.
+The model's raw feature vectors are NOT stored in the candidates table, so
+they are rebuilt from data/catalogs/unknown_features.csv plus the stored
+st_rad/st_teff, and must reproduce the stored probability exactly before any
+band is written.
+
+Rules (2026-10-11):
+  * the ensemble's target_model_md5 must be the deployed model, or nothing is written;
+  * a NaN in a feature production imputes is scored through the members' own
+    imputer, exactly as production scores it;
+  * a NaN in a required feature, or a score not from the deployed model, gets
+    NO band, and any old band on that row is cleared;
+  * every band is stamped with the model it describes and the ensemble build time.
 """
 import importlib.util
 import json
@@ -61,31 +68,59 @@ def main():
     feats["tic_id"] = feats["host"].str.replace("TIC_", "", regex=False).astype("int64")
     feats = feats.drop_duplicates(subset="tic_id", keep="last").set_index("tic_id")
 
+    # GATE: the ensemble must describe the deployed model. A band from members
+    # cloned from a different model is a statement about that other model.
+    import hashlib
+    with open(os.path.join(ROOT, "models", "best_model.joblib"), "rb") as f:
+        deployed_md5 = hashlib.md5(f.read()).hexdigest()
+    target = uncertainty.ensemble_target()
+    if target["model_md5"] != deployed_md5:
+        raise SystemExit(f"REFUSING: the ensemble was built for model {target['model_md5']}, but "
+                         f"models/best_model.joblib is {deployed_md5}. Rebuild it with "
+                         f"code/09_build_bootstrap_ensemble.py. No band was written.")
+    print(f"ensemble: {target['n_members']} members built {target['built_at']} for model {deployed_md5}")
+
+    # The members carry production's own imputer, so a NaN in one of the
+    # features production imputes (06 OPTIONAL_FEATURES) is scored exactly as
+    # production scores it. A NaN in any OTHER feature means 06 would not score
+    # the star at all -- such a star gets no band, and any old band is cleared.
+    sys.path.insert(0, os.path.join(ROOT, "code", "experiments"))
+    from candidate_pool import _optional_features
+    required = [c for c in feature_columns if c not in _optional_features()]
+
     with db.get_conn() as conn:
         cands = [dict(r) for r in conn.execute(
-            "SELECT tic_id, host, predicted_probability, characterization_json FROM candidates")]
+            "SELECT tic_id, host, predicted_probability, characterization_json, "
+            "uncertainty_std FROM candidates")]
+    print(f"{len(cands)} candidates total")
 
-    # Only candidates that actually carry a displayed probability get a band.
-    # A band on an unscored row would describe nothing the user can see.
-    scored = [c for c in cands if c["predicted_probability"] is not None]
-    print(f"{len(cands)} candidates total; {len(scored)} carry a displayed probability")
-
-    have, rows = [], []
-    for c in scored:
-        if c["tic_id"] not in feats.index:
-            continue
-        ch = json.loads(c["characterization_json"])
-        row = feats.loc[c["tic_id"]].to_dict()
-        row["st_rad"], row["st_teff"] = ch.get("st_rad"), ch.get("st_teff")
-        vec = {k: row.get(k) for k in feature_columns}
-        if any(v is None or (isinstance(v, float) and np.isnan(v)) for v in vec.values()):
+    have, rows, clear = [], [], []
+    for c in cands:
+        ch = json.loads(c["characterization_json"] or "{}")
+        why = None
+        if c["predicted_probability"] is None:
+            why = "no probability"
+        elif c["tic_id"] not in feats.index:
+            why = "no row in unknown_features.csv"
+        else:
+            row = feats.loc[c["tic_id"]].to_dict()
+            row["st_rad"], row["st_teff"] = ch.get("st_rad"), ch.get("st_teff")
+            vec = {k: row.get(k) for k in feature_columns}
+            missing = [k for k in required if vec[k] is None or (isinstance(vec[k], float) and np.isnan(vec[k]))]
+            if missing:
+                why = f"NaN in required feature(s) {missing}"
+            elif ch.get("scored_model_md5") != deployed_md5:
+                why = f"score is not from the deployed model (scored by {ch.get('scored_model_md5') or 'unknown'})"
+        if why:
+            clear.append((c, why))
             continue
         have.append(c)
         rows.append(vec)
-    print(f"{len(have)} have a complete, reconstructable feature vector "
-          f"({len(scored)-len(have)} skipped rather than guessed)")
+    print(f"{len(have)} get a band; {len(clear)} get none:")
+    for c, why in clear:
+        print(f"   {c['host']}: {why}" + (" -- clearing its old band" if c["uncertainty_std"] is not None else ""))
 
-    X = pd.DataFrame(rows, columns=feature_columns)
+    X = pd.DataFrame(rows, columns=feature_columns).astype(float)
     prod = np.array([c["predicted_probability"] for c in have], dtype=float)
 
     # CORRECTNESS CHECK: re-score the reconstructed vectors with the
@@ -96,7 +131,7 @@ def main():
     prod_model = joblib.load(os.path.join(ROOT, "models", "best_model.joblib"))
     recomputed = prod_model.predict_proba(X)[:, 1]
     max_err = float(np.max(np.abs(recomputed - prod))) if len(prod) else 0.0
-    print(f"reconstruction check: max |recomputed - stored| = {max_err:.6f}")
+    print(f"reconstruction check: max |recomputed - stored| = {max_err:.2e}")
     if max_err > 1e-6:
         bad = int((np.abs(recomputed - prod) > 1e-6).sum())
         raise SystemExit(
@@ -107,27 +142,25 @@ def main():
     recs = uncertainty.predict_with_uncertainty(X, production_probability=prod)
 
     n = 0
-    disagreements = []
+    outside = []
     for c, rec in zip(have, recs):
         if rec is None:
             continue
-        db.save_candidate_uncertainty(c["tic_id"], rec)
+        db.save_candidate_uncertainty(c["tic_id"], rec, target["model_md5"], target["built_at"])
         n += 1
-        if rec.get("disagreement_sigma", 0) > 3:
-            disagreements.append((c["host"], c["predicted_probability"],
-                                  rec["bootstrap_mean"], rec["disagreement_sigma"]))
-    print(f"wrote uncertainty for {n} candidates")
+        p = c["predicted_probability"]
+        if not (rec["uncertainty_p16"] <= p <= rec["uncertainty_p84"]):
+            outside.append((c["host"], p, rec["uncertainty_p16"], rec["uncertainty_p84"]))
+    for c, _ in clear:
+        db.clear_candidate_uncertainty(c["tic_id"])
+    print(f"wrote bands for {n} candidates; cleared {len(clear)}")
 
-    # A large gap between the deployed model's answer and the ensemble's centre
-    # means the band should not be read as an interval around the displayed
-    # number. Surface it rather than let it pass silently.
-    if disagreements:
-        print(f"\n{len(disagreements)} candidate(s) where the production probability sits >3 sigma "
-              f"from the bootstrap mean -- the band does NOT bracket the displayed score:")
-        for h, p, m, s in sorted(disagreements, key=lambda r: -r[3])[:10]:
-            print(f"   {h}: production {p:.3f} vs bootstrap mean {m:.3f}  ({s:.1f} sigma)")
-    else:
-        print("\nNo candidate has the production probability >3 sigma from the bootstrap mean.")
+    # The deployed model is not one of the refit members, so its score need not
+    # sit inside their spread. Count it rather than let it pass silently; the
+    # page says so for each such star.
+    print(f"\n{len(outside)} of {n} scores lie outside the 16-84% spread of the refit models")
+    for h, p, lo, hi in outside[:10]:
+        print(f"   {h}: score {p:.3f}, refit spread {lo:.3f}-{hi:.3f}")
 
 
 if __name__ == "__main__":

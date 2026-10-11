@@ -151,6 +151,33 @@ def _probability_provenance(c):
     return {"current": current, "scored_by": scored_by, "label": label}
 
 
+def _band_view(c):
+    """Whether and how to show the spread of production-recipe models refit on
+    resampled training data. None when the row has no band.
+
+    The spread is shown apart from the score, never as "score +/- sd": the
+    deployed model is not one of the refit models, so its score need not lie
+    inside their spread. A band computed for a different model than the one that
+    produced the score is hidden, with a note saying why."""
+    if c.get("uncertainty_p16") is None or c.get("uncertainty_p84") is None:
+        return None
+    p16, p84 = c["uncertainty_p16"], c["uncertainty_p84"]
+    band_md5 = c.get("uncertainty_model_md5")
+    prov = _probability_provenance(c)
+    view = {"p16": p16, "p84": p84, "n": c.get("uncertainty_n_members"),
+            "sd": c.get("uncertainty_std"), "built_at": c.get("uncertainty_ensemble_built_at"),
+            "model": band_md5, "hidden": False, "outside": False, "note": None}
+    if not band_md5 or band_md5 != prov["scored_by"]:
+        about = f"model {band_md5[:8]}" if band_md5 else "an unrecorded model"
+        view["hidden"] = True
+        view["note"] = ("Model-refit spread not shown: it was computed for " + about +
+                        ", not for the model that produced this score.")
+        return view
+    p = c.get("predicted_probability")
+    view["outside"] = p is not None and not (p16 <= p <= p84)
+    return view
+
+
 DISCLAIMER = ("This is an unconfirmed candidate ranked by an automated pipeline for human "
               "review. It is NOT a confirmed or discovered exoplanet.")
 
@@ -331,6 +358,7 @@ def candidate_detail(tic_id):
                             exofop_account_url=exofop_account_url, has_plot=has_plot,
                             plot_missing=plot_missing,
                             prob_provenance=_probability_provenance(candidate),
+                            band=_band_view(candidate),
                             multi_sector=multi_sector, centroid=centroid, reverify=reverify,
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
                             transit_anim=transit_anim, evidence_items=evidence_items,
@@ -340,11 +368,14 @@ def candidate_detail(tic_id):
 
 
 def _probability_caveat(candidate):
-    """Suffix for the CTOI line: says when the probability is not the current model's."""
+    """Suffix for the CTOI line: always names the model that produced the score,
+    and says so when it is not the current production model."""
     p = _probability_provenance(candidate)
-    if p["label"] is None:
+    if candidate.get("predicted_probability") is None:
         return ""
     by = "an unrecorded model" if p["scored_by"] == "unknown" else f"model {p['scored_by'][:8]}"
+    if p["label"] is None:
+        return f" (scored by {by}, the current production model)"
     return f" ({p['label']}; scored by {by})"
 
 
@@ -436,20 +467,22 @@ def _evidence_items(char, centroid, candidate=None):
     # than only as a small "+/-" next to the headline number. The thresholds
     # are descriptive labels for the reader, not a new gate -- nothing about
     # the candidate's tier or probability depends on them.
-    if candidate is not None and candidate.get("uncertainty_std") is not None:
-        std = candidate["uncertainty_std"]
-        p16, p84 = candidate.get("uncertainty_p16"), candidate.get("uncertainty_p84")
+    band = _band_view(candidate) if candidate is not None else None
+    if band is not None and band["hidden"]:
+        items.append({"label": "Prediction stability (model refits)", "status": "skip",
+                      "value": band["note"]})
+    elif band is not None:
+        std = band["sd"] or 0.0
         u_status = "pass" if std < 0.05 else "caution" if std < 0.12 else "fail"
-        descriptor = ("tight -- the model is stable here" if std < 0.05
+        descriptor = ("tight -- refits agree closely" if std < 0.05
                       else "moderate" if std < 0.12
                       else "WIDE -- this score is unstable to how the model was trained")
-        items.append({
-            "label": "Prediction stability (bootstrap)",
-            "status": u_status,
-            "value": (f"+/- {std:.3f} ({descriptor}); 68% of "
-                      f"{candidate.get('uncertainty_n_members')} refits fall in "
-                      f"{p16:.3f}-{p84:.3f}"),
-        })
+        value = (f"{band['n']} models refit on resampled training data: 16-84% spread "
+                 f"{band['p16']:.3f}-{band['p84']:.3f} ({descriptor})")
+        if band["outside"]:
+            value += "; the score itself lies outside this spread"
+        items.append({"label": "Prediction stability (model refits)", "status": u_status,
+                      "value": value})
 
     plausible = char.get("radius_plausible")
     items.append({
@@ -567,6 +600,7 @@ def _candidate_summary_json(c):
         "tic_id": c["tic_id"], "host": c["host"],
         "predicted_probability": c.get("predicted_probability"),
         "probability_provenance": _probability_provenance(c),
+        "model_refit_spread": _band_view(c),
         "confidence_tier": c.get("confidence_tier"),
         "combined_filter_pass": bool(c.get("combined_filter_pass")),
         "combined_filter_tier": c.get("combined_filter_tier"),
