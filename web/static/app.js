@@ -9,7 +9,7 @@ const CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).con
   window.fetch = function (input, init) {
     init = init || {};
     const method = (init.method || 'GET').toUpperCase();
-    if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
       init.headers = Object.assign({}, init.headers, { 'X-CSRFToken': CSRF_TOKEN });
       init.credentials = init.credentials || 'same-origin';
     }
@@ -387,8 +387,15 @@ document.querySelectorAll(".run-batch").forEach((batch) => {
     if (!expanded && !loaded) {
       body.innerHTML = '<p class="muted">Loading...</p>';
       fetch(`/runs/${runId}/candidates`)
-        .then((r) => r.json())
+        // 404 means the run itself no longer exists (e.g. deleted after this
+        // page loaded) -- distinct from a run that found nothing.
+        .then((r) => (r.status === 404 ? null : r.json()))
         .then((list) => {
+          if (list === null) {
+            body.innerHTML = '<p class="muted">This run no longer exists.</p>';
+            loaded = true;
+            return;
+          }
           if (list.length === 0) {
             body.innerHTML = '<p class="muted">No new candidates in this batch.</p>';
             loaded = true;

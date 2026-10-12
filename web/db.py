@@ -498,6 +498,11 @@ def list_candidates(sort_by="predicted_probability", ascending=False, tier_filte
         return [dict(r) for r in rows]
 
 
+def candidate_exists(tic_id):
+    with get_conn() as conn:
+        return conn.execute("SELECT 1 FROM candidates WHERE tic_id = ?", (tic_id,)).fetchone() is not None
+
+
 def get_candidate(tic_id):
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM candidates WHERE tic_id = ?", (tic_id,)).fetchone()

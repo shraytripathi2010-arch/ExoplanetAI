@@ -28,6 +28,24 @@ import conformal
 
 app = Flask(__name__)
 
+
+# Every <int:...> path ID ends up as an sqlite INTEGER parameter, which is a
+# signed 64-bit value. Werkzeug's int converter accepts any size, so an ID
+# above 2^63-1 used to reach the DB layer and raise OverflowError -> HTTP 500
+# on every integer-ID route. Replacing the "int" converter itself (rather than
+# adding a new name) bounds every such route, including ones added later:
+# an out-of-range ID is a 404 before the handler runs.
+from werkzeug.routing import IntegerConverter
+
+
+class SQLiteIntConverter(IntegerConverter):
+    def __init__(self, map, *args, **kwargs):
+        kwargs.setdefault("max", 2 ** 63 - 1)
+        super().__init__(map, *args, **kwargs)
+
+
+app.url_map.converters["int"] = SQLiteIntConverter
+
 # =====================================================================
 # CSRF PROTECTION  (OWASP A01 -- Broken Access Control / CSRF)
 # =====================================================================
@@ -75,7 +93,9 @@ app.config.update(
 )
 
 CSRF_EXEMPT = set()          # nothing is exempt today; kept explicit, not implicit
-SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+# TRACE is deliberately NOT safe here: no route serves it, and listing it would
+# let a future route that accepted TRACE skip the token check.
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 def _csrf_token():
@@ -266,6 +286,10 @@ def run_candidates_json(run_id):
     newly found in that specific Update run (see sync.py -- only NEW
     candidates get linked to a run, so this is genuinely "what this run
     found," not a repeat of the full candidate list every time)."""
+    # A run that does not exist is a 404, not an empty batch -- the two used to
+    # be indistinguishable.
+    if db.get_run(run_id) is None:
+        return jsonify({"error": "not found"}), 404
     candidates = db.get_candidates_for_run(run_id)
     return jsonify([_candidate_summary_json(c) for c in candidates])
 
@@ -673,6 +697,9 @@ def reverify_candidate(tic_id):
 
 @app.route("/candidates/<int:tic_id>/reverify/status")
 def reverify_status(tic_id):
+    # "never_run" is for a candidate that exists; a TIC with no candidate is a 404.
+    if not db.candidate_exists(tic_id):
+        return jsonify({"error": "not found"}), 404
     status = db.get_reverify_status(tic_id)
     if status is None:
         return jsonify({"status": "never_run"})
@@ -727,6 +754,9 @@ def start_exofop_refresh(tic_id):
 
 @app.route("/candidates/<int:tic_id>/exofop_refresh/status")
 def exofop_refresh_status(tic_id):
+    # "never_run" is for a candidate that exists; a TIC with no candidate is a 404.
+    if not db.candidate_exists(tic_id):
+        return jsonify({"error": "not found"}), 404
     status = db.get_exofop_refresh(tic_id)
     if status is None:
         return jsonify({"status": "never_run"})
@@ -747,6 +777,9 @@ def start_multi_sector(tic_id):
 
 @app.route("/candidates/<int:tic_id>/multi_sector/status")
 def multi_sector_status(tic_id):
+    # "never_run" is for a candidate that exists; a TIC with no candidate is a 404.
+    if not db.candidate_exists(tic_id):
+        return jsonify({"error": "not found"}), 404
     evidence = db.get_multi_sector_evidence(tic_id)
     if evidence is None:
         return jsonify({"status": "never_run"})
@@ -767,6 +800,9 @@ def start_centroid(tic_id):
 
 @app.route("/candidates/<int:tic_id>/centroid/status")
 def centroid_status(tic_id):
+    # "never_run" is for a candidate that exists; a TIC with no candidate is a 404.
+    if not db.candidate_exists(tic_id):
+        return jsonify({"error": "not found"}), 404
     evidence = db.get_centroid_evidence(tic_id)
     if evidence is None:
         return jsonify({"status": "never_run"})
