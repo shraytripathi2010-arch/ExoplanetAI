@@ -25,6 +25,7 @@ import scheduler_log
 import exofop_vetting
 import model_features
 import conformal
+import folded_plot
 
 app = Flask(__name__)
 
@@ -73,6 +74,10 @@ from flask import session, abort
 # happened to have a form open. Refusing to start is the honest failure: it is
 # loud, it is immediate, and it cannot be mistaken for working.
 _DEBUG = os.environ.get("EXOPLANET_DEBUG") == "1"
+
+# Cache of rendered folded light-curve PNGs (gitignored). A module constant so
+# tests can point it at a scratch folder.
+PLOTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "plots")
 _SECRET = os.environ.get("EXOPLANET_SECRET_KEY")
 if not _SECRET:
     if not _DEBUG:
@@ -331,10 +336,11 @@ def candidate_detail(tic_id):
     exofop_view_url = f"https://exofop.ipac.caltech.edu/tess/target.php?id={tic_id}"
     exofop_account_url = "https://exofop.ipac.caltech.edu/tess/index.php"
 
-    plot_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "plots",
-                              f"{candidate['host']}_folded.png")
-    has_plot = os.path.exists(plot_path)
+    plot_name = folded_plot.plot_filename(candidate["host"])
+    has_plot = os.path.exists(os.path.join(PLOTS_DIR, plot_name))
     plot_missing = job_runner.plot_inputs_missing(char)
+    plot_url = url_for("candidate_plot_file", tic_id=tic_id, filename=plot_name)
+    plot_caption = None if plot_missing else folded_plot.caption(char)
     multi_sector = db.get_multi_sector_evidence(tic_id)
     centroid = db.get_centroid_evidence(tic_id)
     reverify = db.get_reverify_status(tic_id)
@@ -362,7 +368,8 @@ def candidate_detail(tic_id):
     return render_template("candidate_detail.html", c=candidate, char=char, history=history,
                             events=events, exofop_view_url=exofop_view_url,
                             exofop_account_url=exofop_account_url, has_plot=has_plot,
-                            plot_missing=plot_missing,
+                            plot_missing=plot_missing, plot_url=plot_url,
+                            plot_caption=plot_caption,
                             prob_provenance=_probability_provenance(candidate),
                             multi_sector=multi_sector, centroid=centroid, reverify=reverify,
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
@@ -624,18 +631,14 @@ def candidate_json(tic_id):
     return jsonify(_candidate_summary_json(candidate))
 
 
-@app.route("/candidates/<int:tic_id>/plot")
-def candidate_plot(tic_id):
+def _serve_plot(candidate):
     """Serves the folded light curve plot, generating it lazily on first
     request (see job_runner.generate_plot_for_candidate) rather than for
     every candidate up front -- most candidates in a 100+ batch will never
-    be looked at closely."""
-    candidate = db.get_candidate(tic_id)
-    if candidate is None:
-        return "Candidate not found", 404
-    plots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "plots")
-    os.makedirs(plots_dir, exist_ok=True)
-    plot_path = os.path.join(plots_dir, f"{candidate['host']}_folded.png")
+    be looked at closely. The cached file carries folded_plot's format
+    version, so a PNG drawn in an older format is never served."""
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    plot_path = os.path.join(PLOTS_DIR, folded_plot.plot_filename(candidate["host"]))
 
     if not os.path.exists(plot_path):
         ok, err = job_runner.generate_plot_for_candidate(candidate, plot_path)
@@ -643,6 +646,26 @@ def candidate_plot(tic_id):
             return f"Plot could not be generated: {err}", 404
 
     return send_file(plot_path, mimetype="image/png")
+
+
+@app.route("/candidates/<int:tic_id>/plot")
+def candidate_plot(tic_id):
+    candidate = db.get_candidate(tic_id)
+    if candidate is None:
+        return "Candidate not found", 404
+    return _serve_plot(candidate)
+
+
+@app.route("/candidates/<int:tic_id>/plot/<filename>")
+def candidate_plot_file(tic_id, filename):
+    """The URL the candidate page uses: it names the versioned file, so a
+    browser that cached an older format's image at /plot is not reused."""
+    candidate = db.get_candidate(tic_id)
+    if candidate is None:
+        return "Candidate not found", 404
+    if filename != folded_plot.plot_filename(candidate["host"]):
+        return "Not the current plot for this candidate", 404
+    return _serve_plot(candidate)
 
 
 @app.route("/candidates/<int:tic_id>/reverify", methods=["POST"])

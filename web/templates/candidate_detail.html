@@ -502,15 +502,22 @@
 
 <section class="card">
   <h2>Folded light curve</h2>
-  {% if has_plot %}
-    <img class="lightcurve-plot" src="{{ url_for('candidate_plot', tic_id=c.tic_id) }}" alt="Folded light curve for {{ c.host }}">
-  {% elif plot_missing %}
-    <p class="muted">Plot unavailable: the stored characterization has no {{ plot_missing|join('/') }} for this candidate, and the plot needs the transit ephemeris. This is not a missing light curve.</p>
+  {% set plot_src = plot_url or url_for('candidate_plot', tic_id=c.tic_id) %}
+  {% set plot_alt = "Folded light curve for " ~ c.host ~ ": close-up of the transit above, the whole orbit binned below" %}
+  {% if plot_missing %}
+    <p class="muted">Plot unavailable: the stored characterization has no {{ plot_missing|join('/') }} for this candidate, and the plot needs
+      {% if 'transit_duration_hours' in plot_missing and ('period' in plot_missing or 'T0' in plot_missing) %}the transit ephemeris and duration{% elif 'transit_duration_hours' in plot_missing %}the transit duration{% else %}the transit ephemeris{% endif %}.
+      This is not a missing light curve.</p>
+  {% elif has_plot %}
+    <img class="lightcurve-plot" src="{{ plot_src }}" alt="{{ plot_alt }}">
   {% else %}
-    <img class="lightcurve-plot" src="{{ url_for('candidate_plot', tic_id=c.tic_id) }}" alt="Folded light curve for {{ c.host }}"
+    <img class="lightcurve-plot" src="{{ plot_src }}" alt="{{ plot_alt }}"
          onerror="this.outerHTML='<p class=\'muted\'>Plot unavailable: it could not be generated (open the plot link for the reason).</p>'">
   {% endif %}
-  <p class="figure-caption">The real TESS photometry for {{ c.host }}, phase-folded on the detected period and binned for clarity.</p>
+  {% if not plot_missing %}
+  <p class="figure-caption">The real TESS photometry for {{ c.host }}.
+    {% if plot_caption %}{{ plot_caption }}{% else %}Phase-folded on the stored period.{% endif %}</p>
+  {% endif %}
 </section>
 
 <section class="card">
@@ -546,46 +553,46 @@
   <div class="param-grid">
     <div class="param-cell">
       <span class="param-label">Orbital period</span>
-      <span class="param-value">{{ '%.4f'|format(char.period_days) if char.period_days is not none else '--' }}<span class="unit">days</span></span>
+      <span class="param-value">{{ '%.4f'|format(char.period_days) if char.period_days is number else '--' }}<span class="unit">days</span></span>
     </div>
     <div class="param-cell">
       <span class="param-label">Epoch (T0)</span>
-      <span class="param-value">{{ '%.4f'|format(char.epoch_bjd) if char.epoch_bjd is not none else '--' }}<span class="unit">BJD</span></span>
+      <span class="param-value">{{ '%.4f'|format(char.epoch_bjd) if char.epoch_bjd is number else '--' }}<span class="unit">BJD</span></span>
     </div>
     <div class="param-cell">
       <span class="param-label">Transit depth</span>
-      <span class="param-value">{{ '%.0f'|format(char.transit_depth_ppm) if char.transit_depth_ppm is not none else '--' }}<span class="unit">ppm</span></span>
+      <span class="param-value">{{ '%.0f'|format(char.transit_depth_ppm) if char.transit_depth_ppm is number else '--' }}<span class="unit">ppm</span></span>
     </div>
     <div class="param-cell">
       <span class="param-label">Transit duration</span>
-      <span class="param-value">{{ '%.2f'|format(char.transit_duration_hours) if char.transit_duration_hours is not none else '--' }}<span class="unit">hours</span></span>
+      <span class="param-value">{{ '%.2f'|format(char.transit_duration_hours) if char.transit_duration_hours is number else '--' }}<span class="unit">hours</span></span>
     </div>
     <div class="param-cell">
       <span class="param-label">Estimated planet radius</span>
-      <span class="param-value">{{ '%.2f'|format(char.planet_radius_earth) if char.planet_radius_earth is not none else '--' }}<span class="unit">R&#8853;</span></span>
-      {% if char.planet_radius_earth_p16 is not none and char.planet_radius_earth_p84 is not none %}
+      <span class="param-value">{{ '%.2f'|format(char.planet_radius_earth) if char.planet_radius_earth is number else '--' }}<span class="unit">R&#8853;</span></span>
+      {% if char.planet_radius_earth_p16 is number and char.planet_radius_earth_p84 is number %}
         <div class="muted param-uncertainty">68% range: {{ '%.2f'|format(char.planet_radius_earth_p16) }}&ndash;{{ '%.2f'|format(char.planet_radius_earth_p84) }} R&#8853;</div>
       {% endif %}
       {% if not char.radius_plausible %}<br><span class="badge badge-fail">exceeds plausibility ceiling</span>{% endif %}
     </div>
     <div class="param-cell">
       <span class="param-label">Semi-major axis</span>
-      <span class="param-value">{{ '%.4f'|format(char.semi_major_axis_au) if char.semi_major_axis_au is not none else '--' }}<span class="unit">AU</span></span>
-      {% if char.semi_major_axis_au_p16 is not none and char.semi_major_axis_au_p84 is not none %}
+      <span class="param-value">{{ '%.4f'|format(char.semi_major_axis_au) if char.semi_major_axis_au is number else '--' }}<span class="unit">AU</span></span>
+      {% if char.semi_major_axis_au_p16 is number and char.semi_major_axis_au_p84 is number %}
         <div class="muted param-uncertainty">68% range: {{ '%.4f'|format(char.semi_major_axis_au_p16) }}&ndash;{{ '%.4f'|format(char.semi_major_axis_au_p84) }} AU</div>
       {% endif %}
     </div>
     <div class="param-cell">
       <span class="param-label">Equilibrium temperature</span>
-      <span class="param-value">{{ '%.0f'|format(char.equilibrium_temp_k) if char.equilibrium_temp_k is not none else '--' }}<span class="unit">K</span></span>
-      {% if char.equilibrium_temp_k_p16 is not none and char.equilibrium_temp_k_p84 is not none %}
+      <span class="param-value">{{ '%.0f'|format(char.equilibrium_temp_k) if char.equilibrium_temp_k is number else '--' }}<span class="unit">K</span></span>
+      {% if char.equilibrium_temp_k_p16 is number and char.equilibrium_temp_k_p84 is number %}
         <div class="muted param-uncertainty">68% range: {{ '%.0f'|format(char.equilibrium_temp_k_p16) }}&ndash;{{ '%.0f'|format(char.equilibrium_temp_k_p84) }} K</div>
       {% endif %}
       {% if char.rough_hz_flag %}<br><span class="badge badge-pass">rough HZ</span>{% endif %}
     </div>
     <div class="param-cell">
       <span class="param-label">Insolation</span>
-      <span class="param-value">{{ '%.1f'|format(char.insolation_flux_earth) if char.insolation_flux_earth is not none else '--' }}<span class="unit">&times; Earth</span></span>
+      <span class="param-value">{{ '%.1f'|format(char.insolation_flux_earth) if char.insolation_flux_earth is number else '--' }}<span class="unit">&times; Earth</span></span>
     </div>
     <div class="param-cell">
       <span class="param-label">Host spectral type (rough)</span>
@@ -601,8 +608,8 @@
     </div>
     <div class="param-cell">
       <span class="param-label">Detection strength</span>
-      <span class="param-value">SDE {{ '%.1f'|format(char.SDE) if char.SDE is not none else '--' }}</span>
-      <div class="muted">{{ char.distinct_transit_count|int if char.distinct_transit_count is not none else '?' }} distinct transits</div>
+      <span class="param-value">SDE {{ '%.1f'|format(char.SDE) if char.SDE is number else '--' }}</span>
+      <div class="muted">{{ char.distinct_transit_count|int if char.distinct_transit_count is number else '?' }} distinct transits</div>
     </div>
   </div>
   <p class="muted" style="margin-top: var(--sp-4);"><strong>Plausibility verdict:</strong> {{ char.plausibility_verdict }}</p>

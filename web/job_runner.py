@@ -10,8 +10,10 @@ src/08_characterize_candidates.py. This file only adds:
      starts it returns immediately instead of blocking for hours.
   2. A single-candidate re-verification action that calls 08's own check
      functions directly (imported, not subprocessed) for just one TIC ID.
-  3. On-demand light curve plot generation using 06's own
-     plot_folded_light_curve, unmodified.
+  3. On-demand light curve plot generation (folded_plot.py: a zoomed,
+     binned transit panel over a binned full-orbit panel, on the stored
+     period/T0; 06's own single-panel plot_folded_light_curve still makes
+     the Stage H pipeline figures).
 """
 import importlib
 import os
@@ -28,6 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "code"))
 
 import db
+import folded_plot
 import scheduler_log
 import sync
 
@@ -978,18 +981,27 @@ def _load_06():
     return importlib.import_module("06_download_unknown")
 
 
+PROCESSED_UNKNOWN_DIR = os.path.join(PROJECT_ROOT, "data", "processed_unknown")
+
+
 def plot_inputs_missing(char):
     """The stored fields a folded plot needs and this candidate lacks.
 
     A non-empty answer means the plot CANNOT be made, whatever is on disk. The
     page says so rather than blaming a missing light curve: 191 candidates had
-    period/T0 stranded in _dup columns while their curves were present."""
-    missing = []
-    for k in ("period", "T0"):
-        v = (char or {}).get(k)
-        if v is None or (isinstance(v, float) and v != v):
-            missing.append(k)
-    return missing
+    period/T0 stranded in _dup columns while their curves were present. The
+    two-panel figure also needs transit_duration_hours, for its window and
+    bin widths."""
+    return folded_plot.inputs_missing(char)
+
+
+def plot_missing_message(missing):
+    needs = "the transit ephemeris"
+    if "transit_duration_hours" in missing:
+        needs = ("the transit duration" if not {"period", "T0"} & set(missing)
+                 else "the transit ephemeris and duration")
+    return (f"no {'/'.join(missing)} in the stored characterization -- the plot "
+            f"needs {needs}; the light curve is not the problem")
 
 
 def generate_plot_for_candidate(candidate, out_path):
@@ -997,21 +1009,26 @@ def generate_plot_for_candidate(candidate, out_path):
     host = candidate["host"]
     missing = plot_inputs_missing(char)
     if missing:
-        return False, (f"no {'/'.join(missing)} in the stored characterization -- the plot "
-                       f"needs the transit ephemeris; the light curve is not the problem")
-    m06 = _load_06()
-    period = char.get("period")
-    t0 = char.get("T0")
+        return False, plot_missing_message(missing)
 
-    csv_path = os.path.join(PROJECT_ROOT, "data", "processed_unknown", f"{host}.csv")
+    csv_path = os.path.join(PROCESSED_UNKNOWN_DIR, f"{host}.csv")
     if not os.path.exists(csv_path):
         return False, f"processed light curve not found at {csv_path}"
 
+    # Drawn to a temporary name and moved into place: the route serves any file
+    # at out_path as final, so a failed or concurrent render must never leave
+    # a partial PNG there.
+    tmp_path = f"{out_path}.{os.getpid()}.{threading.get_ident()}.tmp"
     try:
-        m06.plot_folded_light_curve(host, csv_path, period, t0, out_path)
+        folded_plot.render(host, csv_path, char["period"], char["T0"],
+                           char["transit_duration_hours"], tmp_path)
+        os.replace(tmp_path, out_path)
         return True, None
     except Exception as e:
         return False, str(e)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 # ---- multi-sector strengthening (Item 1) ----
