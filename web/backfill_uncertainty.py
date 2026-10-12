@@ -2,6 +2,12 @@
 backfill_uncertainty.py -- computes the bootstrap uncertainty band for every
 candidate already in the database, not just ones found from now on.
 
+RETAINED BUT NOT DISPLAYED (2026-10-11): the app no longer shows the bootstrap band.
+Its refit models are systematically different from production, the score fell outside
+their 16-84% spread for 117 of 294 candidates, and the band has no coverage property;
+the conformal sets are the uncertainty display (RESULTS_SUMMARY.md register section I).
+Kept so the decision can be revisited without rebuilding anything.
+
 Same standard as every prior feature in this project: a new evidence type is
 applied retroactively to the existing candidate list, so the site never shows
 a mix of candidates that have it and candidates that silently don't.

@@ -302,7 +302,8 @@ MIGRATIONS = {
     "centroid_evidence": [("started_at", "TEXT"), ("progress_text", "TEXT")],
     "reverify_status": [("started_at", "TEXT")],
     # Per-candidate uncertainty from the pre-built bootstrap ensemble
-    # (models/bootstrap_ensemble). predicted_probability is UNCHANGED and
+    # (models/bootstrap_ensemble). RETAINED BUT NOT DISPLAYED since 2026-10-11
+    # (register section I): the columns stay so the band can be revisited. predicted_probability is UNCHANGED and
     # remains the production model's own answer -- these columns only
     # describe how stable that answer is under training-set resampling.
     # bootstrap_mean is kept so the ensemble's centre can be compared against

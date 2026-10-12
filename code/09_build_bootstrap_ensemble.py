@@ -1,6 +1,12 @@
 """
 09_build_bootstrap_ensemble.py
 
+RETAINED BUT NOT DISPLAYED (2026-10-11): the app no longer shows the bootstrap band.
+Its refit models are systematically different from production, the score fell outside
+their 16-84% spread for 117 of 294 candidates, and the band has no coverage property;
+the conformal sets are the uncertainty display (RESULTS_SUMMARY.md register section I).
+Kept so the decision can be revisited without rebuilding anything.
+
 Pre-computes a bootstrap ensemble used ONLY to attach an uncertainty band to
 each candidate's probability. Run once; the saved members are then reused for
 every scoring call, so no candidate lookup ever retrains anything.

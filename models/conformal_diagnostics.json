@@ -1,0 +1,52 @@
+{
+ "generated_at": "2026-10-12 17:27:58 UTC",
+ "generated_by": "code/experiments/conformal_diagnostics.py",
+ "model_md5": "fe3fa82f36cc978396c68be07d6057f9",
+ "n_features": 33,
+ "calibration": {
+  "snapshot_rev": "3329ad18",
+  "training_csv_md5": "3bf4a34317acbfcaf42972ee875ac0be",
+  "n": 1104,
+  "n_planet": 872,
+  "n_not_planet": 232
+ },
+ "guarantee_scope": "frozen test split of the calibration snapshot",
+ "domain_shift": {
+  "domain_auc": 0.9819784733040646,
+  "n_calibration": 1104,
+  "n_candidates": 307,
+  "candidate_sources": [
+   [
+    "data/catalogs/unknown_features.csv",
+    "data/catalogs/unknown_candidate_list.csv"
+   ],
+   [
+    "data/catalogs/unknown_features_widesector.csv",
+    "data/catalogs/unknown_candidate_list_widesector.csv"
+   ]
+  ],
+  "method": "domain_separability.domain_report (same as conformal_prediction.py)"
+ },
+ "fresh_label_coverage": {
+  "source": "training.csv rows absent from 3329ad18's training.csv",
+  "n_planet": 77,
+  "n_not_planet": 51,
+  "by_alpha": {
+   "0.1": {
+    "target": 0.9,
+    "planet": 0.8311688311688312,
+    "not_planet": 0.9607843137254902
+   },
+   "0.05": {
+    "target": 0.95,
+    "planet": 0.8701298701298701,
+    "not_planet": 1.0
+   },
+   "0.01": {
+    "target": 0.99,
+    "planet": 0.987012987012987,
+    "not_planet": 1.0
+   }
+  }
+ }
+}

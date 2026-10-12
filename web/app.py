@@ -171,31 +171,13 @@ def _probability_provenance(c):
     return {"current": current, "scored_by": scored_by, "label": label}
 
 
-def _band_view(c):
-    """Whether and how to show the spread of production-recipe models refit on
-    resampled training data. None when the row has no band.
-
-    The spread is shown apart from the score, never as "score +/- sd": the
-    deployed model is not one of the refit models, so its score need not lie
-    inside their spread. A band computed for a different model than the one that
-    produced the score is hidden, with a note saying why."""
-    if c.get("uncertainty_p16") is None or c.get("uncertainty_p84") is None:
-        return None
-    p16, p84 = c["uncertainty_p16"], c["uncertainty_p84"]
-    band_md5 = c.get("uncertainty_model_md5")
-    prov = _probability_provenance(c)
-    view = {"p16": p16, "p84": p84, "n": c.get("uncertainty_n_members"),
-            "sd": c.get("uncertainty_std"), "built_at": c.get("uncertainty_ensemble_built_at"),
-            "model": band_md5, "hidden": False, "outside": False, "note": None}
-    if not band_md5 or band_md5 != prov["scored_by"]:
-        about = f"model {band_md5[:8]}" if band_md5 else "an unrecorded model"
-        view["hidden"] = True
-        view["note"] = ("Model-refit spread not shown: it was computed for " + about +
-                        ", not for the model that produced this score.")
-        return view
-    p = c.get("predicted_probability")
-    view["outside"] = p is not None and not (p16 <= p <= p84)
-    return view
+# The bootstrap band (candidates.uncertainty_* columns, models/bootstrap_ensemble/,
+# code/09_build_bootstrap_ensemble.py, web/backfill_uncertainty.py) is RETAINED
+# but NOT DISPLAYED since 2026-10-11. Rebuilt to production's exact recipe, its
+# members are still systematically different models from production (bootstrap
+# resampling): the score fell outside their 16-84% spread for 117 of 294
+# candidates, and the band carries no coverage property. The conformal sets
+# (conformal.py) are the page's uncertainty display. Register section I.
 
 
 DISCLAIMER = ("This is an unconfirmed candidate ranked by an automated pipeline for human "
@@ -382,7 +364,6 @@ def candidate_detail(tic_id):
                             exofop_account_url=exofop_account_url, has_plot=has_plot,
                             plot_missing=plot_missing,
                             prob_provenance=_probability_provenance(candidate),
-                            band=_band_view(candidate),
                             multi_sector=multi_sector, centroid=centroid, reverify=reverify,
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
                             transit_anim=transit_anim, evidence_items=evidence_items,
@@ -487,26 +468,8 @@ def _evidence_items(char, centroid, candidate=None):
     computed and stored, assigns no new judgement, changes no stored data."""
     items = []
 
-    # Model-stability band, so a wide interval is visible as evidence rather
-    # than only as a small "+/-" next to the headline number. The thresholds
-    # are descriptive labels for the reader, not a new gate -- nothing about
-    # the candidate's tier or probability depends on them.
-    band = _band_view(candidate) if candidate is not None else None
-    if band is not None and band["hidden"]:
-        items.append({"label": "Prediction stability (model refits)", "status": "skip",
-                      "value": band["note"]})
-    elif band is not None:
-        std = band["sd"] or 0.0
-        u_status = "pass" if std < 0.05 else "caution" if std < 0.12 else "fail"
-        descriptor = ("tight -- refits agree closely" if std < 0.05
-                      else "moderate" if std < 0.12
-                      else "WIDE -- this score is unstable to how the model was trained")
-        value = (f"{band['n']} models refit on resampled training data: 16-84% spread "
-                 f"{band['p16']:.3f}-{band['p84']:.3f} ({descriptor})")
-        if band["outside"]:
-            value += "; the score itself lies outside this spread"
-        items.append({"label": "Prediction stability (model refits)", "status": u_status,
-                      "value": value})
+    # (No "Prediction stability" item: the bootstrap band is retained but not
+    # displayed -- see the note above DISCLAIMER.)
 
     plausible = char.get("radius_plausible")
     items.append({
@@ -624,7 +587,6 @@ def _candidate_summary_json(c):
         "tic_id": c["tic_id"], "host": c["host"],
         "predicted_probability": c.get("predicted_probability"),
         "probability_provenance": _probability_provenance(c),
-        "model_refit_spread": _band_view(c),
         "confidence_tier": c.get("confidence_tier"),
         "combined_filter_pass": bool(c.get("combined_filter_pass")),
         "combined_filter_tier": c.get("combined_filter_tier"),

@@ -32,15 +32,10 @@
   <div class="stat-row">
     <div class="stat"><span class="stat-label">Classifier probability</span>
       <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if prob_provenance.label %} <span class="muted">({{ prob_provenance.label }})</span>{% endif %}</span>
-      {% if band and band.hidden %}
-        <span class="muted param-uncertainty">{{ band.note }}</span>
-      {% elif band %}
-        <span class="muted param-uncertainty">Spread of {{ band.n }} models refit on resampled training data (16&ndash;84%):
-          {{ '%.3f'|format(band.p16) }}&ndash;{{ '%.3f'|format(band.p84) }}</span>
-        {% if band.outside %}
-        <span class="muted param-uncertainty">This score lies outside that spread. The score comes from the deployed model, which is not one of the refit models, so it need not fall inside their range.</span>
-        {% endif %}
-      {% endif %}
+      {# The bootstrap band (uncertainty_* columns) is retained in the DB but no longer
+         displayed: its refit models are systematically different from production, and
+         the score fell outside their 16-84% spread for 117 of 294 candidates. The
+         conformal sets below are the uncertainty display. Register section I. #}
     </div>
     <div class="stat"><span class="stat-label">Combined filter</span><span class="stat-value">{{ 'PASS ('+c.combined_filter_tier+')' if c.combined_filter_pass else ('needs review' if c.needs_manual_review else 'fail') }}</span></div>
     <div class="stat"><span class="stat-label">First found</span><span class="stat-value small">{{ c.first_found_date }}</span></div>
@@ -152,7 +147,7 @@
       <tr class="conformal-{{ s.set_key }}">
         <td class="num"><strong>{{ s.confidence_pct }}%</strong></td>
         <td><span class="conformal-badge conformal-badge-{{ s.set_key }}">{{ s.set_label }}</span></td>
-        <td class="muted">{{ s.plain_language }}</td>
+        <td class="muted">{{ s.plain_language }}{% if s.why %}<br><em>{{ s.why }}</em>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -174,6 +169,36 @@
     confidence takes more evidence than merely leaning against it.
   </p>
 
+  {% if conformal_view.thresholds_stale %}
+  <p class="conformal-caveat"><strong>Stale thresholds.</strong> These sets were calibrated for model
+    {{ (conformal_view.model_md5 or 'unknown')[:8] }}, not the model that is deployed now.</p>
+  {% endif %}
+  {% if conformal_view.diagnostics_available %}
+  <p class="muted conformal-limits">
+    <strong>Measured limits.</strong> The coverage guarantee formally covers only the
+    {{ conformal_view.guarantee_scope }}. On labelled stars added after that snapshot
+    ({{ conformal_view.fresh_n_planet }} planets, {{ conformal_view.fresh_n_not_planet }} non-planets),
+    the sets contained the true status for
+    {% for r in conformal_view.fresh_coverage %}{{ '%.3f'|format(r.planet) }} of planets at {{ r.confidence_pct }}%{{ ', ' if not loop.last else '' }}{% endfor %}
+    and {% for r in conformal_view.fresh_coverage %}{{ '%.3f'|format(r.not_planet) }}{{ ', ' if not loop.last else '' }}{% endfor %}
+    of non-planets at the same levels.
+    {% set low_p = conformal_view.fresh_coverage|selectattr('planet_below')|map(attribute='confidence_pct')|list %}
+    {% set low_n = conformal_view.fresh_coverage|selectattr('not_planet_below')|map(attribute='confidence_pct')|list %}
+    {% if low_p %}That is below target for planets at {{ low_p|join('%, ') }}%.{% endif %}
+    {% if low_n %}That is below target for non-planets at {{ low_n|join('%, ') }}%.{% endif %}
+    Calibration stars and candidates are separable at domain AUC
+    <strong>{{ '%.4f'|format(conformal_view.domain_auc) }}</strong>
+    ({{ conformal_view.domain_n_features }} features, measured {{ conformal_view.domain_measured_at[:10] }}).
+  </p>
+  {% if conformal_view.diagnostics_stale %}
+  <p class="conformal-caveat"><strong>Stale figures.</strong> These limits were measured for model
+    {{ (conformal_view.diagnostics_model_md5 or 'unknown')[:8] }}, not the model that is deployed now;
+    re-run code/experiments/conformal_diagnostics.py.</p>
+  {% endif %}
+  {% else %}
+  <p class="conformal-caveat">The measured limits of these sets (models/conformal_diagnostics.json) are
+    not available, so how far the guarantee carries to candidates is not stated here.</p>
+  {% endif %}
   <details style="margin-top:1rem;">
     <summary>What the guarantee is, and where it stops applying</summary>
     <div class="muted" style="margin-top:0.75rem;">
@@ -186,7 +211,7 @@
         confidence level &mdash; measured, not assumed, and verified separately for planets and
         for false positives.
       </p>
-      {% if not conformal_view.guarantee_transfers %}
+      {% if conformal_view.diagnostics_available and not conformal_view.guarantee_transfers %}
       <p class="conformal-caveat">
         <strong>Important limit.</strong> That guarantee holds for stars like the calibration
         set. This candidate is not one of those: a classifier separates the calibration stars

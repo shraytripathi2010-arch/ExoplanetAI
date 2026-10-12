@@ -24,23 +24,28 @@ and rejected: it hits its overall target while covering the negative class only
 planets. Mondrian uses a separate threshold per class and delivers 90.4% /
 91.3%. See RESULTS_SUMMARY.
 
-THE LIMIT THAT MATTERS, MEASURED RATHER THAN ASSUMED
+THE LIMITS THAT MATTER, MEASURED RATHER THAN ASSUMED
 The guarantee requires the calibration data and the scored point to be
-exchangeable. A domain classifier separates the calibration stars from this
-app's unknown candidates at **AUC 0.9763** -- they are demonstrably not from
-the same distribution. So on unknown candidates this is a well-calibrated
-indication, NOT a guarantee, and `guarantee_transfers` is False so the UI can
-say so instead of overclaiming.
+exchangeable. Both measured limits are read from models/conformal_diagnostics.json
+(code/experiments/conformal_diagnostics.py), never hard-coded here:
+  * domain_shift -- how well a classifier separates the calibration stars from
+    the candidate pools (AUC 0.9820 for fe3fa82f on 2026-10-11; it was a
+    hard-coded 0.9763, measured with the old 24 features). Above 0.90 the
+    guarantee does not transfer to candidates, and the page says so.
+  * fresh_label_coverage -- coverage of the deployed thresholds on labelled
+    stars added after the calibration snapshot, where planets were
+    under-covered (0.831 at 90%).
+The page calls the figures stale when the diagnostics' model_md5 is not the
+deployed model.
 """
 import os
 import json
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ARTIFACT = os.path.join(SCRIPT_DIR, "..", "models", "conformal_calibration.json")
-
-# Measured in conformal_prediction.py; see the module docstring.
-DOMAIN_AUC_VS_CANDIDATES = 0.9763
-GUARANTEE_TRANSFERS = False
+DIAGNOSTICS = os.path.join(SCRIPT_DIR, "..", "models", "conformal_diagnostics.json")
+PRODUCTION_MODEL = os.path.join(SCRIPT_DIR, "..", "models", "best_model.joblib")
+TRANSFER_AUC_CEILING = 0.90      # conformal_prediction.py's own verdict line
 
 _ART = None
 
@@ -61,6 +66,34 @@ def _load():
 
 def available():
     return bool(_load().get("thresholds"))
+
+
+_md5_cache = {}
+
+
+def _production_md5():
+    """md5 of the deployed model, recomputed only when the file changes."""
+    import hashlib
+    try:
+        st = os.stat(PRODUCTION_MODEL)
+    except OSError:
+        return None
+    key = (st.st_mtime_ns, st.st_size)
+    if key not in _md5_cache:
+        with open(PRODUCTION_MODEL, "rb") as f:
+            _md5_cache.clear()
+            _md5_cache[key] = hashlib.md5(f.read()).hexdigest()
+    return _md5_cache[key]
+
+
+def _diagnostics():
+    """The measured limits, or {} if the artifact is missing. Re-read on each
+    call (it is tiny) so a regenerated file is picked up without a restart."""
+    try:
+        with open(DIAGNOSTICS) as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 
 def prediction_set(p, alpha=0.05):
@@ -96,9 +129,20 @@ def prediction_set(p, alpha=0.05):
                  "level. That usually means this star looks unlike anything "
                  "the model was calibrated on.")
 
+    # The surprise case: {not planet} for a probability above 0.5. Thresholds
+    # are per class, fitted on a calibration set that is ~79% planets, so at
+    # this level "planet" survives only once the score reaches 1 - q_pos.
+    planet_floor = 1.0 - q_pos
+    why = None
+    if key == "not_planet" and p > 0.5:
+        why = (f"Why \u201cnot a planet\u201d at a score above 0.5: thresholds are set separately "
+               f"for each class, and at {int(round((1 - alpha) * 100))}% a score must reach "
+               f"{planet_floor:.3f} before \u201cplanet\u201d stays in the set.")
     return {
         "alpha": alpha,
         "confidence_pct": int(round((1 - alpha) * 100)),
+        "planet_floor": planet_floor,
+        "why": why,
         "set_key": key,
         "set_label": label,
         "set_notation": {"planet": "{Planet}", "not_planet": "{Not a planet}",
@@ -131,11 +175,42 @@ def summary(p, alphas=(0.10, 0.05, 0.01)):
         "n_calibration_neg": art.get("n_calibration_neg"),
         "method": art.get("method"),
         "model_md5": art.get("model_md5"),
-        "guarantee_transfers": GUARANTEE_TRANSFERS,
-        "domain_auc": DOMAIN_AUC_VS_CANDIDATES,
+        "thresholds_stale": art.get("model_md5") != _production_md5(),
+        **_diagnostics_view(alphas),
         # Empty sets are structurally impossible at the current thresholds,
         # because q_neg + q_pos > 1 for every alpha in the artifact. Stated
         # rather than left as a mystery branch: the honest distribution-shift
         # signal for this app is the domain AUC above, not an empty set.
         "empty_possible": any(s["q_neg"] + s["q_pos"] < 1.0 for s in sets),
+    }
+
+
+def _diagnostics_view(alphas):
+    """The measured limits for the template, from conformal_diagnostics.json."""
+    d = _diagnostics()
+    if not d:
+        return {"diagnostics_available": False, "guarantee_transfers": False}
+    auc = (d.get("domain_shift") or {}).get("domain_auc")
+    fresh = d.get("fresh_label_coverage") or {}
+    rows = []
+    for a in alphas:
+        v = (fresh.get("by_alpha") or {}).get(str(a))
+        if v:
+            tgt = v.get("target", 1 - a)
+            rows.append({"confidence_pct": int(round((1 - a) * 100)), "planet": v.get("planet"),
+                         "not_planet": v.get("not_planet"),
+                         "planet_below": v.get("planet") is not None and v["planet"] < tgt,
+                         "not_planet_below": v.get("not_planet") is not None and v["not_planet"] < tgt})
+    return {
+        "diagnostics_available": True,
+        "domain_auc": auc,
+        "domain_n_features": d.get("n_features"),
+        "domain_measured_at": d.get("generated_at"),
+        "diagnostics_model_md5": d.get("model_md5"),
+        "diagnostics_stale": d.get("model_md5") != _production_md5(),
+        "guarantee_transfers": auc is not None and auc <= TRANSFER_AUC_CEILING,
+        "guarantee_scope": d.get("guarantee_scope"),
+        "fresh_coverage": rows,
+        "fresh_n_planet": fresh.get("n_planet"),
+        "fresh_n_not_planet": fresh.get("n_not_planet"),
     }
