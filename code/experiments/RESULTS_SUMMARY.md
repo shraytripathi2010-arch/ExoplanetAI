@@ -770,6 +770,93 @@ transit is visible at the stored ephemeris.
 moved to a `post_worker_init` hook and `max_requests` left at 0. Details in
 audit/roadmap_scoping.md (C4).
 
+## M. VETTING THE 296: NO CANDIDATE IS DEFENSIBLE TO SUBMIT -- added 2026-10-12
+
+**As of 2026-10-12, no candidate is defensible to submit.** Full report, per-star
+table, scripts and plots: `audit/vetting/` (gitignored).
+
+**The probability is not evidence of a transit on this pool.** It is
+production `fe3fa82f`, rebuilt in memory and reproducing the stored p to 1e-16
+for the 294 fe3fa82f-stamped candidates.
+
+**What the score responds to:**
+
+| | star features | signal features |
+|---|---|---|
+| Share of the score's sensitivity, pool | **65%** | 35% |
+| Share, frozen test split | 55% | 45% |
+
+- **Method:** label-free permutation, mean |Δp|.
+- **Top feature on the pool:** `st_teff` (2.5× its test-split influence).
+- **Signal strength works against the score:** `SDE` has ρ +0.32 with
+  visibility and ρ −0.32 with probability.
+
+**Cause: the negative class is FP-only**, with false alarms excluded (D3).
+- FP-only means mostly eclipsing binaries, which are strong signals:
+
+  | training medians | SDE | SNR |
+  |---|---|---|
+  | planets | 5.6 | 4.7 |
+  | false positives | 9.2 | 10.3 |
+
+- So the model learned "strong signal = false positive", and it never saw a
+  star with no transit.
+- **What the AUC measures:** the deployed test AUC (0.9454 at deployment; 0.9435
+  on today's 1,104-star frozen split) measures **planet host vs FP host, given
+  a TOI-like signal**. It does not measure detection of a transit in a raw
+  light curve.
+
+**Among the 20 at p ≥ 0.9 with visibility ≤ 1:**
+- Swapping in training false positives' star features drops their mean p from
+  0.96 to 0.52.
+- Swapping in their signal features drops it only to 0.75.
+- 10 of the 20 match a known variable star (VSX).
+
+**Geometry and population:**
+- **104/296 would need an orbit inside the star** (a < R★) at the stored
+  stellar parameters, including **61 of the 122 at p ≥ 0.9** (15 of 60 at
+  p < 0.5).
+- The stored `radius_plausible` check does not catch this.
+- **Pool-wide ellipsoidal pattern:**
+  - flux is systematically low at phase 0.5 (median dip +1.07σ; 18.9% ≥ 3σ);
+  - and high at 0.25 and 0.75 (bumps ≥ 3σ in 16% and 14%);
+  - phases 0.33 and 0.67 are neutral.
+- That is the signature of close binaries, or of variability folded at twice
+  its period.
+
+**Shortlist** (all seven requested checks: visibility ≥ 3, stored P the best
+of P, P/2, P/3, 2P, 3P, odd/even, secondary, radius, combined filter, not
+known):
+
+| star | verdict |
+|---|---|
+| **TIC_173877131** | **Lead, not defensible.** 180 ppm, 10.1σ, P 6.47 d. Only 3 transits in one sector; needs a grazing orbit on a 3.7 R☉ A star; a G = 12.4 neighbour 10.5″ away could be the source. |
+| **TIC_319739812** | **Rejected: variability.** The dip is a trough of a ±0.4% wave, and it lasts 2.6× the longest possible transit on the M dwarf. |
+
+**Near-misses:** 22 fail exactly one check. **TIC_152358293** is the only one
+consistent on every axis: visibility 5.17, 513 ppm, about 0.20 R_Jup. Its one
+failure is a 4.7σ dip at phase 0.26.
+
+**Methods changed or added:**
+- **Odd/even threshold recalibrated to 5.24σ,** the 99th percentile of a null
+  from two transit-free phases. That null reaches 3σ in 6.2% of stars.
+- **Two checks added:**
+  - duration consistency with the star (the longest possible central transit,
+    and orbit-inside-star);
+  - competing structure (the primary must beat the strongest other dip and the
+    strongest bump in the orbit).
+- **The phase-0.5 secondary test stays at 3σ:** its bump null is 0.3%.
+
+**Open decisions, not taken:**
+1. **Negative-class composition:** adopting false alarms, or adding no-transit
+   stars, so the model can learn "no transit".
+2. **Physics gates before scoring:** orbit inside the star, duration
+   consistency, competing structure and visibility, applied before a
+   probability is shown.
+3. **Score presentation:** showing p only as a ranking among candidates that
+   have already passed a visible-transit check, never as evidence that one
+   exists.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
