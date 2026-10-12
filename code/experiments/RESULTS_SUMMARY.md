@@ -604,6 +604,61 @@ Because the thresholds are per class, a score below 0.762 is {not planet} at 90%
 the panel now says so whenever that happens above 0.5. **CTOI text does not use
 conformal sets.**
 
+## J. LABEL-WATCH QUEUE RECONCILED WITH TRAINING.CSV -- added 2026-10-12
+
+**The queue said "processed" for 137 rows whose training row no longer existed.**
+The 2026-08-02 TIC dedup (`dedupe_training_by_tic.py`, `41ead27f`) removed 137
+appended rows: duplicates of stars already in training under their hostname, for
+example TIC_150151262 = `TOI-712`. Their queue rows kept saying "processed". 14
+failed rows were for stars already present under a hostname: they were queued on
+2026-07-19, before membership was checked by TIC id.
+
+**Effect:**
+- `/health`'s all-time `processed_watch_labels` and the scheduler log said
+  **275**; the real number is **138**.
+- No row was a label conflict.
+- The current retrain counter (34/50) was unaffected.
+
+**Reconciled 2026-10-12 17:37 UTC** with `reconcile_watch_queue.py`
+(`d0f0d05f`), after a dry run of the exact rows:
+- **137 -> `superseded_by_dedup`**, each naming its surviving host. The survivor
+  equals the dedup's own `kept_host` for 137/137.
+- **14 -> `already_present`.**
+- One transaction, after an integrity-checked sqlite backup outside the repo.
+- Afterwards all-time processed is 138, the counter is still 34, and a second
+  run changes nothing.
+
+**Double appends.** **22 stars were appended twice.** A pending row was
+re-processed after an interrupted tick, and the append did not check whether the
+star was already present (TIC_150151262 was one of them).
+
+**Now prevented (`d0f0d05f`):**
+- the append checks the TIC against training first and marks `already_present`
+  instead of appending;
+- every training-row removal must call `db.mark_queue_superseded`, and
+  `dedupe_training_by_tic.py --apply` adopts its cleaned file and updates the
+  queue in the same step;
+- each retrain tick checks that every processed row still has its own training
+  row, logs the result and reports it on `/health` as `queue_training_mismatch`
+  (report only).
+
+**Transient-failure retry (`d0f0d05f`).** Timeout, network and file-read
+failures return to pending after a 7-day cool-off, with at most 3 attempts in
+total. Of the 359 failed rows, **13** are transient: **12 eligible** at the next
+tick, and TIC_119638424 eligible from 2026-10-16. Every other failure, including
+the 256 missing-`pdcsap_flux`, stays failed.
+
+**ANNOTATION -- retrain attempts #2 and #3 were triggered entirely by rows later
+removed as duplicates.**
+
+| attempt | rows in its counter window later removed by the dedup |
+|---|---|
+| #2 (2026-07-31) | 75/75 |
+| #3 (2026-08-02) | 62/62 |
+
+Neither was promoted. #4 and #5 are clean. **Those attempts' records are not
+edited.**
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
