@@ -552,6 +552,58 @@ spread. Near 0 or 1 the spread is a few thousandths wide, so an offset of about
 **Until that is decided, do not cite the band as uncertainty on any candidate**:
 not in a CTOI submission, not in a summary, not as "±" anywhere.
 
+## I. BAND DROPPED FROM DISPLAY; CONFORMAL SETS ARE THE UNCERTAINTY -- added 2026-10-12
+
+**Decision (section H's open item): the bootstrap band is no longer displayed**
+(`00cee6d1`, 2026-10-12).
+- **Why:** rebuilt to production's exact recipe, the score still falls outside the
+  members' 16-84% spread for **117 of 294** candidates. The band has no validity
+  or coverage property, because the members are systematically different models
+  from production.
+- **Retained, not displayed:** the `uncertainty_*` DB columns,
+  `models/bootstrap_ensemble/`, `09_build_bootstrap_ensemble.py` and
+  `backfill_uncertainty.py`, so the decision can be revisited without a rebuild.
+  Nothing runs them automatically.
+
+**The conformal sets are current for `fe3fa82f`.**
+- **Thresholds:** in `models/conformal_calibration.json`, they refit exactly from
+  `fe3fa82f`'s own scores.
+- **Calibration set:** 1,104 stars, the frozen test split of the `3329ad18`
+  snapshot (872 planets, 232 not). It is leak-free: 0 of them are in
+  production's training split.
+- **Coverage on the test split holds per class**, from 200 repeated half-splits:
+  - 90%: 0.914 not planet / 0.904 planet
+  - 95%: 0.966 / 0.955
+  - 99%: 0.992 / 0.994
+- **They under-cover planets on labels added after the snapshot** (128 rows, 77
+  planets / 51 not):
+
+  | level | planets | non-planets |
+  |---|---|---|
+  | 90% | **0.831** | 0.961 |
+  | 95% | **0.870** | 1.000 |
+  | 99% | **0.987** | 1.000 |
+
+  The guarantee formally covers only the frozen test split.
+- **Domain AUC re-measured as 0.9820** (33 features, 1,104 calibration vs 307
+  candidates, 2026-10-12). It was a hard-coded 0.9763, measured 2026-08-04 with
+  the 24-feature model. Above 0.90, so the guarantee does not transfer to
+  candidates, and the page says so.
+
+**Where the numbers live.** Both are written by
+`code/experiments/conformal_diagnostics.py` to `models/conformal_diagnostics.json`,
+stamped with the model md5. The page reads them from there and calls them stale
+when the md5 is not the deployed model.
+
+**The sets are coarse.** Over the 294:
+- at 90%: 127 {planet}, 117 {not planet}, 50 {both};
+- at 95%: 125 {both};
+- at 99%: 246 {both}.
+
+Because the thresholds are per class, a score below 0.762 is {not planet} at 90%;
+the panel now says so whenever that happens above 0.5. **CTOI text does not use
+conformal sets.**
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
