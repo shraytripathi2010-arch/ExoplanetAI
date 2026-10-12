@@ -511,7 +511,46 @@ match the CSV. A pre-sync backup is kept outside the repo.
   skipped 10 stars with NaN `gaia_ruwe`/`gaia_nss` as well as the 2 unscored ones.
 - **7 of those 12 still carry a band from 2026-07-29**, computed against an older
   model: 5 of them now sit next to an `fe3fa82f` probability.
-- Not fixed.
+- Not fixed. **Superseded the same day by `8b8f0bed`:** 294 bands, 2 cleared, all
+  stamped with their model. See section H.
+
+## H. THE BOOTSTRAP BAND IS NOT AN INTERVAL AROUND THE SCORE -- added 2026-10-11
+
+**The band does not bracket the production score, and matching production's
+recipe made that worse, not better.** The ensemble was rebuilt on 2026-10-11 to
+production's exact recipe:
+- 5-fold sigmoid calibration (it was 3-fold);
+- the `3329ad18` training snapshot `fe3fa82f` was fit on;
+- a reproduction gate: a plain refit reproduces `fe3fa82f` exactly (max |diff| 0).
+
+Over the 294 `fe3fa82f`-scored candidates:
+
+| ensemble | score outside the members' 16-84% range | > 3 sigma from the member mean | median \|score - mean\| |
+|---|---|---|---|
+| 3-fold (before) | 85 | 7 | 0.0226 |
+| 5-fold, production recipe (now) | **117** | **14** | **0.0216** |
+
+**Cause: resampling with replacement, not calibration.** Each member is fit on a
+bootstrap resample, which duplicates some training rows and omits others, so the
+members are systematically different models from production rather than noisy
+copies of it. Production is not a member, so its score need not lie inside their
+spread. Near 0 or 1 the spread is a few thousandths wide, so an offset of about
+0.01 already falls outside it.
+
+**Display changed in `8b8f0bed`:**
+- there is no "±" next to any score;
+- the 16-84% spread of the refit models is shown separately, under its own label;
+- a score outside that spread is flagged on its own page, with the reason;
+- a band stamped for a different model than the score is hidden, with a note;
+- the CTOI probability line always names the scoring model.
+
+**OPEN DECISION, not taken:** what replaces or repairs the band.
+- drop it in favour of the conformal prediction sets the page already shows;
+- re-centre it on the production score;
+- rebuild it by subsampling without replacement.
+
+**Until that is decided, do not cite the band as uncertainty on any candidate**:
+not in a CTOI submission, not in a summary, not as "±" anywhere.
 
 ---
 
