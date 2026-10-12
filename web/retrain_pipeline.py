@@ -261,6 +261,48 @@ def _gaia_for_host(tic_id):
         return {c: float("nan") for c in GAIA_COLUMNS}
 
 
+def _training_identity_index():
+    """{TIC id: training host} for every row of training.csv, under the
+    confirmed_hosts.py identity rule (TIC_<id> parsed, else the archive's
+    hostname map, else the coordinate cross-match) -- the same rule the dedup
+    and 04 use, so the three can never disagree about which star a row is."""
+    sys.path.insert(0, os.path.join(CODE_DIR, "experiments"))
+    import confirmed_hosts
+    resolve = confirmed_hosts.tic_resolver()
+    if not os.path.exists(TRAINING_CSV):
+        return {}
+    out = {}
+    for h in pd.read_csv(TRAINING_CSV, usecols=["host"])["host"].astype(str):
+        t = resolve(h)
+        if t is not None:
+            out.setdefault(int(t), h)
+    return out
+
+
+_consistency_cache = {"key": None, "value": None}
+
+
+def queue_consistency(force=False):
+    """Every 'processed' queue row must still have its OWN row in training.csv.
+
+    Returns {"mismatch": n, "hosts": [first 10], "checked_at": ...}. Report only:
+    nothing is ever fixed from here. Cached on training.csv's mtime/size and the
+    number of processed rows, so /health can call it on every poll."""
+    st = os.stat(TRAINING_CSV) if os.path.exists(TRAINING_CSV) else None
+    with db.get_conn() as conn:
+        processed = [r["host"] for r in conn.execute(
+            "SELECT host FROM label_watch_queue WHERE status = 'processed'")]
+    key = (st.st_mtime_ns if st else None, st.st_size if st else None, len(processed))
+    if not force and _consistency_cache["key"] == key:
+        return _consistency_cache["value"]
+    own = set(pd.read_csv(TRAINING_CSV, usecols=["host"])["host"].astype(str)) if st else set()
+    missing = sorted(h for h in processed if h not in own)
+    value = {"mismatch": len(missing), "hosts": missing[:10], "n_processed": len(processed),
+             "checked_at": db.now_iso()}
+    _consistency_cache.update(key=key, value=value)
+    return value
+
+
 def process_and_append_new_examples(max_new=None):
     """Runs every pending watch-queue entry through download -> preprocess
     -> TLS feature extraction, reusing 06_download_unknown.py's
@@ -276,10 +318,20 @@ def process_and_append_new_examples(max_new=None):
 
     print(f"process_and_append_new_examples: {len(pending)} pending stars to process...")
     os.makedirs(RETRAIN_PROCESSED_DIR, exist_ok=True)
+    # IDEMPOTENT APPEND. A star already in training.csv -- under any name, by
+    # TIC id -- is marked already_present and nothing is appended. Before this,
+    # 22 stars were appended TWICE (a pending row processed again after an
+    # interrupted tick), and 137 appended rows duplicated stars that were
+    # already present under their hostname.
+    present = _training_identity_index()
     appended = 0
     for item in pending:
         host, label = item["host"], item["label"]
         tic_id = int(host.replace("TIC_", ""))
+        if tic_id in present:
+            db.mark_watch_label_already_present(host, present[tic_id])
+            print(f"  {host}: already in training.csv as {present[tic_id]} -- marked already_present, not appended")
+            continue
         try:
             search, method = m06.try_search(tic_id)
             if len(search) == 0:
@@ -357,6 +409,7 @@ def process_and_append_new_examples(max_new=None):
                 df_row.to_csv(TRAINING_CSV, index=False)
 
             db.mark_watch_label_processed(host, len(pd.read_csv(processed_path)))
+            present[tic_id] = host
             appended += 1
         except Exception as e:
             db.mark_watch_label_failed(host, f"Unexpected error: {e}")
@@ -602,8 +655,15 @@ def scheduler_tick():
     due-check -- see job_runner.py's _scheduler_loop for the coarser
     interval this is actually called on."""
     try:
+        requeued = db.requeue_transient_failures()
+        if requeued:
+            print(f"scheduler_tick: {len(requeued)} transient failure(s) back to pending after the "
+                  f"{db.RETRY_COOLOFF_DAYS}-day cool-off: {[r['host'] for r in requeued][:10]}")
         find_new_labeled_examples()
         process_and_append_new_examples(max_new=PER_TICK_MAX_NEW)
+        c = queue_consistency(force=True)
+        print(f"queue_consistency: {c['mismatch']} of {c['n_processed']} processed queue row(s) have no "
+              f"training row of their own" + (f" -- {c['hosts']}" if c["mismatch"] else ""))
         maybe_trigger_retrain()
     except Exception as e:
         print(f"retrain_pipeline.scheduler_tick error (does not affect Update jobs): {e}")

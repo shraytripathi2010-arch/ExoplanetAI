@@ -864,6 +864,12 @@ def health():
         threshold = retrain_pipeline.RETRAIN_THRESHOLD
     except Exception:
         threshold = 50
+    # Processed queue rows with no training row of their own (report only; the
+    # retrain tick logs the same check). Null if the check itself failed.
+    try:
+        queue_mismatch = retrain_pipeline.queue_consistency()["mismatch"]
+    except Exception:
+        queue_mismatch = None
 
     body = {
         "status": status,
@@ -876,6 +882,7 @@ def health():
         "hours_since_last_tick": None if age is None else round(age / 3600.0, 2),
         "last_tick_detail": hb,
         "processed_watch_labels": n_labels,
+        "queue_training_mismatch": queue_mismatch,
         "processed_since_last_retrain_attempt": n_since,
         "last_retrain_attempt_at": since,
         "retrain_threshold": threshold,

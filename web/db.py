@@ -300,10 +300,23 @@ MIGRATIONS = {
         ("progress_text", "TEXT"),
     ],
     "centroid_evidence": [("started_at", "TEXT"), ("progress_text", "TEXT")],
+    # Queue rows whose star is represented in training.csv by a DIFFERENT row:
+    #   superseded_by_dedup -- appended, then removed as a duplicate; superseded_by
+    #                          names the surviving training host
+    #   already_present     -- the star was already in training (by TIC id), so
+    #                          nothing was appended; superseded_by names that host
+    # attempt_count counts processing attempts, for the transient-failure retry.
+    # NULL on a row processed before this column existed means one attempt.
+    "label_watch_queue": [
+        ("superseded_by", "TEXT"),
+        ("resolved_at", "TEXT"),
+        ("attempt_count", "INTEGER"),
+    ],
     "reverify_status": [("started_at", "TEXT")],
     # Per-candidate uncertainty from the pre-built bootstrap ensemble
     # (models/bootstrap_ensemble). RETAINED BUT NOT DISPLAYED since 2026-10-11
-    # (register section I): the columns stay so the band can be revisited. predicted_probability is UNCHANGED and
+    # (register section I): the columns stay so the band can be revisited.
+    # predicted_probability is UNCHANGED and
     # remains the production model's own answer -- these columns only
     # describe how stable that answer is under training-set resampling.
     # bootstrap_mean is kept so the ensemble's centre can be compared against
@@ -1006,7 +1019,8 @@ def mark_watch_label_processed(host, n_points):
     with get_conn() as conn:
         conn.execute(
             """UPDATE label_watch_queue SET status = 'processed', n_points = ?,
-               processed_at = ?, error_message = NULL WHERE host = ?""",
+               processed_at = ?, error_message = NULL,
+               attempt_count = COALESCE(attempt_count, 0) + 1 WHERE host = ?""",
             (n_points, now_iso(), host),
         )
 
@@ -1015,9 +1029,86 @@ def mark_watch_label_failed(host, error_message):
     with get_conn() as conn:
         conn.execute(
             """UPDATE label_watch_queue SET status = 'failed', error_message = ?,
-               processed_at = ? WHERE host = ?""",
+               processed_at = ?, attempt_count = COALESCE(attempt_count, 0) + 1
+               WHERE host = ?""",
             (error_message, now_iso(), host),
         )
+
+
+def mark_watch_label_already_present(host, surviving_host):
+    """The star is already in training.csv under `surviving_host` (matched by
+    TIC id), so nothing is appended. Not 'processed': it adds no row, so it must
+    not count toward the retrain threshold."""
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE label_watch_queue SET status = 'already_present', superseded_by = ?,
+               resolved_at = ? WHERE host = ?""",
+            (surviving_host, now_iso(), host),
+        )
+
+
+def mark_queue_superseded(removed_to_surviving, conn=None):
+    """SHARED HELPER -- every removal of training rows must call this.
+
+    removed_to_surviving: {removed training host: surviving training host}.
+    A 'processed' queue row whose own appended row is removed (e.g. as a
+    duplicate) becomes 'superseded_by_dedup', naming the survivor. Without this
+    the queue keeps saying 'processed' for a row that is gone: the 2026-08-02
+    dedup left 137 such rows, inflating every "processed" count.
+    Only 'processed' rows change, so calling it twice is harmless. Returns the
+    number of rows changed. Pass `conn` to join a caller's transaction."""
+    sql = ("UPDATE label_watch_queue SET status = 'superseded_by_dedup', superseded_by = ?, "
+           "resolved_at = ? WHERE host = ? AND status = 'processed'")
+    now = now_iso()
+    def run(c):
+        return sum(c.execute(sql, (surv, now, rem)).rowcount
+                   for rem, surv in removed_to_surviving.items())
+    if conn is not None:
+        return run(conn)
+    with get_conn() as c:
+        return run(c)
+
+
+# Failures that say nothing about the star, only about the moment: a timeout, a
+# dropped connection, a cached file that could not be read. These get another
+# try after a cool-off. Everything else -- a missing pdcsap_flux column, no TESS
+# data, an incomputable feature -- is a property of the star and stays failed.
+TRANSIENT_FAILURE_MARKERS = ("Timeout limit", "timed out", "Timed out", "Connection aborted",
+                             "RemoteDisconnected", "ConnectionError", "Max retries exceeded",
+                             "Error in reading Data product")
+RETRY_COOLOFF_DAYS = 7
+RETRY_MAX_ATTEMPTS = 3
+
+
+def _transient_retry_query(cutoff_iso):
+    like = " OR ".join("error_message LIKE ?" for _ in TRANSIENT_FAILURE_MARKERS)
+    sql = (f"SELECT host, error_message, processed_at, COALESCE(attempt_count, 1) AS attempts "
+           f"FROM label_watch_queue WHERE status = 'failed' AND ({like}) "
+           f"AND COALESCE(attempt_count, 1) < ? AND processed_at <= ?")
+    return sql, [f"%{m}%" for m in TRANSIENT_FAILURE_MARKERS] + [RETRY_MAX_ATTEMPTS, cutoff_iso]
+
+
+def retry_eligible_watch_labels(now=None):
+    """Failed rows a transient-failure retry would requeue now (read-only)."""
+    from datetime import timedelta
+    now = now or datetime.now(timezone.utc)
+    cutoff = (now - timedelta(days=RETRY_COOLOFF_DAYS)).strftime("%Y-%m-%d %H:%M:%S UTC")
+    sql, params = _transient_retry_query(cutoff)
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(sql, params)]
+
+
+def requeue_transient_failures(now=None):
+    """Returns transient failures past their cool-off to 'pending' (at most
+    RETRY_MAX_ATTEMPTS attempts in total). attempt_count is materialised first so
+    the next mark_* call counts this as the next attempt."""
+    rows = retry_eligible_watch_labels(now)
+    with get_conn() as conn:
+        for r in rows:
+            conn.execute("UPDATE label_watch_queue SET status = 'pending', "
+                         "attempt_count = COALESCE(attempt_count, 1) WHERE host = ? AND status = 'failed'",
+                         (r["host"],))
+    return rows
 
 
 def count_processed_watch_labels_since(since_iso):

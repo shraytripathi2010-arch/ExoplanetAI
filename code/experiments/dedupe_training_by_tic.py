@@ -238,7 +238,30 @@ def main():
         json.dump(res, f, indent=2)
     print(f"\nCleaned dataset -> {CLEAN_CSV}")
     print(f"Report          -> {REPORT}")
-    print("training.csv itself was NOT modified.")
+
+    # The label-watch queue must learn about every training row this removes,
+    # or it keeps calling them 'processed' (the 2026-08-02 run left 137 such
+    # rows, reconciled 2026-10-12). Adopting the cleaned file and updating the
+    # queue therefore happen together, in --apply, through the shared helper.
+    removed = {str(r["dropped_host"]): str(r["kept_host"]) for r in drop_rows}
+    sys.path.insert(0, os.path.join(ROOT, "web"))
+    import db
+    with db.get_conn() as conn:
+        queued = {r["host"] for r in conn.execute(
+            "SELECT host FROM label_watch_queue WHERE status = 'processed'")}
+    affected = sorted(h for h in removed if h in queued)
+    print(f"label-watch queue rows that adopting this file supersedes: {len(affected)} {affected[:10]}")
+    if "--apply" in sys.argv:
+        import shutil, time as _time
+        backup = f"{TRAINING_CSV}.pre_dedupe_{_time.strftime('%Y%m%dT%H%M%SZ', _time.gmtime())}"
+        shutil.copy2(TRAINING_CSV, backup)
+        os.replace(CLEAN_CSV, TRAINING_CSV)
+        n = db.mark_queue_superseded({h: removed[h] for h in affected})
+        print(f"APPLIED: training.csv replaced (previous copy {backup}); "
+              f"{n} queue row(s) marked superseded_by_dedup.")
+    else:
+        print("training.csv itself was NOT modified (re-run with --apply to adopt the "
+              "cleaned file and update the queue in the same step).")
 
 
 if __name__ == "__main__":
