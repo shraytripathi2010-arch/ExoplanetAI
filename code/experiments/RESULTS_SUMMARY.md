@@ -659,6 +659,117 @@ removed as duplicates.**
 Neither was promoted. #4 and #5 are clean. **Those attempts' records are not
 edited.**
 
+## K. FOLDED LIGHT-CURVE PLOT: TWO BINNED PANELS; MOST CANDIDATES SHOW NO CLEAR TRANSIT -- added 2026-10-12
+
+**Why it changed.** The old figure was one full-phase scatter of every point.
+The dip was a median 14 px wide on its axis and, for 211/296 candidates,
+shallower than the point-to-point scatter (audit/roadmap_scoping.md, H6).
+
+**The new figure** (`dda5206e`, `web/folded_plot.py`) is folded on the stored
+`period` and `T0`; nothing is refitted.
+- **Top panel:** ±3 transit durations around mid-transit, from
+  `transit_duration_hours` converted to phase. Raw points are faint; medians in
+  bins of **duration/5** are drawn over them, with error bars of in-bin std/√n.
+- **Bottom panel:** the whole orbit, phase −0.25 to 0.75, medians only, in bins
+  of **duration/2**, clamped to 50–400 bins per orbit. Phase 0.5 is marked.
+- **Missing inputs:** with period, T0 or duration missing, no plot is drawn and
+  the existing message is shown.
+- **Caption:** states the window, bin widths and error bars.
+
+**Versioned cache:**
+- Files are named `<host>_folded_v<PLOT_FORMAT_VERSION>.png` (now `_v2`).
+- The page links to `/candidates/<id>/plot/<that filename>`; any other name
+  gets a 404.
+- Renders are written to a temporary file and then moved into place.
+
+**Old PNGs retained, unused by the app:**
+- 13 `*_folded.png` in `web/static/plots/` (2.5 MB);
+- 50 in `results/unknown_candidates/folded_light_curves/`, from 06's Stage H,
+  whose plot function is unchanged.
+
+**Visible-transit measurement, all 296.** Metric:
+- **depth** = median of the baseline bin medians (bins at least one duration
+  from mid-transit) − median of the in-transit bin medians (centres within half
+  a duration);
+- **bin scatter** = 1.4826 × MAD of the baseline bin medians;
+- both use the figure's own duration/5 bins in the ±3-duration window.
+
+Result: **95/296** have depth > 3× bin scatter.
+
+| | High | Medium | Low |
+|---|---|---|---|
+| depth > 3× bin scatter | (none in the DB) | **15/63** | **80/233** |
+
+- **Distribution:** median 2.28, p10 0.78, p90 5.44.
+- **Histogram:**
+
+  | ratio | <0 | 0–1 | 1–2 | 2–3 | 3–5 | 5–10 | 10–20 | ≥20 |
+  |---|---|---|---|---|---|---|---|---|
+  | stars | 2 | 41 | 87 | 71 | 59 | 27 | 8 | 1 |
+
+- **Main cause: red noise.** Bin scatter exceeds 1.5× the white-noise
+  expectation for **100 stars**.
+- **The earlier ~181 is a different criterion:** stored TLS depth / σ × √N_in ≥
+  7, for the whole transit under white noise (184 on today's data). Going from
+  that criterion to this metric step by step:
+  - judging per-bin medians instead of the whole transit: 163;
+  - using each star's measured depth: 168;
+  - using its measured red noise: 117;
+  - measured directly: 95.
+- **Bin-width sensitivity:** the count is 116 at duration/3 and 168 at
+  duration/2. The figure keeps duration/5 to show the transit shape.
+- **The threshold is strict.** TIC_403153811 scores 1.8 but shows a clear
+  five-bin dip.
+
+Evidence: `audit/h6_plot_evidence/` (step5.json, renders, scripts; gitignored).
+
+**Ephemeris suspects:**
+- **TIC_142250801** (Medium, p 0.874, ratio −0.97): no dip at the stored epoch.
+  The binned points alternate high/low and the raw points form vertical
+  stripes.
+- **TIC_30214880** (Medium, p 0.015, ratio 5.65): a clear 0.45 ppt dip, but the
+  full-orbit panel shows half-depth dips about every 1/6 of the phase,
+  including at 0.5. That is likely a period alias; not yet tested.
+
+**Probability and a visible transit pick out different populations:**
+- Spearman(ratio, probability) = −0.145.
+- **p ≥ 0.9:** 32/122 (26%) show a visible transit.
+- **0.5 ≤ p < 0.9:** 31/114 (27%).
+- **p < 0.5:** 32/60 (53%).
+- 20 candidates at p ≥ 0.9 have ratio ≤ 1.
+
+**No candidate should be submitted without passing a visible-transit check and
+an ephemeris check.** A high classifier probability is not evidence that the
+transit is visible at the stored ephemeris.
+
+## L. C4 (GUNICORN / PRODUCTION WSGI SERVER) SKIPPED -- added 2026-10-12
+
+**Skipped, with the reasons:**
+- **The scheduler would not start under Gunicorn.** `db.init_db()` and
+  `start_scheduler_thread()` run only under `app.py`'s `__main__`.
+- **Moving them to import time would run one scheduler per worker.** The
+  workers would race on `training.csv` appends: there is no file lock, and the
+  `d0f0d05f` membership check runs before the append, so two processes can both
+  pass it.
+- **Scheduled Updates** use a non-atomic check-then-start.
+- **Per-worker state breaks `/health`.** It reads in-process thread and
+  retrain state.
+- **Each worker's startup orphan cleanup** would fail jobs a sibling worker is
+  still running.
+
+**No server problem is observed** (`launchd_stderr.log`, 22 Aug – 12 Oct,
+2,293 requests):
+- every 500 is explained: one deliberate debugger test, and ten from the
+  oversized-ID probe, fixed in `85db37f6`;
+- every 503 is the 22 Aug `/health` stale-heartbeat false positive during a
+  retrain tick;
+- 0 broken pipes, 0 connection resets and 0 socket errors;
+- every scheduler-log gap over 15 min since 5 Oct (59) is Mac sleep or a retrain tick.
+
+**If a production server is wanted later:** one gthread worker, with startup
+moved to a `post_worker_init` hook and `max_requests` left at 0. Details in
+audit/roadmap_scoping.md (C4).
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
