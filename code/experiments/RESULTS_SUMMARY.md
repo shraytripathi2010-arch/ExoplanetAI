@@ -857,6 +857,30 @@ failure is a 4.7σ dip at phase 0.26.
    have already passed a visible-transit check, never as evidence that one
    exists.
 
+**ADDENDUM 2026-10-17: all three leads refuted against every available TESS
+sector.** Report: `audit/vetting/followup/report.md` (gitignored).
+
+**Method:**
+- every SPOC and HLSP light-curve product from MAST, cleaned with a verbatim
+  copy of 06's cleaning; the copy reproduces the stored processed curves to
+  |Δflux| ≤ 5e-7;
+- stored ephemerides propagated with their TLS uncertainties; too uncertain to
+  fold any later sector, so box searches near P were used;
+- a red-noise-aware dip significance, an inverted-flux bump null, and
+  injection of the original dip.
+
+| star | verdict | evidence |
+|---|---|---|
+| **TIC_173877131** (HIP 76608, Tmag 5.9) | **Refuted** | No recurrence in sector 38. There a 180 ppm transit would be 4.9σ per event, and the injected dip is recovered 100% of the time (median 11σ); no event reaches 4σ. The sector-12 signal itself is one clean event plus one in the sector's last hours, with nothing at T0. |
+| **TIC_152358293** | **Refuted as a planet on this star** | The dip is confined to sector 104: about 500 ppm, steady across both of its orbits. It is absent from sector 105 (which starts 2 days later), 106 and 97, where injections show 82–100% sensitivity. The likely cause is a nearby eclipsing binary in that sector's aperture, or a sector-104 systematic. |
+| **TIC_231053750** (K giant, Tmag 5.7) | **Refuted** | Not significant in its own sector: 9% of random phases in sector 2 are at least as deep. No coherent signal across 8 sectors: the joint pattern ranks above only 15% of time-scrambled nulls and is no stronger than the inverted-flux null. The orbit would lie inside the star: a ≈ 7.3–10.5 R☉ for 1–3 M☉, against R ≈ 9.9 R☉ from V, distance and Teff. |
+
+**No candidate from the current 296 survives.**
+
+**Live ExoFOP checks** (GET; target page plus the full TOI list, 8,151 rows,
+and CTOI list, 5,138 rows): no TOI or CTOI for TIC_173877131 or TIC_152358293
+as of 2026-10-12 18:50 UTC, nor for TIC_231053750 as of 2026-10-17 18:29 UTC.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
