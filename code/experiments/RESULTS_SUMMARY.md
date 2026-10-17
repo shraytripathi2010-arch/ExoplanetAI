@@ -845,7 +845,17 @@ failure is a 4.7σ dip at phase 0.26.
     and orbit-inside-star);
   - competing structure (the primary must beat the strongest other dip and the
     strongest bump in the orbit).
-- **The phase-0.5 secondary test stays at 3σ:** its bump null is 0.3%.
+- ~~**The phase-0.5 secondary test stays at 3σ:** its bump null is 0.3%.~~
+  **CORRECTED 2026-10-17:** the false-alarm rate is about **10% at 3σ** (9.8%)
+  and **2.4% at 5σ**.
+  - **Method:** a box transit 6× the bin scatter was injected at a random phase
+    into each of the 296 real light curves, with the candidate's own dip masked
+    out (±1 duration). The same phase-0.5 test was then run on the injected
+    transit.
+  - **Why the old figure was wrong:** the 0.3% came from an inverted-flux bump
+    null. These light curves carry more dips than bumps (dips ≥ 3σ at
+    transit-free phases in 5–7% of stars), so a bump null understates how often
+    noise makes a dip.
 
 **Open decisions, not taken:**
 1. **Negative-class composition:** adopting false alarms, or adding no-transit
@@ -880,6 +890,45 @@ sector.** Report: `audit/vetting/followup/report.md` (gitignored).
 **Live ExoFOP checks** (GET; target page plus the full TOI list, 8,151 rows,
 and CTOI list, 5,138 rows): no TOI or CTOI for TIC_173877131 or TIC_152358293
 as of 2026-10-12 18:50 UTC, nor for TIC_231053750 as of 2026-10-17 18:29 UTC.
+
+**PHYSICS GATES, PHASE 1 DESIGN (2026-10-17).** The vetting checks were tested as
+pipeline gates. All runs were in memory, with the vetting's own functions.
+
+**Test sets:**
+- the 296 candidates;
+- the masked injection test above;
+- every labelled `training.csv` star. The key set is the **829 planets where TLS
+  found the catalogued TOI period**, i.e. real transits, correctly found. For
+  contrast, 660 false positives at their TOI period.
+
+| gate | pool flagged | injected false alarms | real planets flagged (of 829) | FPs flagged (of 660) | verdict |
+|---|---|---|---|---|---|
+| geometry: orbit inside star, or duration > 2× the longest possible | 110 (104 inside) | n/a (property of star + ephemeris) | **0** | 23 (3.5%) | **BLOCK** |
+| secondary at phase 0.5, ≥ 5σ | 37 | 2.4% | 8 (1.0%) | 35 (5.3%) | WARN |
+| secondary at phase 0.5, ≥ 3σ | 56 | 9.8% | 26 (3.1%) | 80 (12.1%) | info only |
+| odd/even ≥ 5.24σ | 23 | 0.7% | 12 (1.4%), incl. HAT-P-20, TrES-3, WASP-45, WASP-77 A, XO-4 | 15 (2.3%) | WARN |
+| competing dip/bump elsewhere in the orbit | 199 | 10.5% | 245 (29.6%); 5.6% of visible ones | 143 (21.7%); 4.0% of visible ones | WARN |
+| visibility < 3 | 201 | 2.0% | **312 (37.6%)** | 232 (35.2%) | WARN; required before submission |
+| alias winner > 2× stored-P ratio | 37 | 5.7% | 62 (7.5%) | 50 (7.6%) | INFO |
+| strict "stored P best of 5" | 180 | 45.9% | **462 (55.7%)** | 386 (58.5%) | not implemented: the alias estimator is too noisy (median winning margin 1.29×) |
+| off-phase dip scan | 103 | 45.3% | 433 (52.2%) | 262 (39.7%) | not implemented: no planet/FP separation |
+
+**Notes:**
+- **Geometry at a 1.5× duration threshold** would flag 2 real planets
+  (TOI-2768, TOI-1749, at 1.62× and 1.65×), hence 2×.
+- **Only geometry is reliable enough to block.** It rejects no real planet. Its
+  weakness is the stellar radius: a misclassified giant would be blocked
+  wrongly, so its message invites a check of the stellar parameters.
+- **The three refuted leads:**
+
+  | lead | flagged by |
+  |---|---|
+  | TIC_231053750 | geometry (block), plus visibility, structure and the off-phase scan |
+  | TIC_152358293 | only the off-phase scan (not implemented) |
+  | TIC_173877131 | nothing |
+
+  Two of the three were refuted only by the multi-sector check, which needs
+  downloads. That would be the next gate.
 
 ---
 
