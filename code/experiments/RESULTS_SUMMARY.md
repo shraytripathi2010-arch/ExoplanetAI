@@ -930,6 +930,69 @@ pipeline gates. All runs were in memory, with the vetting's own functions.
   Two of the three were refuted only by the multi-sector check, which needs
   downloads. That would be the next gate.
 
+**GEOMETRY GATE v2, MASS CEILING (2026-10-17; gate code version 2, `d4bd475a`).**
+
+**The rule:** BLOCK only if
+- the orbit is inside the star **even at 5 M☉**, or
+- the transit is more than 2× the longest possible **even at the most favorable
+  plausible mass**: 0.08 M☉ with no measured mass, or half the catalogue mass.
+
+Failing only at the stored/default mass is a **WARN**: "Geometry fails at the
+assumed mass (X M☉); at up to 5 M☉ the orbit at best skims the surface
+(a/R★ ≤ Y) and needs a near-grazing orbit. A measured stellar mass is needed."
+
+**Why:**
+- **a/R★ scales as M^(1/3),** and 32 of the 33 giants blocked by v1 had the
+  stellar mass defaulted to 1 M☉. TIC gives no mass or log g for giants: the
+  cached SPOC headers have no LOGG, and the candidate list has no st_mass, so
+  there is no better mass offline.
+- **The validation does not cover giants.** The 829-planet validation had **1**
+  defaulted mass and hosts of **at most 3.5 R☉**, against 116 of the pool's 296
+  hosts above 5 R☉. So for giants the block rests on the physics alone, and must
+  hold at any plausible mass.
+- **The 5 M☉ ceiling** covers giants (about 1–3 M☉) and bright giants (3–5 M☉).
+
+**The 37 that v1 took off the list:**
+
+| | count | |
+|---|---|---|
+| still blocked | **27** | 23 inside the star at 5 M☉ (they would need 5.7–234 M☉ to escape), plus 4 M dwarfs whose transit is too long at any plausible mass |
+| moved to WARN | **10** | TIC_119625675, 161313103, 197766496, 206592567, 231053750, 231698310, 237316813, 280792839, 326512158, 367899500 |
+
+The 10 that moved:
+- they need 1.0–3.7 M☉ to clear the star;
+- even then the orbit skims the surface (a/R★ ≤ ~1.4);
+- and every one needs a near-grazing orbit (impact parameter ≈ 1.01).
+
+**Across the pool:** 110 blocks become 79 (75 inside at 5 M☉, 4 duration),
+plus 31 warnings. The 829 real planets still get **0** blocks and 0 warnings.
+
+**MANUAL REJECTIONS (2026-10-17).** Recorded with the existing
+`db.set_manual_review_decision` columns (status, note, date), each with a
+reason and a pointer to `audit/vetting/followup/report.md` (gitignored, local
+to this checkout):
+
+| star | refuted on | reason |
+|---|---|---|
+| TIC_173877131 | 2026-10-12 | no recurrence in sector 38 |
+| TIC_152358293 | 2026-10-12 | dip confined to sector 104 |
+| TIC_231053750 | 2026-10-17 | not significant in its own sector; no cross-sector signal; orbit inside a 9.9 R☉ star |
+
+The page header shows "Reviewed — Rejected", the date and the note; the list
+shows "reviewed: rejected".
+
+**Change in behaviour:** a rejection now also takes a star off both lists, in
+the CSVs (08 and the apply script read it read-only) and in the DB (the upsert
+keeps a rejected star's list flags off). The star stays on its page.
+- As a result, the two candidates rejected in July (TIC_74100918,
+  TIC_120442975) left the needs-manual-review list.
+- The decision's status-history row now records the real prior status.
+
+**Lists after `0f62bd96`:**
+- **final_best: 55 → 62:** +9 on the WARN (TIC_231053750 is rejected), −2
+  rejected.
+- **needs review: 8 → 6.**
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
