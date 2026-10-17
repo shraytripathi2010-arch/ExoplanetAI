@@ -969,8 +969,10 @@ plus 31 warnings. The 829 real planets still get **0** blocks and 0 warnings.
 
 **MANUAL REJECTIONS (2026-10-17).** Recorded with the existing
 `db.set_manual_review_decision` columns (status, note, date), each with a
-reason and a pointer to `audit/vetting/followup/report.md` (gitignored, local
-to this checkout):
+reason and an evidence pointer. Since 2026-10-17 23:11 UTC the notes point to
+the committed **`docs/vetting_followup.md`** (verdict, sectors, key numbers,
+ExoFOP status with date, method); they previously pointed to the gitignored
+`audit/vetting/followup/report.md`:
 
 | star | refuted on | reason |
 |---|---|---|
