@@ -453,7 +453,7 @@ def upsert_candidate(tic_id, host, status, predicted_probability, confidence_tie
 
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT current_status FROM candidates WHERE tic_id = ?", (tic_id,)
+            "SELECT current_status, manual_review_status FROM candidates WHERE tic_id = ?", (tic_id,)
         ).fetchone()
 
         if existing is None:
@@ -473,6 +473,10 @@ def upsert_candidate(tic_id, host, status, predicted_probability, confidence_tie
 
         old_status = existing["current_status"]
         status_changed = old_status != status
+        # A human rejection (set_manual_review_decision) keeps the star on its page and off both
+        # lists, whatever the pipeline's own filter says -- the same rule 08 applies to the CSVs.
+        if existing["manual_review_status"] == "rejected":
+            combined_filter_pass, combined_filter_tier, needs_manual_review = False, None, False
         conn.execute(
             """UPDATE candidates SET
                  host = ?, last_verified_date = CASE WHEN ? THEN ? ELSE last_verified_date END, current_status = ?,
@@ -538,15 +542,25 @@ def set_manual_review_decision(tic_id, status, note):
     changing current_status itself (the pipeline's own honest computed
     state stays visible and distinct from the human curation decision)."""
     with get_conn() as conn:
+        # The history row records the star's real prior state. It used to say
+        # "needs_manual_review" for every decision, which is wrong for a star that was on the
+        # best-candidates list or had an earlier decision.
+        prev = conn.execute("SELECT current_status, manual_review_status FROM candidates WHERE tic_id = ?",
+                            (tic_id,)).fetchone()
+        old_status = (f"manually_{prev['manual_review_status']}" if prev and prev["manual_review_status"]
+                      else (prev["current_status"] if prev else None))
         conn.execute(
             """UPDATE candidates SET manual_review_status = ?, manual_review_note = ?,
                manual_review_date = ? WHERE tic_id = ?""",
             (status, note, now_iso(), tic_id),
         )
+        if status == "rejected":
+            conn.execute("""UPDATE candidates SET combined_filter_pass = 0, combined_filter_tier = NULL,
+                            needs_manual_review = 0 WHERE tic_id = ?""", (tic_id,))
         conn.execute(
             """INSERT INTO status_history (tic_id, old_status, new_status, changed_date, note)
                VALUES (?, ?, ?, ?, ?)""",
-            (tic_id, "needs_manual_review", f"manually_{status}", now_iso(), note),
+            (tic_id, old_status, f"manually_{status}", now_iso(), note),
         )
 
 

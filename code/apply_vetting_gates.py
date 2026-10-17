@@ -12,9 +12,12 @@ Writes  (--apply only) characterized_candidates.csv with the vet_* columns added
         build_candidate_lists(), which now includes the geometry block.
 Never removes a candidate from characterized_candidates.csv.
 
-Guard: before touching anything, the two lists are rebuilt from the current file WITHOUT the
-gates and compared with the lists on disk. If they differ, this script is not reproducing
-08's output and it stops.
+Also applies the web app's recorded manual rejections (db.set_manual_review_decision; read-only
+from the DB): a rejected star stays in the characterization and leaves both lists.
+
+Guard: before touching anything, the two lists are rebuilt from the current file with the gate
+fields it already carries (none, on a file older than the gates) and no rejections, and compared
+with the lists on disk. If they differ, this script is not reproducing what is there, and stops.
 """
 import argparse
 import importlib
@@ -34,6 +37,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results-dir", default=m08.RESULTS_FOLDER)
     ap.add_argument("--project-root", default=m08.PROJECT_ROOT, help="where data/processed_unknown*/ live")
+    ap.add_argument("--db", default=m08.DB_PATH, help="web app DB to read manual rejections from (read-only)")
     ap.add_argument("--apply", action="store_true")
     a = ap.parse_args()
     char_p = os.path.join(a.results_dir, "characterized_candidates.csv")
@@ -44,20 +48,22 @@ def main():
     full = pd.read_csv(char_p)
     best0, rev0 = pd.read_csv(best_p), pd.read_csv(rev_p)
 
-    # guard: 08's list logic, without gates, must reproduce the lists on disk
-    plain = full.drop(columns=[c for c in full.columns if c.startswith("vet_")])
-    b, r, *_ = m08.build_candidate_lists(plain)
+    # guard: 08's list logic, with the file's own (existing) gate fields and no rejections,
+    # must reproduce the lists on disk
+    b, r, *_ = m08.build_candidate_lists(full)
     same = set(b.host) == set(best0.host) and set(r.host) == set(rev0.host)
-    print(f"guard: rebuilt without gates -> best {len(b)} (on disk {len(best0)}), review {len(r)} (on disk {len(rev0)}); "
-          f"same membership: {same}")
+    print(f"guard: rebuilt from the file as it is -> best {len(b)} (on disk {len(best0)}), review {len(r)} "
+          f"(on disk {len(rev0)}); same membership: {same}")
     if not same:
         sys.exit("STOP: the rebuilt lists differ from the files on disk; not applying.")
 
+    rejected = m08.load_manual_rejections(a.db)
+    print(f"manual rejections recorded in the DB: {len(rejected)} {sorted(rejected)}")
     gated = vetting_gates.add_gate_fields(full, a.project_root)
-    best, rev, strict, lenient, review = m08.build_candidate_lists(gated)
+    best, rev, strict, lenient, review = m08.build_candidate_lists(gated, rejected)
     g = gated.set_index("host")
     print(f"\ngates for {len(gated)} candidates: status {g.vet_status.value_counts().to_dict()}")
-    for k in ("geometry_flag", "orbit_inside_star", "secondary_flag", "secondary_info", "oddeven_flag",
+    for k in ("geometry_flag", "geometry_warn", "orbit_inside_star", "orbit_inside_at_ceiling", "secondary_flag", "secondary_info", "oddeven_flag",
               "structure_flag", "visibility_flag", "alias_info"):
         print(f"  vet_{k:<20} {int(g['vet_' + k].astype(bool).sum())}")
     print(f"\nfinal_best_candidates: {len(best0)} -> {len(best)}; needs_manual_blend_review: {len(rev0)} -> {len(rev)}")
@@ -65,9 +71,10 @@ def main():
         left = sorted(set(before.host) - set(after.host)); joined = sorted(set(after.host) - set(before.host))
         print(f"  {name}: {len(left)} leave, {len(joined)} join")
         for h in left:
-            print(f"    - {h}: {g.loc[h, 'vet_block_reason']} (a/R* {g.loc[h, 'vet_a_over_rstar']:.2f}, "
-                  f"duration/max {g.loc[h, 'vet_duration_over_max'] if pd.notna(g.loc[h, 'vet_duration_over_max']) else float('nan'):.2f}, "
-                  f"R* {g.loc[h, 'vet_geom_st_rad']}, mass defaulted {g.loc[h, 'vet_geom_mass_defaulted']})")
+            why = (f"manually rejected {rejected[h][0]}" if h in rejected else g.loc[h, "vet_block_reason"])
+            print(f"    - {h}: {why}")
+        for h in joined:
+            print(f"    + {h}: {g.loc[h, 'vet_warnings'] or 'no warnings'}")
     if not a.apply:
         print("\ndry run: nothing written (pass --apply to write the three files)")
         return

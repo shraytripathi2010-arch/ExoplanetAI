@@ -10,8 +10,9 @@ with the page's folded figure by design: the checks measure what the plot shows.
 
 Gates FLAG; they never delete a candidate. Roles, from the Phase 1 results (register M):
 
-  BLOCK  geometry   orbit inside the star, or a transit longer than 2x the longest a transit
-                    on this star could last. 0 of 829 real planets flagged.
+  BLOCK  geometry   orbit inside the star even at 5 Msun, or a transit longer than 2x the
+                    longest possible even at the most favorable plausible mass. 0 of 829 real
+                    planets flagged. Failing only at the stored/default mass is a WARN.
   WARN   secondary  dip at phase 0.5 >= 5 sigma (3-5 sigma is reported as weaker info).
          odd/even   odd vs even transit depths differ >= 5.24 sigma.
          structure  a larger dip or bump elsewhere in the orbit than the transit itself.
@@ -38,7 +39,7 @@ if _WEB not in sys.path:
     sys.path.insert(0, _WEB)
 import folded_plot as fp  # noqa: E402
 
-GATE_CODE_VERSION = "1"
+GATE_CODE_VERSION = "2"   # 2: geometry blocks only at any plausible mass (2026-10-17)
 
 # ---- calibration constants, with their source ------------------------------------------------
 SIG = 3.0                          # base significance used inside the verbatim checks (part_b.py)
@@ -48,6 +49,15 @@ SECONDARY_WARN_SIG = 5.0           # phase-0.5 WARN: masked-injection false-alar
 SECONDARY_INFO_SIG = 3.0           # phase-0.5 info: false-alarm rate ~10% (9.8%) on the same test
 VISIBILITY_MIN = 3.0               # binned depth / bin scatter; the vetting's visible-transit bar
 GEOMETRY_MAX_DURATION_RATIO = 2.0  # BLOCK above this; at 1.5 two real planets would be flagged
+# The geometry BLOCK must hold at every plausible stellar mass, not just the stored one, because
+# a/R* scales as M^(1/3) and the stored mass is often a solar default. The real-planet validation
+# (829 planets) had 1 defaulted mass and hosts <= 3.5 Rsun, so for giants the block rests on the
+# physics alone (register M, 2026-10-17). Blocks that hold only at the stored/default mass WARN.
+GEOMETRY_MASS_CEILING_MSUN = 5.0   # "inside the star" blocks only if inside even at 5 Msun: giants span
+                                   # ~1-3 Msun and bright giants reach 3-5; TIC gives no mass for them
+GEOMETRY_MASS_FLOOR_MSUN = 0.08    # hydrogen-burning limit: the most favorable mass when none was measured
+GEOMETRY_MEASURED_MASS_LOW = 0.5   # the most favorable plausible mass for a catalogue mass is half of it
+                                   # (a lower mass makes the longest possible transit longer)
 ALIAS_INFO_MARGIN = 2.0            # alias winner / stored-P ratio; real planets 7.5%, FPs 7.6%
 GIANT_RADIUS_RSUN = 2.0            # above this the block message asks for the stellar parameters
                                    # to be checked: a misclassified giant is the gate's failure mode
@@ -118,7 +128,7 @@ def _num(v):
     return v if math.isfinite(v) and v > 0 else None
 
 
-def raw_checks(t, f, P, T0, dh, depth_frac, st_rad, st_mass):
+def raw_checks(t, f, P, T0, dh, depth_frac, st_rad, st_mass, mass_defaulted=None):
     """Measured values for every check (no roles applied)."""
     lay = fp.layout(P, dh); ph = fp.fold(t, T0, P); prim = dip(ph, f, lay)
     al = {}
@@ -129,17 +139,27 @@ def raw_checks(t, f, P, T0, dh, depth_frac, st_rad, st_mass):
     oe = odd_even(t, f, P, T0, dh)
     sec = dip(ph, f, lay, 0.5)
     bsig, bphi, null = phase_scan(ph, f, lay)
-    geo = geometry_values(P, dh, depth_frac, st_rad, st_mass)
+    geo = geometry_values(P, dh, depth_frac, st_rad, st_mass, mass_defaulted)
     return dict(visibility_ratio=prim["ratio"], primary_sig=prim["sig"], alias_best=best,
                 alias_margin=(None if best in (None, "P") or not al.get("P") else fin[best] / al["P"]),
                 oddeven_sig=oe["oe_sig"], secondary_sig=sec["sig"], structure_best_dip_sig=bsig,
                 structure_best_dip_phase=bphi, structure_best_bump_sig=null, **geo)
 
 
-def geometry_values(P, dh, depth_frac, st_rad, st_mass):
-    tmax, a_rs, b = geometry(dict(period=P, st_rad=st_rad, st_mass=st_mass,
-                                  transit_depth_ppm=(depth_frac or 0) * 1e6, transit_duration_hours=dh))
-    return dict(a_over_rstar=a_rs, duration_max_h=tmax, duration_over_max=(dh / tmax if tmax else None))
+def geometry_values(P, dh, depth_frac, st_rad, st_mass, mass_defaulted=None):
+    """geometry() at the stored (or 1 Msun default) mass, at the mass ceiling, and at the most
+    favorable plausible mass for the duration test."""
+    base = dict(period=P, st_rad=st_rad, transit_depth_ppm=(depth_frac or 0) * 1e6, transit_duration_hours=dh)
+    tmax, a_rs, b = geometry(dict(base, st_mass=st_mass))
+    if mass_defaulted is None:
+        mass_defaulted = st_mass is None
+    m_used = st_mass if st_mass else 1.0
+    m_fav = GEOMETRY_MASS_FLOOR_MSUN if mass_defaulted else max(GEOMETRY_MASS_FLOOR_MSUN, GEOMETRY_MEASURED_MASS_LOW * m_used)
+    _, a_c, b_c = geometry(dict(base, st_mass=GEOMETRY_MASS_CEILING_MSUN))
+    t_f, _, _ = geometry(dict(base, st_mass=m_fav))
+    return dict(a_over_rstar=a_rs, duration_max_h=tmax, duration_over_max=(dh / tmax if tmax else None),
+                a_over_rstar_at_ceiling=a_c, impact_needed_at_ceiling=b_c, mass_favorable=m_fav,
+                duration_over_max_at_favorable=(dh / t_f if t_f else None))
 
 
 def apply_roles(v, ran):
@@ -148,8 +168,13 @@ def apply_roles(v, ran):
     Returns the flag fields plus block_reason / warnings / info."""
     inside = v.get("a_over_rstar") is not None and v["a_over_rstar"] <= 1
     long_ = v.get("duration_over_max") is not None and v["duration_over_max"] > GEOMETRY_MAX_DURATION_RATIO
+    inside_c = v.get("a_over_rstar_at_ceiling") is not None and v["a_over_rstar_at_ceiling"] <= 1
+    long_f = (v.get("duration_over_max_at_favorable") is not None
+              and v["duration_over_max_at_favorable"] > GEOMETRY_MAX_DURATION_RATIO)
+    blocked = inside_c or long_f
     flags = dict(
-        geometry_flag=bool(inside or long_), orbit_inside_star=bool(inside),
+        geometry_flag=bool(blocked), geometry_warn=bool((inside or long_) and not blocked),
+        orbit_inside_star=bool(inside), orbit_inside_at_ceiling=bool(inside_c),
         secondary_flag=bool(v.get("secondary_sig") is not None and v["secondary_sig"] >= SECONDARY_WARN_SIG),
         secondary_info=bool(v.get("secondary_sig") is not None and SECONDARY_INFO_SIG <= v["secondary_sig"] < SECONDARY_WARN_SIG),
         oddeven_flag=bool(v.get("oddeven_sig") is not None and v["oddeven_sig"] >= OE_SIG),
@@ -161,9 +186,10 @@ def apply_roles(v, ran):
         alias_info=bool(v.get("alias_margin") is not None and v["alias_margin"] > ALIAS_INFO_MARGIN),
     )
     block = []
-    if inside: block.append("orbit inside the star")
-    elif long_: block.append("transit longer than the star allows")
-    warn = [n for n, k in (("secondary eclipse at phase 0.5", "secondary_flag"), ("odd/even depth difference", "oddeven_flag"),
+    if inside_c: block.append(f"orbit inside the star at any mass up to {GEOMETRY_MASS_CEILING_MSUN:g} Msun")
+    elif long_f: block.append("transit longer than the star allows at any plausible mass")
+    warn = [n for n, k in (("geometry fails only at the assumed stellar mass", "geometry_warn"),
+                           ("secondary eclipse at phase 0.5", "secondary_flag"), ("odd/even depth difference", "oddeven_flag"),
                            ("larger structure elsewhere in the orbit", "structure_flag"), ("transit not clearly visible", "visibility_flag")) if flags[k]]
     info = [n for n, k in (("weak dip at phase 0.5", "secondary_info"), ("stronger dip at an alias period", "alias_info")) if flags[k]]
     return dict(flags, block_reason="; ".join(block), warnings="; ".join(warn), info="; ".join(info))
@@ -191,12 +217,15 @@ def gate_fields(row, project_root, computed_at=None):
                vet_computed_at=computed_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
                vet_geom_st_rad=st_rad, vet_geom_st_mass_used=(st_mass if st_mass else 1.0),
                vet_geom_mass_defaulted=mass_defaulted,
+               vet_geom_mass_ceiling=GEOMETRY_MASS_CEILING_MSUN,
                vet_geom_giant=bool(st_rad is not None and st_rad > GIANT_RADIUS_RSUN))
     values = dict(visibility_ratio=None, primary_sig=None, alias_best=None, alias_margin=None, oddeven_sig=None,
                   secondary_sig=None, structure_best_dip_sig=None, structure_best_dip_phase=None,
-                  structure_best_bump_sig=None, a_over_rstar=None, duration_max_h=None, duration_over_max=None)
+                  structure_best_bump_sig=None, a_over_rstar=None, duration_max_h=None, duration_over_max=None,
+                  a_over_rstar_at_ceiling=None, impact_needed_at_ceiling=None, mass_favorable=None,
+                  duration_over_max_at_favorable=None)
     if P and dh:
-        values.update(geometry_values(P, dh, depth_frac, st_rad, st_mass))
+        values.update(geometry_values(P, dh, depth_frac, st_rad, st_mass, mass_defaulted))
     path, rel = lightcurve_path(host, project_root) if host else (None, None)
     status = "ok"
     if not (P and dh) or T0 is None or (isinstance(T0, float) and T0 != T0):
@@ -206,7 +235,7 @@ def gate_fields(row, project_root, computed_at=None):
     else:
         try:
             t, f = fp.load_curve(path)
-            values = raw_checks(t, f, P, float(T0), dh, depth_frac, st_rad, st_mass)
+            values = raw_checks(t, f, P, float(T0), dh, depth_frac, st_rad, st_mass, mass_defaulted)
             out["vet_lc_source"], out["vet_lc_points"] = rel, int(len(t))
         except Exception as e:
             status = f"light-curve checks failed: {type(e).__name__}: {str(e)[:100]}"

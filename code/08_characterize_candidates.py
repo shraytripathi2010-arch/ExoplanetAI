@@ -1020,10 +1020,31 @@ def confidence_tier(row):
 # =====================================
 # MAIN
 # =====================================
-def build_candidate_lists(full):
+DB_PATH = os.path.join(PROJECT_ROOT, "web", "exoplanet_candidates.db")
+
+
+def load_manual_rejections(db_path=DB_PATH):
+    """{host: (date, note)} for candidates a human has REJECTED, read (read-only) from the web
+    app's existing manual-review columns (db.set_manual_review_decision). A missing database
+    means no recorded decisions."""
+    import sqlite3
+    if not os.path.exists(db_path):
+        return {}
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        rows = con.execute("SELECT host, manual_review_date, manual_review_note FROM candidates "
+                           "WHERE manual_review_status = 'rejected'").fetchall()
+    finally:
+        con.close()
+    return {h: (d, n) for h, d, n in rows}
+
+
+def build_candidate_lists(full, rejected=()):
     """The combined-filter best-candidates list and the needs-manual-review list, from the full
     characterization. Shared by main() and code/apply_vetting_gates.py so both use one
-    definition. Returns (combined, needs_review, strict_mask, lenient_mask, review_mask)."""
+    definition. `rejected` = hosts a human has rejected (load_manual_rejections): they stay in
+    the characterization and on their page, and are on neither list.
+    Returns (combined, needs_review, strict_mask, lenient_mask, review_mask)."""
     import vetting_gates
     not_flagged = ~full["newly_flagged_in_archive_or_exofop"] & (full["exofop_code"] != "HIT")
     not_vsx = full["vsx_code"] != "HIT"
@@ -1035,8 +1056,9 @@ def build_candidate_lists(full):
     # allows, cannot be a planet on this star at the stored parameters. 0 of 829 real planets
     # trip it (register M). The star stays in characterized_candidates.csv and on its page.
     geometry_ok = ~vetting_gates.geometry_blocked(full)
+    not_rejected = ~full["host"].isin(set(rejected))
 
-    base = not_flagged & not_vsx & plausible & geometry_ok
+    base = not_flagged & not_vsx & plausible & geometry_ok & not_rejected
     strict_mask = base & blend_ok_strict
     lenient_mask = base & blend_ok_lenient
     # PERMANENT "needs manual review" bucket: candidates that clear every
@@ -1238,7 +1260,8 @@ def main():
     full = vetting_gates.add_gate_fields(full, PROJECT_ROOT, run_timestamp)
     full.to_csv(OUTPUT_PATH, index=False)
 
-    combined, needs_review, strict_mask, lenient_mask, review_mask = build_candidate_lists(full)
+    rejected = load_manual_rejections()
+    combined, needs_review, strict_mask, lenient_mask, review_mask = build_candidate_lists(full, rejected)
     combined.to_csv(BEST_CANDIDATES_PATH, index=False)
     needs_review.to_csv(NEEDS_REVIEW_PATH, index=False)
     n_geometry_blocked = int(vetting_gates.geometry_blocked(full).sum())
@@ -1275,6 +1298,7 @@ def main():
           f"{n_needs_review}")
     print(f"Physics geometry block (orbit inside the star, or transit longer than the star allows): "
           f"{n_geometry_blocked} -- kept in the characterization, excluded from both lists")
+    print(f"Manually rejected (web app review decisions): {len(rejected)} -- kept, excluded from both lists")
     print(f"Full characterization: {OUTPUT_PATH}")
     print(f"Best-candidates list: {BEST_CANDIDATES_PATH}")
     print(f"Needs-review list: {NEEDS_REVIEW_PATH}")

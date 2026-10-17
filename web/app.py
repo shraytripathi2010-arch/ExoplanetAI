@@ -403,23 +403,42 @@ def _physics_checks_view(char):
         return None
     n = lambda k: _fnum(char.get(k))
     block, warn, info = [], [], []
+    ceil = n("vet_geom_mass_ceiling") or 5.0
+    m_used = n("vet_geom_st_mass_used")
     if _truthy(char.get("vet_geometry_flag")):
         r = n("vet_geom_st_rad")
-        if _truthy(char.get("vet_orbit_inside_star")):
-            text = (f"The orbit would lie inside the star (a/R★ = {n('vet_a_over_rstar'):.2f}) at the stored "
-                    f"stellar radius ({r:.2f} R☉). Not a planet on this star unless the stellar parameters are wrong.")
+        if _truthy(char.get("vet_orbit_inside_at_ceiling")):
+            text = (f"The orbit would lie inside the star even at {ceil:g} M\u2609 (a/R\u2605 = "
+                    f"{n('vet_a_over_rstar_at_ceiling'):.2f} at {ceil:g} M\u2609, {n('vet_a_over_rstar'):.2f} at the assumed "
+                    f"{m_used:.2f} M\u2609) at the stored stellar radius ({r:.2f} R\u2609). Not a planet on this star "
+                    f"unless the stellar radius is wrong.")
         else:
-            text = (f"The transit lasts {n('vet_duration_over_max'):.1f}× longer than any transit on this star could "
-                    f"({n('vet_duration_max_h'):.2f} h at the stored radius and mass). Not a planet on this star unless "
-                    f"the stellar parameters are wrong.")
+            text = (f"The transit lasts {n('vet_duration_over_max_at_favorable'):.1f}\u00d7 longer than any transit on this "
+                    f"star could, even at the most favorable plausible mass ({n('vet_mass_favorable'):.2f} M\u2609; "
+                    f"{n('vet_duration_over_max'):.1f}\u00d7 at the assumed {m_used:.2f} M\u2609). Not a planet on this "
+                    f"star unless the stellar parameters are wrong.")
         why = []
         if _truthy(char.get("vet_geom_mass_defaulted")):
             why.append("the stellar mass was defaulted to solar")
         if _truthy(char.get("vet_geom_giant")):
-            why.append(f"the star is a giant (R★ = {r:.1f} R☉), where a wrong radius is the usual cause of this result")
+            why.append(f"the star is a giant (R\u2605 = {r:.1f} R\u2609), where a wrong radius is the usual cause of this result")
         if why:
             text += " Check the stellar parameters first: " + "; ".join(why) + "."
         block.append(text)
+    elif _truthy(char.get("vet_geometry_warn")):
+        if _truthy(char.get("vet_orbit_inside_star")):
+            b = n("vet_impact_needed_at_ceiling")
+            text = (f"Geometry fails at the assumed mass ({m_used:.2f} M\u2609); at up to {ceil:g} M\u2609 the orbit at best "
+                    f"skims the surface (a/R\u2605 \u2264 {n('vet_a_over_rstar_at_ceiling'):.2f})")
+            text += (" and needs a near-grazing orbit." if b is not None and b >= 0.9 else
+                     "." if b is not None else " and the transit would still last longer than the star allows.")
+        else:
+            fav = n("vet_duration_over_max_at_favorable")
+            text = (f"Geometry fails at the assumed mass ({m_used:.2f} M\u2609): the transit is "
+                    f"{n('vet_duration_over_max'):.1f}\u00d7 the longest possible; at the most favorable plausible mass "
+                    f"({n('vet_mass_favorable'):.2f} M\u2609) " + (f"it is {fav:.1f}\u00d7." if fav is not None
+                                                                    else "the orbit would cross the star."))
+        warn.append(text + " A measured stellar mass is needed.")
     if _truthy(char.get("vet_secondary_flag")):
         warn.append(f"Dip at phase 0.5 ({n('vet_secondary_sig'):.1f}σ): the signature of an eclipsing binary.")
     if _truthy(char.get("vet_oddeven_flag")):
