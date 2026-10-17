@@ -441,9 +441,13 @@ def init_db():
 def upsert_candidate(tic_id, host, status, predicted_probability, confidence_tier,
                       combined_filter_pass, combined_filter_tier, needs_manual_review,
                       radius_plausible, blending_status, vsx_code, characterization_dict,
-                      note=None):
+                      note=None, bump_last_verified=True):
     """Insert a new candidate or update an existing one. Returns
-    (is_new, status_changed) so the caller (sync.py) can log history."""
+    (is_new, status_changed) so the caller (sync.py) can log history.
+
+    bump_last_verified=False keeps an existing row's last_verified_date: for writes that add
+    offline-computed fields (e.g. the physics checks) without re-verifying anything, so the
+    page does not claim a fresh verification that never happened."""
     now = now_iso()
     char_json = json.dumps(characterization_dict, default=str)
 
@@ -471,12 +475,12 @@ def upsert_candidate(tic_id, host, status, predicted_probability, confidence_tie
         status_changed = old_status != status
         conn.execute(
             """UPDATE candidates SET
-                 host = ?, last_verified_date = ?, current_status = ?,
+                 host = ?, last_verified_date = CASE WHEN ? THEN ? ELSE last_verified_date END, current_status = ?,
                  predicted_probability = ?, confidence_tier = ?, combined_filter_pass = ?,
                  combined_filter_tier = ?, needs_manual_review = ?, radius_plausible = ?,
                  blending_status = ?, vsx_code = ?, characterization_json = ?
                WHERE tic_id = ?""",
-            (host, now, status, predicted_probability, confidence_tier,
+            (host, int(bool(bump_last_verified)), now, status, predicted_probability, confidence_tier,
              int(combined_filter_pass), combined_filter_tier, int(needs_manual_review),
              int(radius_plausible) if radius_plausible is not None else None,
              blending_status, vsx_code, char_json, tic_id),

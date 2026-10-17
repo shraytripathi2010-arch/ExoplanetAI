@@ -1020,6 +1020,48 @@ def confidence_tier(row):
 # =====================================
 # MAIN
 # =====================================
+def build_candidate_lists(full):
+    """The combined-filter best-candidates list and the needs-manual-review list, from the full
+    characterization. Shared by main() and code/apply_vetting_gates.py so both use one
+    definition. Returns (combined, needs_review, strict_mask, lenient_mask, review_mask)."""
+    import vetting_gates
+    not_flagged = ~full["newly_flagged_in_archive_or_exofop"] & (full["exofop_code"] != "HIT")
+    not_vsx = full["vsx_code"] != "HIT"
+    plausible = full["radius_plausible"].fillna(False)
+    blend_unknown = full["blending_status"].str.contains("UNKNOWN", na=False)
+    blend_ok_strict = full["blending_status"].str.contains("LOW", na=False) & ~full["blending_status"].str.contains("LOW-MODERATE", na=False)
+    blend_ok_lenient = ~full["blending_status"].str.contains("HIGH|UNKNOWN", na=False, regex=True)
+    # Physics BLOCK (vetting_gates): an orbit inside the star, or a transit longer than the star
+    # allows, cannot be a planet on this star at the stored parameters. 0 of 829 real planets
+    # trip it (register M). The star stays in characterized_candidates.csv and on its page.
+    geometry_ok = ~vetting_gates.geometry_blocked(full)
+
+    base = not_flagged & not_vsx & plausible & geometry_ok
+    strict_mask = base & blend_ok_strict
+    lenient_mask = base & blend_ok_lenient
+    # PERMANENT "needs manual review" bucket: candidates that clear every
+    # other bar (unflagged, no VSX match, plausible radius, no physics block) but whose blend
+    # risk is UNKNOWN rather than HIGH -- i.e. Gaia's astrometric solution
+    # simply didn't resolve the target star (common for faint/red M dwarfs),
+    # not evidence of an actual nearby contaminant. Automatic exclusion here
+    # would silently discard exactly the kind of candidate (e.g.
+    # TIC_120442975) that deserves a 5-minute manual Gaia-image look rather
+    # than a blanket rejection. Kept separate from the best-candidates list
+    # because "unknown" is not the same claim as "verified low risk".
+    review_mask = base & blend_unknown
+
+    combined = full[lenient_mask].copy()
+    combined["combined_tier"] = np.where(strict_mask.loc[combined.index], "strict", "moderate")
+    combined = combined.sort_values(["confidence_tier", "predicted_probability"],
+                                     key=lambda s: s.map({"High": 2, "Medium": 1, "Low": 0}) if s.name == "confidence_tier" else s,
+                                     ascending=[False, False])
+
+    needs_review = full[review_mask].copy()
+    needs_review["review_reason"] = "Gaia did not resolve the target star -- blend risk unknown, not verified low"
+    needs_review = needs_review.sort_values("predicted_probability", ascending=False)
+    return combined, needs_review, strict_mask, lenient_mask, review_mask
+
+
 def main():
     run_timestamp = now_utc_iso()
     print("=" * 70)
@@ -1189,41 +1231,17 @@ def main():
         "DEFAULTED TO SOLAR -- Teq/insolation/semi-major axis degraded",
         "real TIC catalog value",
     )
+    # Physics checks (code/vetting_gates.py) for EVERY candidate, not only this run's:
+    # they read the stored ephemeris, stellar parameters and processed light curve, need no
+    # network, and take ~0.4 s per star. They flag; nothing is removed from this file.
+    import vetting_gates
+    full = vetting_gates.add_gate_fields(full, PROJECT_ROOT, run_timestamp)
     full.to_csv(OUTPUT_PATH, index=False)
 
-    # ---- PERMANENT combined-filter best-candidates list ----
-    not_flagged = ~full["newly_flagged_in_archive_or_exofop"] & (full["exofop_code"] != "HIT")
-    not_vsx = full["vsx_code"] != "HIT"
-    plausible = full["radius_plausible"].fillna(False)
-    blend_unknown = full["blending_status"].str.contains("UNKNOWN", na=False)
-    blend_ok_strict = full["blending_status"].str.contains("LOW", na=False) & ~full["blending_status"].str.contains("LOW-MODERATE", na=False)
-    blend_ok_lenient = ~full["blending_status"].str.contains("HIGH|UNKNOWN", na=False, regex=True)
-
-    base = not_flagged & not_vsx & plausible
-    strict_mask = base & blend_ok_strict
-    lenient_mask = base & blend_ok_lenient
-    # PERMANENT "needs manual review" bucket: candidates that clear every
-    # other bar (unflagged, no VSX match, plausible radius) but whose blend
-    # risk is UNKNOWN rather than HIGH -- i.e. Gaia's astrometric solution
-    # simply didn't resolve the target star (common for faint/red M dwarfs),
-    # not evidence of an actual nearby contaminant. Automatic exclusion here
-    # would silently discard exactly the kind of candidate (e.g.
-    # TIC_120442975) that deserves a 5-minute manual Gaia-image look rather
-    # than a blanket rejection. Kept separate from the best-candidates list
-    # because "unknown" is not the same claim as "verified low risk".
-    review_mask = base & blend_unknown
-
-    combined = full[lenient_mask].copy()
-    combined["combined_tier"] = np.where(strict_mask.loc[combined.index], "strict", "moderate")
-    combined = combined.sort_values(["confidence_tier", "predicted_probability"],
-                                     key=lambda s: s.map({"High": 2, "Medium": 1, "Low": 0}) if s.name == "confidence_tier" else s,
-                                     ascending=[False, False])
+    combined, needs_review, strict_mask, lenient_mask, review_mask = build_candidate_lists(full)
     combined.to_csv(BEST_CANDIDATES_PATH, index=False)
-
-    needs_review = full[review_mask].copy()
-    needs_review["review_reason"] = "Gaia did not resolve the target star -- blend risk unknown, not verified low"
-    needs_review = needs_review.sort_values("predicted_probability", ascending=False)
     needs_review.to_csv(NEEDS_REVIEW_PATH, index=False)
+    n_geometry_blocked = int(vetting_gates.geometry_blocked(full).sum())
 
     n_newly_flagged = int(full["newly_flagged_in_archive_or_exofop"].sum())
     n_exofop_hit = int((full["exofop_code"] == "HIT").sum())
@@ -1255,6 +1273,8 @@ def main():
           f"of which {n_strict} survive the strict (low-blend-only) tier.")
     print(f"Needs-manual-review list (Gaia couldn't resolve target -- blend risk unknown, not verified low): "
           f"{n_needs_review}")
+    print(f"Physics geometry block (orbit inside the star, or transit longer than the star allows): "
+          f"{n_geometry_blocked} -- kept in the characterization, excluded from both lists")
     print(f"Full characterization: {OUTPUT_PATH}")
     print(f"Best-candidates list: {BEST_CANDIDATES_PATH}")
     print(f"Needs-review list: {NEEDS_REVIEW_PATH}")

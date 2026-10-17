@@ -61,7 +61,7 @@ def _status_for_row(row):
     return "unknown_candidate"
 
 
-def sync_from_csvs(run_id=None):
+def sync_from_csvs(run_id=None, bump_last_verified=True):
     """Reads the latest characterized_candidates.csv (plus the combined-
     filter and needs-review lists it feeds) and upserts every row into the
     candidates table. Returns a summary dict for the caller (e.g. the job
@@ -72,7 +72,11 @@ def sync_from_csvs(run_id=None):
     "batch" balloon to include all historical candidates -- defeating the
     point of batch history. Only candidates that are actually NEW this sync
     (is_new) get linked to run_id, so each run's batch in the dashboard is
-    genuinely "what this Update found," not a repeat of everything."""
+    genuinely "what this Update found," not a repeat of everything.
+
+    bump_last_verified=False (used by code/apply_vetting_gates.py's follow-up sync) carries
+    new columns such as the vet_* physics checks into characterization_json without moving
+    last_verified_date, because nothing was re-verified."""
     db.ensure_schema()
 
     if run_id is None:
@@ -114,6 +118,7 @@ def sync_from_csvs(run_id=None):
             vsx_code=row.get("vsx_code"),
             characterization_dict=row.where(pd.notna(row), None).to_dict(),
             note=note,
+            bump_last_verified=bump_last_verified,
         )
         if is_new:
             n_new += 1

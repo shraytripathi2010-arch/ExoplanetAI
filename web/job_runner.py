@@ -765,13 +765,23 @@ def _reverify_body(candidate):
             status = candidate.get("current_status") or "unknown_candidate"
         else:
             status = "flagged_in_archive_or_toi" if newly_flagged else "unknown_candidate"
+
+        # Physics checks (code/vetting_gates.py), recomputed for this star from its stored
+        # ephemeris, stellar parameters and processed light curve -- no network. A geometry
+        # BLOCK takes the star out of both lists, exactly as 08's combined filter does; the
+        # star itself stays.
+        import vetting_gates
+        char.update(vetting_gates.gate_fields(dict(char, host=candidate["host"]), PROJECT_ROOT))
+        blocked = bool(char.get("vet_geometry_flag"))
+        if blocked and candidate.get("combined_filter_pass"):
+            summary += f" [physics check: {char.get('vet_block_reason')} -- removed from the best-candidates list]"
         db.upsert_candidate(
             tic_id=tic_id, host=candidate["host"], status=status,
             predicted_probability=candidate.get("predicted_probability"),
             confidence_tier=candidate.get("confidence_tier"),
-            combined_filter_pass=candidate.get("combined_filter_pass"),
-            combined_filter_tier=candidate.get("combined_filter_tier"),
-            needs_manual_review=candidate.get("needs_manual_review"),
+            combined_filter_pass=bool(candidate.get("combined_filter_pass")) and not blocked,
+            combined_filter_tier=None if blocked else candidate.get("combined_filter_tier"),
+            needs_manual_review=bool(candidate.get("needs_manual_review")) and not blocked,
             radius_plausible=candidate.get("radius_plausible"),
             blending_status=blend_status,
             vsx_code=vsx_code,

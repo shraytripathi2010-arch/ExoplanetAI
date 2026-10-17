@@ -67,6 +67,40 @@
   </div>
 </section>
 
+{% if physics %}
+<section class="card" id="physics-checks-section">
+  <h2>Physics checks</h2>
+  <p class="muted">Checks of the stored signal against the star and the light curve. They flag; they
+    never remove a candidate. {{ physics.summary }}</p>
+  {% if physics.block %}
+  <div class="disclaimer-banner disclaimer-caution">
+    <span class="scope-note-icon" aria-hidden="true">!</span>
+    <span><strong>Excluded from the best-candidates list:</strong> {{ physics.block|join(' ') }}
+      Shown here; nothing deleted.</span>
+  </div>
+  {% endif %}
+  {% if physics.warn or physics.info %}
+  <div class="evidence-grid">
+    {% for line in physics.warn %}
+      <div class="evidence-item"><span class="status-icon status-icon--caution" aria-hidden="true"></span>
+        <div class="evidence-item-body"><p class="evidence-item-label">Warning</p><p class="evidence-item-value">{{ line }}</p></div></div>
+    {% endfor %}
+    {% for line in physics.info %}
+      <div class="evidence-item"><span class="status-icon status-icon--skip" aria-hidden="true"></span>
+        <div class="evidence-item-body"><p class="evidence-item-label">For information</p><p class="evidence-item-value">{{ line }}</p></div></div>
+    {% endfor %}
+  </div>
+  {% elif not physics.block %}
+  <div class="evidence-grid">
+    <div class="evidence-item"><span class="status-icon status-icon--pass" aria-hidden="true"></span>
+      <div class="evidence-item-body"><p class="evidence-item-label">All checks</p><p class="evidence-item-value">{{ physics.summary }}</p></div></div>
+  </div>
+  {% endif %}
+  {% if physics.status_note %}<p class="muted">{{ physics.status_note }}</p>{% endif %}
+  <p class="muted">{{ physics.meta }}.</p>
+</section>
+{% endif %}
+
 <section class="card" id="exofop-refresh-section" data-tic="{{ c.tic_id }}">
   <h2>ExoFOP status</h2>
   <p class="muted">
