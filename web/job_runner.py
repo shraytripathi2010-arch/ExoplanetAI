@@ -1184,12 +1184,30 @@ def start_multi_sector_check(candidate):
 # from), and compute that difference image's flux-weighted centroid. If it
 # lands away from the target's own catalog position (converted to pixel
 # coordinates via the TPF's own WCS), the transit is probably coming from a
-# nearby contaminant, not the target star. This tests something genuinely
+# nearby source, not the target star. This tests something genuinely
 # different from the existing Gaia-proximity blend check (catalog distance
 # vs. where the light is actually coming from), so both stay visible as
 # separate, independent evidence rather than one replacing the other.
-CENTROID_CONSISTENT_THRESHOLD_PIX = 0.3
-CENTROID_BORDERLINE_THRESHOLD_PIX = 0.5
+# CALIBRATION (2026-10-17; register M, "centroid"). Run on 80 known planets with a clearly
+# visible transit (53 with no catalogued neighbour within 30") and 40 false positives whose TOI
+# comment names a nearby eclipsing binary or a centroid offset. This estimator (centre of mass of
+# the positive-clipped difference image over the whole cutout) put 71-75% of the REAL planets at
+# >= 0.5 px -- the old "shifted" cut -- because it is noise-dominated (noise-only fake phases:
+# median 1.19 px). It was not the ephemeris, the WCS or the star's brightness. With the stored
+# ephemeris, <= 5% of real planets exceed 2.74 px; at that threshold it flags 14% of the
+# eclipsing-binary false positives. Below it, the offset carries no information and is reported
+# as such.
+CENTROID_CALIBRATED_THRESHOLD_PIX = 2.74
+
+
+def centroid_verdict(shift_pixels):
+    """Verdict text for a stored photocenter offset. No talk of a nearby source below the
+    calibrated threshold, where real planets routinely land."""
+    t = CENTROID_CALIBRATED_THRESHOLD_PIX
+    if shift_pixels < t:
+        return f"Offset {shift_pixels:.2f} px, below the calibrated threshold ({t:.1f} px); uninformative"
+    return (f"Offset {shift_pixels:.2f} px, above the calibrated threshold ({t:.1f} px, exceeded by at most "
+            f"5% of real planets); the signal may come from a nearby star")
 
 # Ceiling on how many sectors to try before giving up on a star. Each attempt
 # is a ~45MB download plus a few seconds of numpy, and a handful of targets
@@ -1370,12 +1388,7 @@ def _centroid_body(tic_id, host, ra, dec, period_days, t0_bjd, duration_hours, e
                   "pixel data available.")
             return
 
-        if shift_pixels < CENTROID_CONSISTENT_THRESHOLD_PIX:
-            verdict = f"Photocenter consistent with target ({shift_pixels:.2f} px from catalog position)"
-        elif shift_pixels < CENTROID_BORDERLINE_THRESHOLD_PIX:
-            verdict = f"Borderline: photocenter {shift_pixels:.2f} px from target -- weak evidence of a nearby contaminant"
-        else:
-            verdict = f"Photocenter shifted {shift_pixels:.2f} px from target -- signal likely from a nearby contaminant, not the target star"
+        verdict = centroid_verdict(shift_pixels)
 
         db.save_centroid_result(tic_id, sector_used, shift_pixels, verdict)
         _fold_centroid_into_evidence_writeup(tic_id, shift_pixels, verdict)
@@ -1411,13 +1424,11 @@ def _fold_centroid_into_evidence_writeup(tic_id, shift_pixels, verdict):
         return  # already folded in once; don't accumulate duplicate sentences
 
     sentence = f"{marker} {verdict}"
-    if shift_pixels < CENTROID_CONSISTENT_THRESHOLD_PIX:
-        char["supporting_evidence"] = (supporting + "; " if supporting else "") + sentence
-    else:
-        # Both the borderline and clear-shift cases are doubt, not support --
-        # a confirmed nearby contaminant is genuine, strong evidence against
-        # the target star being the transit source, not a minor caveat.
-        char["doubting_evidence"] = (doubting + "; " if doubting else "") + sentence
+    if shift_pixels < CENTROID_CALIBRATED_THRESHOLD_PIX:
+        # Below the calibrated threshold the offset is uninformative (real planets land there
+        # routinely), so it is neither support nor doubt and adds no sentence.
+        return
+    char["doubting_evidence"] = (doubting + "; " if doubting else "") + sentence
 
     db.upsert_candidate(
         tic_id=tic_id, host=candidate["host"], status=candidate["current_status"],

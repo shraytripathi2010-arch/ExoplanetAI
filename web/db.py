@@ -889,6 +889,14 @@ def save_centroid_result(tic_id, sector_used, shift_pixels, verdict):
         )
 
 
+def set_centroid_verdict(tic_id, verdict):
+    """Relabels a stored centroid verdict without touching the measurement or its date
+    (web/relabel_centroid_verdicts.py: wording recomputed from the stored shift)."""
+    with get_conn() as conn:
+        conn.execute("UPDATE centroid_evidence SET verdict = ? WHERE tic_id = ? AND status = 'completed'",
+                     (verdict, tic_id))
+
+
 def fail_centroid_check(tic_id, error_message):
     """Clears the result columns, not just the status.
 

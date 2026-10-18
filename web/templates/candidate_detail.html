@@ -362,6 +362,11 @@
     the Gaia-proximity blend check above (that one measures catalog distance; this one measures
     where the light during the actual transit is coming from). Neither replaces the other.
   </p>
+  <p class="muted">
+    Calibrated on 80 known planets (2026-10-17): this measurement puts most real planets 0.5&ndash;2 pixels
+    from their catalog position, so an offset below {{ centroid_threshold }} px carries no information
+    either way.
+  </p>
   <div id="centroid-content">
     {% if centroid and centroid.status == 'completed' %}
       <table class="plain-table">

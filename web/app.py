@@ -383,6 +383,7 @@ def candidate_detail(tic_id):
                             transit_anim=transit_anim, evidence_items=evidence_items,
                             conformal_view=conformal_view,
                             physics=physics, score_label=SCORE_LABEL, score_explanation=SCORE_EXPLANATION,
+                            centroid_threshold=f"{job_runner.CENTROID_CALIBRATED_THRESHOLD_PIX:.1f}",
                             visibility=_fnum((char or {}).get("vet_visibility_ratio")),
                             visibility_flag=_truthy((char or {}).get("vet_visibility_flag")),
                             model_evidence=model_evidence,
@@ -654,7 +655,10 @@ def _evidence_items(char, centroid, candidate=None):
 
     if centroid and centroid.get("status") == "completed":
         verdict = centroid.get("verdict", "")
-        c_status = "fail" if "contaminant" in verdict.lower() else "pass"
+        # Status from the calibrated threshold, not from words in the verdict: below it the
+        # offset is uninformative (neutral), above it a caution -- never a pass or a fail.
+        sp = _fnum(centroid.get("shift_pixels"))
+        c_status = "caution" if sp is not None and sp >= job_runner.CENTROID_CALIBRATED_THRESHOLD_PIX else "skip"
         items.append({"label": "Pixel-level centroid check", "status": c_status,
                       "value": f"{verdict} (shift {centroid.get('shift_pixels'):.3f} px)"})
     elif centroid and centroid.get("status") == "failed":
