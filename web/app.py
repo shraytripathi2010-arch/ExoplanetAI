@@ -316,9 +316,10 @@ def candidate_list():
 
     candidates = db.list_candidates(sort_by="predicted_probability" if sort_by == "clean" else sort_by,
                                      ascending=ascending, tier_filter=tier_filter, combined_only=combined_only)
+    centroid_warns = db.centroid_masked_warn_tics()
     for c in candidates:
         c["prob_provenance"] = _probability_provenance(c)
-        c["checks"] = _checks_summary(c)
+        c["checks"] = _checks_summary(c, c["tic_id"] in centroid_warns)
     if sort_by == "clean":
         candidates.sort(key=_clean_first_key, reverse=not ascending)
     counts = db.summary_counts()
@@ -370,7 +371,7 @@ def candidate_detail(tic_id):
     # Conformal prediction sets. Pure arithmetic over a cached calibration
     # artifact -- no model call, no network, so this cannot slow a page render.
     conformal_view = conformal.summary(candidate.get("predicted_probability"))
-    physics = _physics_checks_view(char)
+    physics = _physics_checks_view(char, centroid)
 
     return render_template("candidate_detail.html", c=candidate, char=char, history=history,
                             events=events, exofop_view_url=exofop_view_url,
@@ -384,6 +385,7 @@ def candidate_detail(tic_id):
                             conformal_view=conformal_view,
                             physics=physics, score_label=SCORE_LABEL, score_explanation=SCORE_EXPLANATION,
                             centroid_threshold=f"{job_runner.CENTROID_CALIBRATED_THRESHOLD_PIX:.1f}",
+                            centroid_masked_warn=f"{job_runner.CENTROID_MASKED_WARN_PIX:g}",
                             visibility=_fnum((char or {}).get("vet_visibility_ratio")),
                             visibility_flag=_truthy((char or {}).get("vet_visibility_flag")),
                             model_evidence=model_evidence,
@@ -401,8 +403,9 @@ SCORE_TOOLTIP = ("Classifier score: resemblance to TESS planet hosts vs false-po
                  "not a planet probability")
 
 
-def _checks_summary(c):
-    """Block/warning/visibility summary for the list's clean-first sort and Checks column."""
+def _checks_summary(c, centroid_warn=False):
+    """Block/warning/visibility summary for the list's clean-first sort and Checks column. A
+    centroid warning (masked estimator) counts as one more warning, as on the page."""
     import json
     ch = c.get("characterization")
     if ch is None:
@@ -410,7 +413,7 @@ def _checks_summary(c):
     warns = [w for w in (ch.get("vet_warnings") or "").split("; ") if w]
     vis = _fnum(ch.get("vet_visibility_ratio"))
     return {"rejected": c.get("manual_review_status") == "rejected", "blocked": _truthy(ch.get("vet_geometry_flag")),
-            "n_warn": len(warns), "vis": vis, "checked": ch.get("vet_code_version") not in (None, "")}
+            "n_warn": len(warns) + int(bool(centroid_warn)), "vis": vis, "checked": ch.get("vet_code_version") not in (None, "")}
 
 
 def _clean_first_key(c):
@@ -432,7 +435,7 @@ def _fnum(v):
     return v if v == v else None
 
 
-def _physics_checks_view(char):
+def _physics_checks_view(char, centroid=None):
     """The candidate page's "Physics checks" panel (code/vetting_gates.py), or None when this
     candidate has not been checked yet. Wording only; every number is read, none computed."""
     char = char or {}
@@ -491,6 +494,12 @@ def _physics_checks_view(char):
         warn.append(f"Transit not clearly visible (ratio {v:.2f}; needs at least 3). The resemblance score is "
                     f"not evidence that it exists." if v is not None else
                     "Transit not measurable in the folded light curve. The resemblance score is not evidence that it exists.")
+    if centroid and centroid.get("status") == "completed" and centroid.get("masked_warn"):
+        frac = _fnum(centroid.get("masked_null_frac_below"))
+        warn.append(f"Pixel centroid offset {_fnum(centroid.get('masked_shift_pixels')):.2f} px, at or above the "
+                    f"{job_runner.CENTROID_MASKED_WARN_PIX:g} px warning level (about 6% of real planets reach it)"
+                    + (f"; {100 * frac:.0f}% of this star's noise-only offsets are smaller" if frac is not None else "")
+                    + ". The signal may come from a nearby star.")
     if _truthy(char.get("vet_secondary_info")):
         info.append(f"Weak dip at phase 0.5 ({n('vet_secondary_sig'):.1f}σ); about 1 in 10 noise-only light curves "
                     f"reach 3σ here.")
@@ -657,10 +666,13 @@ def _evidence_items(char, centroid, candidate=None):
         verdict = centroid.get("verdict", "")
         # Status from the calibrated threshold, not from words in the verdict: below it the
         # offset is uninformative (neutral), above it a caution -- never a pass or a fail.
-        sp = _fnum(centroid.get("shift_pixels"))
-        c_status = "caution" if sp is not None and sp >= job_runner.CENTROID_CALIBRATED_THRESHOLD_PIX else "skip"
+        if centroid.get("masked_shift_pixels") is not None:
+            c_status = "caution" if centroid.get("masked_warn") else "skip"
+        else:
+            sp = _fnum(centroid.get("shift_pixels"))
+            c_status = "caution" if sp is not None and sp >= job_runner.CENTROID_CALIBRATED_THRESHOLD_PIX else "skip"
         items.append({"label": "Pixel-level centroid check", "status": c_status,
-                      "value": f"{verdict} (shift {centroid.get('shift_pixels'):.3f} px)"})
+                      "value": verdict})
     elif centroid and centroid.get("status") == "failed":
         # Was "Not run yet" for these too, which is simply untrue -- it WAS
         # run and it did not produce a usable answer, which is a materially

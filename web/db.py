@@ -299,7 +299,11 @@ MIGRATIONS = {
         ("started_at", "TEXT"),
         ("progress_text", "TEXT"),
     ],
-    "centroid_evidence": [("started_at", "TEXT"), ("progress_text", "TEXT")],
+    "centroid_evidence": [("started_at", "TEXT"), ("progress_text", "TEXT"),
+                          # masked estimator (job_runner, 2026-10-17): the verdict's measurement
+                          ("masked_shift_pixels", "REAL"), ("masked_warn", "INTEGER"),
+                          ("masked_null_n", "INTEGER"), ("masked_null_median", "REAL"),
+                          ("masked_null_p95", "REAL"), ("masked_null_frac_below", "REAL")],
     # Queue rows whose star is represented in training.csv by a DIFFERENT row:
     #   superseded_by_dedup -- appended, then removed as a duplicate; superseded_by
     #                          names the surviving training host
@@ -889,6 +893,24 @@ def save_centroid_result(tic_id, sector_used, shift_pixels, verdict):
         )
 
 
+def centroid_masked_warn_tics():
+    """TIC ids whose completed centroid check carries a masked-estimator warning."""
+    with get_conn() as conn:
+        return {r[0] for r in conn.execute(
+            "SELECT tic_id FROM centroid_evidence WHERE status = 'completed' AND masked_warn = 1")}
+
+
+def save_centroid_masked(tic_id, masked):
+    """The masked-estimator fields for a completed centroid check (None clears them)."""
+    m = masked or {}
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE centroid_evidence SET masked_shift_pixels = ?, masked_warn = ?, masked_null_n = ?,
+                 masked_null_median = ?, masked_null_p95 = ?, masked_null_frac_below = ? WHERE tic_id = ?""",
+            (m.get("masked_shift_pixels"), m.get("masked_warn"), m.get("masked_null_n"), m.get("masked_null_median"),
+             m.get("masked_null_p95"), m.get("masked_null_frac_below"), tic_id))
+
+
 def set_centroid_verdict(tic_id, verdict):
     """Relabels a stored centroid verdict without touching the measurement or its date
     (web/relabel_centroid_verdicts.py: wording recomputed from the stored shift)."""
@@ -911,6 +933,8 @@ def fail_centroid_check(tic_id, error_message):
         conn.execute(
             """UPDATE centroid_evidence SET status = 'failed', error_message = ?,
                  shift_pixels = NULL, verdict = NULL, sector_used = NULL,
+                 masked_shift_pixels = NULL, masked_warn = NULL, masked_null_n = NULL,
+                 masked_null_median = NULL, masked_null_p95 = NULL, masked_null_frac_below = NULL,
                  computed_at = NULL, progress_text = NULL
                WHERE tic_id = ?""",
             (error_message, tic_id),

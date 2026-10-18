@@ -1200,6 +1200,75 @@ def start_multi_sector_check(candidate):
 CENTROID_CALIBRATED_THRESHOLD_PIX = 2.74
 
 
+# MASKED ESTIMATOR (2026-10-17), the centroid check's verdict from now on. Centre of mass of the
+# difference image over pixels within CENTROID_MASK_RADIUS_PIX of the target whose difference
+# exceeds CENTROID_MASK_SIGMA x the error of the in-transit median (per-pixel out-of-transit
+# scatter x sqrt(pi/2) / sqrt(n_in)). Same calibration run as above (80 planets, 40 NEB-comment
+# FPs):
+#   >= 1.08 px  -> 5.6% of real planets (4/72) and 49% of the false positives (19/39), with the
+#                  stored ephemeris; 5.5% and 41% with the TOI ephemeris.
+# A noise-only fake transit reaches 1.08 px 33% of the time. So each star also gets its own
+# noise null (CENTROID_NULL_PHASES fake phases): the fraction of noise-only offsets smaller than
+# the real one is reported with the verdict. It WARNs, never blocks: TESS pixels are 21", fewer
+# than half the eclipsing-binary false positives reach the threshold, and the calibration set
+# is small.
+CENTROID_MASK_RADIUS_PIX = 2.5
+CENTROID_MASK_SIGMA = 3.0
+CENTROID_MASKED_WARN_PIX = 1.08
+CENTROID_NULL_PHASES = 20
+
+
+def _masked_centroid_shift(tpf, ra, dec, period_days, t0_bjd, duration_hours):
+    import numpy as np
+    from scipy.ndimage import center_of_mass
+    from astropy.coordinates import SkyCoord
+    import astropy.units as u
+    t = tpf.time.value; cube = tpf.flux.value.astype(float)
+    ph = np.mod((t - t0_bjd) / period_days, 1.0); ph = np.where(ph > 0.5, ph - 1.0, ph)
+    hd = (duration_hours / 24.0 / period_days) / 2.0
+    inn, out = np.abs(ph) < hd * 1.5, np.abs(ph) > 0.25
+    if inn.sum() < 5 or out.sum() < 5:
+        return None
+    with np.errstate(invalid="ignore"):
+        a, b = np.nanmedian(cube[inn], axis=0), np.nanmedian(cube[out], axis=0)
+        sig = np.nanstd(cube[out], axis=0) * np.sqrt(np.pi / 2) / np.sqrt(inn.sum())
+    diff = b - a
+    col_e, row_e = tpf.wcs.world_to_pixel(SkyCoord(ra=ra * u.degree, dec=dec * u.degree, frame="icrs"))
+    yy, xx = np.indices(diff.shape)
+    keep = (np.hypot(yy - row_e, xx - col_e) <= CENTROID_MASK_RADIUS_PIX) & (diff > CENTROID_MASK_SIGMA * sig)
+    img = np.nan_to_num(np.where(keep, diff, 0.0), nan=0.0)
+    if img.sum() <= 0:
+        return None
+    r, c = center_of_mass(img)
+    return float(np.hypot(r - row_e, c - col_e))
+
+
+def _masked_centroid_result(tpf, tic_id, ra, dec, period_days, t0_bjd, duration_hours):
+    """Masked offset at the stored ephemeris plus this star's own noise null."""
+    import numpy as np
+    shift = _masked_centroid_shift(tpf, ra, dec, period_days, t0_bjd, duration_hours)
+    if shift is None:
+        return None
+    rng = np.random.RandomState(int(tic_id) % 2**31)
+    null = [v for v in (_masked_centroid_shift(tpf, ra, dec, period_days, t0_bjd + rng.uniform(0.3, 0.7) * period_days,
+                                               duration_hours) for _ in range(CENTROID_NULL_PHASES)) if v is not None]
+    return {"masked_shift_pixels": shift, "masked_warn": int(shift >= CENTROID_MASKED_WARN_PIX),
+            "masked_null_n": len(null),
+            "masked_null_median": float(np.median(null)) if null else None,
+            "masked_null_p95": float(np.percentile(null, 95)) if null else None,
+            "masked_null_frac_below": float(np.mean(np.array(null) < shift)) if null else None}
+
+
+def centroid_masked_verdict(m):
+    noise = (f"; {100 * m['masked_null_frac_below']:.0f}% of this star's noise-only offsets are smaller"
+             if m.get("masked_null_frac_below") is not None else "")
+    if m["masked_warn"]:
+        return (f"WARNING: offset {m['masked_shift_pixels']:.2f} px, at or above {CENTROID_MASKED_WARN_PIX:g} px "
+                f"(reached by about 6% of real planets in calibration){noise}. The signal may come from a nearby star.")
+    return (f"Offset {m['masked_shift_pixels']:.2f} px, below the {CENTROID_MASKED_WARN_PIX:g} px warning level; "
+            f"uninformative{noise}")
+
+
 def centroid_verdict(shift_pixels):
     """Verdict text for a stored photocenter offset. No talk of a nearby source below the
     calibrated threshold, where real planets routinely land."""
@@ -1292,144 +1361,111 @@ def _centroid_from_tpf(tpf, ra, dec, period_days, t0_bjd, duration_hours, expect
             "observed_depth_ppm": observed_depth_ppm}, None
 
 
-def _centroid_body(tic_id, host, ra, dec, period_days, t0_bjd, duration_hours, expected_depth_ppm):
-    tpf = None
+def measure_centroid(tic_id, ra, dec, period_days, t0_bjd, duration_hours, expected_depth_ppm, progress=None):
+    """The centroid measurement, with no database writes (used by _centroid_body and by
+    web/rerun_centroid_checks.py). Returns {"status": "completed", ...} or
+    {"status": "failed", "error": ...}. Every pixel file is deleted after use."""
+    progress = progress or (lambda text: None)
+    if ra is None or dec is None:
+        return {"status": "failed", "error": "No RA/Dec on file for this candidate"}
+    if period_days is None or t0_bjd is None or duration_hours is None:
+        return {"status": "failed", "error": "Missing period/epoch/duration -- run characterization first"}
+    import lightkurve as lk
+    progress("Searching MAST for a target pixel file...")
+    search = lk.search_targetpixelfile(f"TIC {tic_id}", mission="TESS", author="SPOC")
+    if len(search) == 0:
+        search = lk.search_targetpixelfile(f"TIC {tic_id}", mission="TESS")
+    if len(search) == 0:
+        return {"status": "failed", "error": "No target pixel file available via MAST for this star"}
+
+    # BUG FIXED (see register): try each sector, keep the first whose measured depth agrees with
+    # the known transit depth, rather than one blind pick. 120 s products first.
     try:
-        if ra is None or dec is None:
-            db.fail_centroid_check(tic_id, "No RA/Dec on file for this candidate")
-            return
-        if period_days is None or t0_bjd is None or duration_hours is None:
-            db.fail_centroid_check(tic_id, "Missing period/epoch/duration -- run characterization first")
-            return
+        standard = search[search.table["exptime"] == 120.0]
+    except Exception:
+        standard = search[:0]
+    products = [standard[i] for i in range(len(standard))] or [search[i] for i in range(len(search))]
+    try:
+        sector_of = [int(x) for x in (standard if len(standard) else search).table["sequence_number"]]
+    except Exception:
+        sector_of = [None] * len(products)
+    products = products[:MAX_CENTROID_SECTORS_TO_TRY]
 
-        import lightkurve as lk
-
-        db.set_check_progress("centroid_evidence", tic_id, "Searching MAST for a target pixel file...")
-        search = lk.search_targetpixelfile(f"TIC {tic_id}", mission="TESS", author="SPOC")
-        if len(search) == 0:
-            search = lk.search_targetpixelfile(f"TIC {tic_id}", mission="TESS")
-        if len(search) == 0:
-            db.fail_centroid_check(tic_id, "No target pixel file available via MAST for this star")
-            return
-
-        # BUG FIXED -- root cause of EVERY centroid failure: 34 of 34 on the
-        # candidate list, and 2,284 of 2,377 on the 5,086-star training run.
-        #
-        # This used to download exactly ONE product (`standard[0]`, whichever
-        # MAST happened to list first) and give up if its data didn't match
-        # the stored ephemeris. But the stored period/T0 come from one
-        # specific sector, and which product MAST lists first is arbitrary.
-        # Pick a different sector and the phase-fold lands on the wrong part
-        # of the light curve, so the depth measured at the target's own pixel
-        # disagrees with the known depth and the guard correctly refuses a
-        # verdict. The guard was never the bug -- the single blind pick was.
-        #
-        # Evidence this is sector selection and not a data limitation: 28 of
-        # those 34 failures measured a NEGATIVE depth (a brightening, not a
-        # dip) at the target pixel, which is exactly what folding on
-        # out-of-transit data looks like; and failures skewed to shallow,
-        # short transits (median 197 ppm vs 340 ppm for successes) -- the
-        # signals least tolerant of a mis-aligned fold.
-        #
-        # Now: try each available sector, keep the first whose measured depth
-        # actually agrees with the known transit depth. 120s products first
-        # (~6x smaller than the 20s ones, and the technique doesn't need fast
-        # cadence). Each TPF is deleted before the next is fetched, so peak
-        # disk stays at one file however many sectors get examined.
+    m06 = _load_06()
+    rejections = []
+    for i, product in enumerate(products):
+        label = f"sector {sector_of[i]}" if i < len(sector_of) and sector_of[i] else f"product {i+1}"
+        progress(f"Checking {label} ({i+1} of {len(products)}): downloading ~45MB "
+                 f"and testing it against this candidate's ephemeris...")
+        with m06._DOWNLOAD_LOCK:
+            tpf = _retry_on_stdout_race(product.download)
+        if tpf is None:
+            rejections.append(f"{label}: download failed")
+            continue
         try:
-            standard = search[search.table["exptime"] == 120.0]
-        except Exception:
-            standard = search[:0]
-        products = [standard[i] for i in range(len(standard))] or \
-                   [search[i] for i in range(len(search))]
-        sector_of = []
-        try:
-            table = (standard if len(standard) else search).table
-            sector_of = [int(s) for s in table["sequence_number"]]
-        except Exception:
-            sector_of = [None] * len(products)
-        products = products[:MAX_CENTROID_SECTORS_TO_TRY]
-
-        m06 = _load_06()
-        rejections = []
-        shift_pixels = sector_used = None
-        for i, product in enumerate(products):
-            label = f"sector {sector_of[i]}" if i < len(sector_of) and sector_of[i] else f"product {i+1}"
-            db.set_check_progress(
-                "centroid_evidence", tic_id,
-                f"Checking {label} ({i+1} of {len(products)}): downloading ~45MB "
-                f"and testing it against this candidate's ephemeris...")
-            with m06._DOWNLOAD_LOCK:
-                tpf = _retry_on_stdout_race(product.download)
-            if tpf is None:
-                rejections.append(f"{label}: download failed")
-                continue
             result, reason = _centroid_from_tpf(
                 tpf, ra, dec, period_days, t0_bjd, duration_hours, expected_depth_ppm)
+            if result is not None:
+                progress(f"{label}: measuring the masked centroid and its noise null...")
+                masked = _masked_centroid_result(tpf, tic_id, ra, dec, period_days, t0_bjd, duration_hours)
+        finally:
             try:
                 os.remove(tpf.path)
             except OSError:
                 pass
-            tpf = None
-            if result is not None:
-                shift_pixels = result["shift_pixels"]
-                sector_used = result["sector_used"]
-                break
-            rejections.append(f"{label}: {reason}")
+        if result is not None:
+            out = {"status": "completed", "sector_used": result["sector_used"],
+                   "shift_pixels": result["shift_pixels"], "masked": masked}
+            out["verdict"] = (centroid_masked_verdict(masked) if masked is not None
+                              else centroid_verdict(result["shift_pixels"]))
+            return out
+        rejections.append(f"{label}: {reason}")
+    return {"status": "failed", "error": (
+        f"Checked {len(products)} available sector(s); none gave a trustworthy "
+        f"photocenter. " + "; ".join(rejections[:4]) + ("; ..." if len(rejections) > 4 else "")
+        + ". Usually this means the transit is too shallow to localize in pixel data, "
+          "or the stored ephemeris doesn't propagate cleanly to any sector that has "
+          "pixel data available.")}
 
-        if shift_pixels is None:
-            db.fail_centroid_check(
-                tic_id,
-                f"Checked {len(products)} available sector(s); none gave a trustworthy "
-                f"photocenter. " + "; ".join(rejections[:4])
-                + ("; ..." if len(rejections) > 4 else "")
-                + ". Usually this means the transit is too shallow to localize in pixel data, "
-                  "or the stored ephemeris doesn't propagate cleanly to any sector that has "
-                  "pixel data available.")
-            return
 
-        verdict = centroid_verdict(shift_pixels)
+def save_centroid_measurement(tic_id, m):
+    """Writes a measure_centroid() result to the DB and folds a warning into the evidence text."""
+    if m["status"] != "completed":
+        db.fail_centroid_check(tic_id, m["error"])
+        return
+    db.save_centroid_result(tic_id, m["sector_used"], m["shift_pixels"], m["verdict"])
+    db.save_centroid_masked(tic_id, m.get("masked"))
+    _fold_centroid_into_evidence_writeup(tic_id, m)
 
-        db.save_centroid_result(tic_id, sector_used, shift_pixels, verdict)
-        _fold_centroid_into_evidence_writeup(tic_id, shift_pixels, verdict)
+
+def _centroid_body(tic_id, host, ra, dec, period_days, t0_bjd, duration_hours, expected_depth_ppm):
+    try:
+        m = measure_centroid(tic_id, ra, dec, period_days, t0_bjd, duration_hours, expected_depth_ppm,
+                             progress=lambda text: db.set_check_progress("centroid_evidence", tic_id, text))
+        save_centroid_measurement(tic_id, m)
     except Exception as e:
         db.fail_centroid_check(tic_id, str(e))
-    finally:
-        if tpf is not None:
-            try:
-                os.remove(tpf.path)
-            except OSError:
-                pass
 
 
 
-def _fold_centroid_into_evidence_writeup(tic_id, shift_pixels, verdict):
-    """Makes the centroid result first-class evidence in the same
-    supporting/doubting-evidence writeup 08_characterize_candidates.py
-    already produces, instead of leaving it visible only in its own
-    separate section. Purely additive -- appends one sentence to existing
-    text, never touches predicted_probability or confidence_tier (same
-    "additive evidence only, never re-scored" rule already applied to the
-    multi-sector and Gaia-blend checks). Guards against duplicate sentences
-    if this ever runs twice for the same candidate (manual re-run after an
-    automatic run, or vice versa)."""
+def _fold_centroid_into_evidence_writeup(tic_id, m):
+    """Adds the centroid result to the doubting-evidence text ONLY when it warns: the masked
+    offset at or above its warning level (or, with no masked result, the whole-cutout offset
+    above its calibrated threshold). Below that it is uninformative and adds nothing. Never
+    touches the score or the tier, and never adds the same sentence twice."""
     candidate = db.get_candidate(tic_id)
     if candidate is None:
         return
+    masked = m.get("masked")
+    warns = bool(masked["masked_warn"]) if masked else m["shift_pixels"] >= CENTROID_CALIBRATED_THRESHOLD_PIX
+    if not warns:
+        return
     char = candidate["characterization"]
     marker = "Pixel-level centroid check:"
-    supporting = char.get("supporting_evidence") or ""
     doubting = char.get("doubting_evidence") or ""
-    if marker in supporting or marker in doubting:
-        return  # already folded in once; don't accumulate duplicate sentences
-
-    sentence = f"{marker} {verdict}"
-    if shift_pixels < CENTROID_CALIBRATED_THRESHOLD_PIX:
-        # Below the calibrated threshold the offset is uninformative (real planets land there
-        # routinely), so it is neither support nor doubt and adds no sentence.
+    if marker in doubting or marker in (char.get("supporting_evidence") or ""):
         return
-    char["doubting_evidence"] = (doubting + "; " if doubting else "") + sentence
-
+    char["doubting_evidence"] = (doubting + "; " if doubting else "") + f"{marker} {m['verdict']}"
     db.upsert_candidate(
         tic_id=tic_id, host=candidate["host"], status=candidate["current_status"],
         predicted_probability=candidate.get("predicted_probability"),

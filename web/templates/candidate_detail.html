@@ -365,13 +365,18 @@
   <p class="muted">
     Calibrated on 80 known planets (2026-10-17): this measurement puts most real planets 0.5&ndash;2 pixels
     from their catalog position, so an offset below {{ centroid_threshold }} px carries no information
-    either way.
+    either way. The verdict uses a masked measurement (only significant pixels near the star), which
+    warns at {{ centroid_masked_warn }} px: about 6% of real planets reach that, and about half of the
+    eclipsing-binary false positives tested. It never blocks a candidate.
   </p>
   <div id="centroid-content">
     {% if centroid and centroid.status == 'completed' %}
       <table class="plain-table">
         <tr><td>Sector used</td><td>{{ centroid.sector_used }}</td></tr>
-        <tr><td>Photocenter shift</td><td>{{ '%.3f'|format(centroid.shift_pixels) }} pixels</td></tr>
+        {% if centroid.masked_shift_pixels is not none %}
+        <tr><td>Masked offset (verdict)</td><td>{{ '%.3f'|format(centroid.masked_shift_pixels) }} pixels{% if centroid.masked_null_p95 is not none %}; this star's noise-only offsets: median {{ '%.2f'|format(centroid.masked_null_median) }}, 95th percentile {{ '%.2f'|format(centroid.masked_null_p95) }} px ({{ centroid.masked_null_n }} fake phases){% endif %}</td></tr>
+        {% endif %}
+        <tr><td>Whole-cutout offset (legacy)</td><td>{{ '%.3f'|format(centroid.shift_pixels) }} pixels</td></tr>
         <tr><td>Verdict</td><td>{{ centroid.verdict }}</td></tr>
         <tr><td>Computed</td><td>{{ centroid.computed_at }}</td></tr>
       </table>
