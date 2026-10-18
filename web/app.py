@@ -494,12 +494,21 @@ def _physics_checks_view(char, centroid=None):
         warn.append(f"Transit not clearly visible (ratio {v:.2f}; needs at least 3). The resemblance score is "
                     f"not evidence that it exists." if v is not None else
                     "Transit not measurable in the folded light curve. The resemblance score is not evidence that it exists.")
-    if centroid and centroid.get("status") == "completed" and centroid.get("masked_warn"):
-        frac = _fnum(centroid.get("masked_null_frac_below"))
-        warn.append(f"Pixel centroid offset {_fnum(centroid.get('masked_shift_pixels')):.2f} px, at or above the "
-                    f"{job_runner.CENTROID_MASKED_WARN_PIX:g} px warning level (about 6% of real planets reach it)"
-                    + (f"; {100 * frac:.0f}% of this star's noise-only offsets are smaller" if frac is not None else "")
-                    + ". The signal may come from a nearby star.")
+    ms = _fnum(centroid.get("masked_shift_pixels")) if centroid and centroid.get("status") == "completed" else None
+    if ms is not None:
+        frac, p95 = _fnum(centroid.get("masked_null_frac_below")), _fnum(centroid.get("masked_null_p95"))
+        level = job_runner.centroid_masked_level(ms, p95)
+        smaller = f"{100 * frac:.0f}% of noise-only offsets are smaller" if frac is not None else ""
+        if level == "warn":
+            warn.append(f"Pixel centroid offset {ms:.2f} px, at or above the {job_runner.CENTROID_MASKED_WARN_PIX:g} px "
+                        f"level and above 95% of this star's noise-only offsets (95th percentile {p95:.2f} px; {smaller}). "
+                        f"The signal may come from a nearby star.")
+        elif level == "info_noise":
+            info.append(f"Pixel centroid offset {ms:.2f} px, within this star's noise ({smaller}); "
+                        f"not evidence of a nearby source.")
+        elif level == "info_nonull":
+            info.append(f"Pixel centroid offset {ms:.2f} px, but no noise comparison is available for this star; "
+                        f"not evidence of a nearby source.")
     if _truthy(char.get("vet_secondary_info")):
         info.append(f"Weak dip at phase 0.5 ({n('vet_secondary_sig'):.1f}σ); about 1 in 10 noise-only light curves "
                     f"reach 3σ here.")

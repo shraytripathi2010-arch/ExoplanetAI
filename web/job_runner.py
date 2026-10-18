@@ -1208,10 +1208,14 @@ CENTROID_CALIBRATED_THRESHOLD_PIX = 2.74
 #   >= 1.08 px  -> 5.6% of real planets (4/72) and 49% of the false positives (19/39), with the
 #                  stored ephemeris; 5.5% and 41% with the TOI ephemeris.
 # A noise-only fake transit reaches 1.08 px 33% of the time. So each star also gets its own
-# noise null (CENTROID_NULL_PHASES fake phases): the fraction of noise-only offsets smaller than
-# the real one is reported with the verdict. It WARNs, never blocks: TESS pixels are 21", fewer
-# than half the eclipsing-binary false positives reach the threshold, and the calibration set
-# is small.
+# noise null (CENTROID_NULL_PHASES fake phases), and the rule (2026-10-18) needs both:
+#   WARN  masked offset >= CENTROID_MASKED_WARN_PIX AND above the 95th percentile of the star's
+#         own noise-only offsets. Same calibration, 10-phase null: 1.4% of real planets and 26%
+#         of the false positives, with either ephemeris (TOI 1/73 and 10/39; stored 1/72, 10/39).
+#   INFO  >= the level but within the star's noise, or no noise comparison available. Not a
+#         warning: it does not count toward warnings or the list's clean-first sort.
+# It WARNs, never blocks: TESS pixels are 21", only a quarter of the eclipsing-binary false
+# positives warn, and the calibration set is small.
 CENTROID_MASK_RADIUS_PIX = 2.5
 CENTROID_MASK_SIGMA = 3.0
 CENTROID_MASKED_WARN_PIX = 1.08
@@ -1252,21 +1256,40 @@ def _masked_centroid_result(tpf, tic_id, ra, dec, period_days, t0_bjd, duration_
     rng = np.random.RandomState(int(tic_id) % 2**31)
     null = [v for v in (_masked_centroid_shift(tpf, ra, dec, period_days, t0_bjd + rng.uniform(0.3, 0.7) * period_days,
                                                duration_hours) for _ in range(CENTROID_NULL_PHASES)) if v is not None]
-    return {"masked_shift_pixels": shift, "masked_warn": int(shift >= CENTROID_MASKED_WARN_PIX),
+    p95 = float(np.percentile(null, 95)) if null else None
+    return {"masked_shift_pixels": shift, "masked_warn": int(centroid_masked_level(shift, p95) == "warn"),
             "masked_null_n": len(null),
             "masked_null_median": float(np.median(null)) if null else None,
-            "masked_null_p95": float(np.percentile(null, 95)) if null else None,
+            "masked_null_p95": p95,
             "masked_null_frac_below": float(np.mean(np.array(null) < shift)) if null else None}
 
 
+def centroid_masked_level(shift, null_p95):
+    """'warn' (at or above the level AND above the star's own noise p95), 'info_noise' (at or
+    above the level, within the star's noise), 'info_nonull' (at or above the level, no noise
+    comparison) or 'below'."""
+    if shift < CENTROID_MASKED_WARN_PIX:
+        return "below"
+    if null_p95 is None:
+        return "info_nonull"
+    return "warn" if shift > null_p95 else "info_noise"
+
+
 def centroid_masked_verdict(m):
-    noise = (f"; {100 * m['masked_null_frac_below']:.0f}% of this star's noise-only offsets are smaller"
-             if m.get("masked_null_frac_below") is not None else "")
-    if m["masked_warn"]:
-        return (f"WARNING: offset {m['masked_shift_pixels']:.2f} px, at or above {CENTROID_MASKED_WARN_PIX:g} px "
-                f"(reached by about 6% of real planets in calibration){noise}. The signal may come from a nearby star.")
-    return (f"Offset {m['masked_shift_pixels']:.2f} px, below the {CENTROID_MASKED_WARN_PIX:g} px warning level; "
-            f"uninformative{noise}")
+    s, frac = m["masked_shift_pixels"], m.get("masked_null_frac_below")
+    smaller = f"{100 * frac:.0f}% of noise-only offsets are smaller" if frac is not None else ""
+    level = centroid_masked_level(s, m.get("masked_null_p95"))
+    if level == "warn":
+        return (f"WARNING: offset {s:.2f} px, at or above {CENTROID_MASKED_WARN_PIX:g} px and above 95% of this star's "
+                f"noise-only offsets (95th percentile {m['masked_null_p95']:.2f} px; {smaller}). "
+                f"The signal may come from a nearby star.")
+    if level == "info_noise":
+        return f"Offset {s:.2f} px, within this star's noise ({smaller}); not evidence of a nearby source"
+    if level == "info_nonull":
+        return (f"Offset {s:.2f} px, at or above {CENTROID_MASKED_WARN_PIX:g} px, but no noise comparison is available "
+                f"for this star (no fake phase gave a measurable offset); not evidence of a nearby source")
+    return (f"Offset {s:.2f} px, below the {CENTROID_MASKED_WARN_PIX:g} px warning level; uninformative"
+            + (f"; {100 * frac:.0f}% of this star's noise-only offsets are smaller" if frac is not None else ""))
 
 
 def centroid_verdict(shift_pixels):

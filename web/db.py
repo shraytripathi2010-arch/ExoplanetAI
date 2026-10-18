@@ -911,12 +911,13 @@ def save_centroid_masked(tic_id, masked):
              m.get("masked_null_p95"), m.get("masked_null_frac_below"), tic_id))
 
 
-def set_centroid_verdict(tic_id, verdict):
-    """Relabels a stored centroid verdict without touching the measurement or its date
-    (web/relabel_centroid_verdicts.py: wording recomputed from the stored shift)."""
+def set_centroid_verdict(tic_id, verdict, masked_warn=None):
+    """Relabels a stored centroid verdict (and the masked warning flag) without touching the
+    measurement or its date (web/relabel_centroid_verdicts.py: recomputed from the stored values)."""
     with get_conn() as conn:
-        conn.execute("UPDATE centroid_evidence SET verdict = ? WHERE tic_id = ? AND status = 'completed'",
-                     (verdict, tic_id))
+        conn.execute("UPDATE centroid_evidence SET verdict = ?, masked_warn = COALESCE(?, masked_warn) "
+                     "WHERE tic_id = ? AND status = 'completed'",
+                     (verdict, masked_warn, tic_id))
 
 
 def fail_centroid_check(tic_id, error_message):

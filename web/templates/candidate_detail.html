@@ -365,9 +365,11 @@
   <p class="muted">
     Calibrated on 80 known planets (2026-10-17): this measurement puts most real planets 0.5&ndash;2 pixels
     from their catalog position, so an offset below {{ centroid_threshold }} px carries no information
-    either way. The verdict uses a masked measurement (only significant pixels near the star), which
-    warns at {{ centroid_masked_warn }} px: about 6% of real planets reach that, and about half of the
-    eclipsing-binary false positives tested. It never blocks a candidate.
+    either way. The verdict uses a masked measurement (only significant pixels near the star). It warns
+    only when the offset is at least {{ centroid_masked_warn }} px <em>and</em> larger than 95% of this
+    star's own noise-only offsets: in calibration that warned 1 of 73 real planets and a quarter of the
+    eclipsing-binary false positives tested. A large offset within the star's noise is shown as
+    information, not a warning. It never blocks a candidate.
   </p>
   <div id="centroid-content">
     {% if centroid and centroid.status == 'completed' %}
