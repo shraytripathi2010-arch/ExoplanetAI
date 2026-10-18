@@ -1195,6 +1195,57 @@ after the freeze, hashed 50% to test), not the 1,104 quoted in section M.
   classifiers at |AUC| ≤ 0.55, CI upper ≤ 0.58), then fe3fa82f baselines on
   the new evaluation groups, set before a challenger exists.
 
+**ADDENDUM 2026-10-18: PILOT RESULTS.** Files: `data/negpilot/` (gitignored);
+every number below is in `results/pilot_numbers.txt`.
+
+**Setup:**
+- **Matching:** 256 of 297 detected planets (166 on the test side) matched
+  k = 1 to non-TOI SPOC 2-min stars. Calipers: same light-curve sector, Tmag
+  ±0.25, Teff ±150 K, R★ ±15%, TIC contamination bin.
+- **Exclusions:** TOIs, CTOIs, confirmed hosts, all training stars and the
+  unknown pool.
+- **Processing:** `06`'s cleaning and `compute_all_features` with `05d`'s TLS
+  settings, plus the crowding, variability and Gaia backfills.
+- **Result:** 238 of 256 have all 33 features; 18 fail `06`'s
+  required-feature rule.
+- **Network:** MAST GET only; inference only with `fe3fa82f`.
+
+**fe3fa82f baselines:**
+
+| comparison | AUC [95% CI] | median p |
+|---|---|---|
+| detected test planets vs matched no-transit stars | **0.481** [0.429, 0.533] | 0.915 vs 0.921 |
+| undetected test planets vs the same stars | 0.751 [0.715, 0.789] | 0.983 vs 0.921 |
+| detected test planets vs test FPs | 0.878 [0.847, 0.907] | 0.915 vs 0.294 |
+
+- **89% of the no-transit stars score ≥ 0.5** (59% ≥ 0.9).
+- **Injected transits lower the score.** The injections were 100 batman
+  transits at expected SNR 7–40, put into the raw flux of pilot curves and
+  run through the full pipeline. For the 72 that TLS recovered, AUC vs the
+  same curves uninjected is **0.345** (median Δp −0.062). It is 0.36–0.45 at
+  every SNR level.
+
+**Conclusion: the production model does not detect transits on matched
+stars; it recognises planet-host-like stars.**
+
+**Pre-fit gates** (HGB, host-grouped 5-fold CV, 200 permutations; pass =
+AUC ≤ 0.55 and CI upper ≤ 0.58):
+
+| gate | AUC [95% CI] | verdict |
+|---|---|---|
+| provenance-only | 0.510 [0.461, 0.562] | PASS |
+| star-only (model values) | 0.550 [0.498, 0.599] | **FAIL** |
+| Teff and R★ alone | 0.462 [0.411, 0.510] | PASS |
+| Gaia alone (RUWE, NSS) | 0.607 [0.557, 0.657] | FAIL |
+
+- **The star-only failure is Gaia.** Planets vs no-transit stars: RUWE > 1.4
+  in 4.3% vs 21.9%; non-single-star flag in 0.4% vs 10.6%.
+- **MAST stores Gaia DR3 `non_single_star` as 0/1;** VizieR (the training
+  source) as 0–3.
+
+**Verdict: the full build was not started.** The next step is a re-pilot with
+RUWE and NSS added to the matching, and the full NSS code from VizieR.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
