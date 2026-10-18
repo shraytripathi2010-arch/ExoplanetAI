@@ -1101,6 +1101,102 @@ unchanged.
 
 ---
 
+## N. MOST "PLANET" ROWS HAVE NO DETECTED TRANSIT -- added 2026-10-18
+
+**Docs only. No model, data or training change.** Scripts, MAST manifests and
+results: `audit/negdesign/` (gitignored; `MD5SUMS.txt`). `analyse_report.py`
+reproduces every number below into `results/report_numbers.txt`, with
+`training.csv` `571123dd…` and model `fe3fa82f` (inference only).
+
+**Only 995 of the 4,424 planet rows (22.5%) have a TLS peak at a known planet
+period.** "Known period" means a catalogued TOI period or alias, or an archive
+`pl_orbper` within 1% (×1, 2, ½, 3, ⅓). The design report rounded this to
+"~950"; 995 is the traced count.
+
+| planet rows | n | median SDE |
+|---|---|---|
+| TLS at the TOI period | 829 | 14.4 |
+| TLS at a TOI alias | 95 | 9.5 |
+| TLS found something else | 446 | 5.3 |
+| no TOI period | 3,054 | 5.2 |
+
+- **The 3,054 without a TOI period, by discovery method:** 2,062 transit
+  (mostly Kepler/K2, too shallow for TESS), 720 RV, 122 microlensing,
+  72 imaging.
+- **For contrast, false positives:** 831 of 1,208 have TLS at their TOI
+  period or alias (median SDE 12.7 at the period).
+
+**fe3fa82f on the frozen test split (1,172 stars):**
+
+| test subset | AUC | median p of its planets |
+|---|---|---|
+| all (917 planets, 255 FPs) | 0.9416 | |
+| 226 detected planets vs all FPs | **0.878** | 0.915 |
+| 226 detected planets vs FPs with TLS at their TOI period/alias (171) | 0.926 | |
+| 691 undetected planets vs all FPs | **0.962** | **0.983** |
+
+The FPs' median p is 0.294.
+
+**What this means:**
+- **The label "1" mostly means "planet host with a noise-level TLS peak",**
+  not "a transit is in this light curve".
+- **The 0.9454 headline mostly measures host-star resemblance, not
+  detection.** 691 of the 917 test planets show no detected transit, and the
+  model scores those *higher* than the planets whose transit it can see. This
+  is the mechanism behind section M's finding that the pool's score tracks the
+  star.
+
+**The unknown pool: a CORRECTION to the design report.**
+- **What the report said:** "the pool is all sector 104; sector alone
+  separates it from the planets at AUC 1.000". **That is wrong.**
+- **Why it was wrong:** it used the candidate list's `sector`, which is where
+  `06` *found* each star on MAST (always 104), not the sector of the light
+  curve `06` downloaded.
+- **The corrected figures:** the downloaded light curves span sectors 1–104
+  (median 67; 323 of 2,454 are in sector 104). By light-curve sector the
+  |AUC| is **0.592**, about the same as planets vs FPs (0.591).
+- **Rule:** use the time-range sector (`control_arms.build_sector_map`, or
+  `pool_true_sector.py`), never the candidate list's.
+- **The pool still must not be used as training negatives, for other
+  reasons:**
+  - it is the search pool itself, so labelling it 0 teaches the model that
+    the stars it searches are not planets;
+  - it is unmatched on the star (R★ q75 6.9 R☉; |AUC| R★ 0.591, Teff 0.582,
+    baseline 0.652 vs planets);
+  - under `06`'s old all-finite rule, TLS values were kept for only 488 of
+    its 2,454 rows.
+
+**Provenance, univariate |AUC| vs planets** (0.5 = no separation):
+
+| | sector | Tmag (SPOC flux) | n_points | st_teff | st_rad |
+|---|---|---|---|---|---|
+| FPs (today's negatives) | 0.591 | 0.637 | 0.620 | 0.697 | 0.722 |
+| 98 FA stars on disk | 0.733 | 0.689 | 0.531 | 0.544 | 0.587 |
+| unknown pool (light-curve sector) | 0.592 | 0.546 | 0.507 | 0.582 | 0.591 |
+
+- **The FA stars** are early-sector and bright, and the whole TOI catalogue
+  has only 100. Use them for evaluation only.
+- **Supply of new negatives:** the MAST 2-min manifests (8 sectors sampled)
+  hold 10–20k stars per sector, of which 84–99% are neither a TOI nor a
+  confirmed host (101,979 eligible across the 8).
+
+**The frozen test split is now 1,172 stars** (4,460 train; 148 stars added
+after the freeze, hashed 50% to test), not the 1,104 quoted in section M.
+
+**DECISION PENDING: option B recommended, NOT adopted.**
+- **Option B:** the positive class becomes the ~995 detected-planet rows.
+  Undetected-planet rows leave training and become an evaluation group.
+  New no-transit negatives come from non-TOI SPOC 2-min stars, matched to the
+  detected planets on sector, Tmag, Teff, R★ and contamination.
+- **Option A:** keep every positive and add the same negatives. It builds in
+  a contradiction: about 3,300 positives look like the new negatives except
+  for the star.
+- **Before any build:** pre-fit gates (provenance-only and star-only
+  classifiers at |AUC| ≤ 0.55, CI upper ≤ 0.58), then fe3fa82f baselines on
+  the new evaluation groups, set before a challenger exists.
+
+---
+
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
 `models/best_model.joblib` (HistGradientBoosting + sigmoid calibration, **26
 features**, md5 `0c996a41a76cc765895d3013830a536b`) replaced the long-standing
