@@ -299,27 +299,33 @@ def candidate_list():
     # db.list_candidates, so it cannot reach SQL -- this adds the explicit
     # rejection the dropdown case was missing.
     ALLOWED_TIERS = {"High", "Medium", "Low"}
-    ALLOWED_SORTS = {"predicted_probability", "confidence_tier", "first_found_date",
+    ALLOWED_SORTS = {"clean", "predicted_probability", "confidence_tier", "first_found_date",
                      "last_verified_date", "tic_id", "current_status"}
 
-    sort_by = request.args.get("sort", "predicted_probability")
+    # Default: clean first -- rejected last, then geometry blocks, then fewest physics
+    # warnings, then the most visible transit. The resemblance score stays sortable, but is
+    # not the default: on this pool it does not track whether a transit is visible.
+    sort_by = request.args.get("sort", "clean")
     if sort_by not in ALLOWED_SORTS:
         return jsonify({"error": f"sort must be one of {sorted(ALLOWED_SORTS)}"}), 400
-    ascending = request.args.get("dir", "desc") == "asc"
+    ascending = request.args.get("dir", "asc" if sort_by == "clean" else "desc") == "asc"
     tier_filter = request.args.get("tier") or None
     if tier_filter is not None and tier_filter not in ALLOWED_TIERS:
         return jsonify({"error": f"tier must be one of {sorted(ALLOWED_TIERS)}"}), 400
     combined_only = request.args.get("combined_only") == "1"
 
-    candidates = db.list_candidates(sort_by=sort_by, ascending=ascending,
-                                     tier_filter=tier_filter, combined_only=combined_only)
+    candidates = db.list_candidates(sort_by="predicted_probability" if sort_by == "clean" else sort_by,
+                                     ascending=ascending, tier_filter=tier_filter, combined_only=combined_only)
     for c in candidates:
         c["prob_provenance"] = _probability_provenance(c)
+        c["checks"] = _checks_summary(c)
+    if sort_by == "clean":
+        candidates.sort(key=_clean_first_key, reverse=not ascending)
     counts = db.summary_counts()
     recent_runs = db.list_runs(limit=1)
     last_run = recent_runs[0] if recent_runs else None
     return render_template("candidate_list.html", candidates=candidates,
-                            sort_by=sort_by, ascending=ascending,
+                            sort_by=sort_by, ascending=ascending, score_tooltip=SCORE_TOOLTIP,
                             tier_filter=tier_filter, combined_only=combined_only,
                             counts=counts, last_run=last_run)
 
@@ -376,9 +382,39 @@ def candidate_detail(tic_id):
                             exofop_refresh=exofop_refresh, ctoi_summary=ctoi_summary,
                             transit_anim=transit_anim, evidence_items=evidence_items,
                             conformal_view=conformal_view,
-                            physics=physics,
+                            physics=physics, score_label=SCORE_LABEL, score_explanation=SCORE_EXPLANATION,
+                            visibility=_fnum((char or {}).get("vet_visibility_ratio")),
+                            visibility_flag=_truthy((char or {}).get("vet_visibility_flag")),
                             model_evidence=model_evidence,
                             tfop=tfop)
+
+
+# How the classifier's output is presented. On this pool it is not evidence of a transit: it
+# measures resemblance to TESS planet hosts vs false-positive hosts, given a TOI-like signal
+# (register M). The numeric field stays `predicted_probability`; only the presentation changes.
+SCORE_LABEL = "Resemblance score"
+SCORE_EXPLANATION = ("How closely this star and its signal resemble TESS planet hosts rather than "
+                     "false-positive hosts. Not the chance this is a planet, and not evidence the "
+                     "transit is real.")
+SCORE_TOOLTIP = ("Classifier score: resemblance to TESS planet hosts vs false-positive hosts; "
+                 "not a planet probability")
+
+
+def _checks_summary(c):
+    """Block/warning/visibility summary for the list's clean-first sort and Checks column."""
+    import json
+    ch = c.get("characterization")
+    if ch is None:
+        ch = json.loads(c.get("characterization_json") or "{}")
+    warns = [w for w in (ch.get("vet_warnings") or "").split("; ") if w]
+    vis = _fnum(ch.get("vet_visibility_ratio"))
+    return {"rejected": c.get("manual_review_status") == "rejected", "blocked": _truthy(ch.get("vet_geometry_flag")),
+            "n_warn": len(warns), "vis": vis, "checked": ch.get("vet_code_version") not in (None, "")}
+
+
+def _clean_first_key(c):
+    k = c["checks"]
+    return (k["rejected"], k["blocked"], k["n_warn"], -(k["vis"] if k["vis"] is not None else -1e9))
 
 
 def _truthy(v):
@@ -451,9 +487,9 @@ def _physics_checks_view(char):
                        f"strongest bump {b:.1f}σ)." if None not in (d, b, p) else "."))
     if _truthy(char.get("vet_visibility_flag")):
         v = n("vet_visibility_ratio")
-        warn.append(f"Transit not clearly visible (ratio {v:.2f}; needs at least 3). The classifier probability is "
+        warn.append(f"Transit not clearly visible (ratio {v:.2f}; needs at least 3). The resemblance score is "
                     f"not evidence that it exists." if v is not None else
-                    "Transit not measurable in the folded light curve. The classifier probability is not evidence that it exists.")
+                    "Transit not measurable in the folded light curve. The resemblance score is not evidence that it exists.")
     if _truthy(char.get("vet_secondary_info")):
         info.append(f"Weak dip at phase 0.5 ({n('vet_secondary_sig'):.1f}σ); about 1 in 10 noise-only light curves "
                     f"reach 3σ here.")
@@ -468,16 +504,22 @@ def _physics_checks_view(char):
                     + (f" from {char.get('vet_lc_source')}" if char.get("vet_lc_source") else "")}
 
 
-def _probability_caveat(candidate):
-    """Suffix for the CTOI line: always names the model that produced the score,
-    and says so when it is not the current production model."""
-    p = _probability_provenance(candidate)
-    if candidate.get("predicted_probability") is None:
-        return ""
-    by = "an unrecorded model" if p["scored_by"] == "unknown" else f"model {p['scored_by'][:8]}"
-    if p["label"] is None:
-        return f" (scored by {by}, the current production model)"
-    return f" ({p['label']}; scored by {by})"
+def _physics_ctoi_line(char):
+    """The CTOI text's physics line. The resemblance score is deliberately NOT in the CTOI text:
+    outside reviewers would read it as a planet probability, and it is not a detection or
+    validation statistic (register M)."""
+    char = char or {}
+    ver = char.get("vet_code_version") or "?"
+    if char.get("vet_code_version") in (None, ""):
+        return "Physics checks: not run"
+    parts = []
+    if char.get("vet_block_reason"):
+        parts.append("BLOCKED: " + char["vet_block_reason"])
+    if char.get("vet_warnings"):
+        parts.append("warnings: " + char["vet_warnings"])
+    v = _fnum(char.get("vet_visibility_ratio"))
+    vis = f"visibility ratio {v:.2f}" if v is not None else "visibility ratio not measurable"
+    return f"Physics checks (v{ver}): {'; '.join(parts) if parts else 'no blocks or warnings'}; {vis}"
 
 
 def _fmt(value, spec, fallback="?"):
@@ -507,9 +549,8 @@ def _build_ctoi_summary(candidate, char, multi_sector, centroid, exofop_refresh)
         f"Transit duration: {_fmt(char.get('transit_duration_hours'), '.3f')} hours",
         f"Derived planet radius: {_fmt(char.get('planet_radius_earth'), '.2f')} R_earth",
         f"Host spectral type (rough): {char.get('stellar_spectral_type_rough') or '?'}",
-        f"Classifier probability: {_fmt(candidate.get('predicted_probability'), '.3f')}"
-        + _probability_caveat(candidate),
-        f"Confidence tier: {candidate.get('confidence_tier') or '?'} "
+        _physics_ctoi_line(char),
+        f"Evidence tier: {candidate.get('confidence_tier') or '?'} "
         f"(NOT a confirmation -- automated screening only)",
         f"Plausibility verdict: {char.get('plausibility_verdict')}",
         f"Gaia blend risk: {char.get('blending_status')}",
@@ -682,6 +723,7 @@ def _candidate_summary_json(c):
     return {
         "tic_id": c["tic_id"], "host": c["host"],
         "predicted_probability": c.get("predicted_probability"),
+        "predicted_probability_label": f"{SCORE_LABEL}: {SCORE_TOOLTIP}",
         "probability_provenance": _probability_provenance(c),
         "confidence_tier": c.get("confidence_tier"),
         "combined_filter_pass": bool(c.get("combined_filter_pass")),

@@ -4,9 +4,9 @@
 
 <section class="stat-row">
   <div class="stat"><span class="stat-label">Total candidates tracked</span><span class="stat-value">{{ counts.total }}</span></div>
-  <div class="stat"><span class="stat-label">High confidence</span><span class="stat-value tier-high">{{ counts.by_tier.get('High', 0) }}</span></div>
-  <div class="stat"><span class="stat-label">Medium confidence</span><span class="stat-value tier-medium">{{ counts.by_tier.get('Medium', 0) }}</span></div>
-  <div class="stat"><span class="stat-label">Low confidence</span><span class="stat-value tier-low">{{ counts.by_tier.get('Low', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">High evidence tier</span><span class="stat-value tier-high">{{ counts.by_tier.get('High', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">Medium evidence tier</span><span class="stat-value tier-medium">{{ counts.by_tier.get('Medium', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">Low evidence tier</span><span class="stat-value tier-low">{{ counts.by_tier.get('Low', 0) }}</span></div>
   <div class="stat"><span class="stat-label">Pass combined filter</span><span class="stat-value accent">{{ counts.combined_filter_pass }}</span></div>
   <div class="stat"><span class="stat-label">Needs manual review</span><span class="stat-value warn">{{ counts.needs_manual_review }}</span></div>
   <div class="stat"><span class="stat-label">Flagged since found</span><span class="stat-value">{{ counts.flagged_since_found }}</span></div>

@@ -16,8 +16,8 @@ Also applies the web app's recorded manual rejections (db.set_manual_review_deci
 from the DB): a rejected star stays in the characterization and leaves both lists.
 
 Guard: before touching anything, the two lists are rebuilt from the current file with the gate
-fields it already carries (none, on a file older than the gates) and no rejections, and compared
-with the lists on disk. If they differ, this script is not reproducing what is there, and stops.
+fields it already carries (none, on a file older than the gates) and the recorded rejections, and
+compared with the lists on disk. If they differ, this script is not reproducing what is there, and stops.
 """
 import argparse
 import importlib
@@ -48,16 +48,30 @@ def main():
     full = pd.read_csv(char_p)
     best0, rev0 = pd.read_csv(best_p), pd.read_csv(rev_p)
 
-    # guard: 08's list logic, with the file's own (existing) gate fields and no rejections,
-    # must reproduce the lists on disk
-    b, r, *_ = m08.build_candidate_lists(full)
+    # guard: 08's list logic, with the file's own (existing) gate fields and the rejections now
+    # recorded, must reproduce the lists on disk
+    rejected = m08.load_manual_rejections(a.db)
+    b, r, *_ = m08.build_candidate_lists(full, rejected)
     same = set(b.host) == set(best0.host) and set(r.host) == set(rev0.host)
     print(f"guard: rebuilt from the file as it is -> best {len(b)} (on disk {len(best0)}), review {len(r)} "
           f"(on disk {len(rev0)}); same membership: {same}")
     if not same:
         sys.exit("STOP: the rebuilt lists differ from the files on disk; not applying.")
 
-    rejected = m08.load_manual_rejections(a.db)
+    # evidence tier + reasons, recomputed with 08's own confidence_tier() (no network). Since
+    # 2026-10-17 the classifier score contributes nothing to either.
+    import re
+    before_tier, before_sup, before_dbt = full["confidence_tier"].copy(), full["supporting_evidence"].astype(str), full["doubting_evidence"].astype(str)
+    out = [m08.confidence_tier(r) for _, r in full.iterrows()]
+    full["confidence_tier"] = [o[0] for o in out]; full["supporting_evidence"] = [o[1] for o in out]; full["doubting_evidence"] = [o[2] for o in out]
+    strip = lambda t: re.sub(r"(very )?high classifier probability \([0-9.]+\)(; )?", "", t).strip("; ")
+    print(f"evidence tier: before {before_tier.value_counts().to_dict()} -> after {full['confidence_tier'].value_counts().to_dict()} | "
+          f"changed {int((before_tier != full['confidence_tier']).sum())}")
+    print(f"reasons changed only by removing the probability phrase: "
+          f"{int(sum(strip(b) == str(a).strip('; ') for b, a in zip(before_sup, full['supporting_evidence'])))}/{len(full)} | "
+          f"doubts unchanged: {int(sum(b == str(a) for b, a in zip(before_dbt, full['doubting_evidence'])))}/{len(full)} | "
+          f"probability phrase left: {int(full['supporting_evidence'].astype(str).str.contains('classifier probability').sum())}")
+
     print(f"manual rejections recorded in the DB: {len(rejected)} {sorted(rejected)}")
     gated = vetting_gates.add_gate_fields(full, a.project_root)
     best, rev, strict, lenient, review = m08.build_candidate_lists(gated, rejected)
@@ -67,6 +81,7 @@ def main():
               "structure_flag", "visibility_flag", "alias_info"):
         print(f"  vet_{k:<20} {int(g['vet_' + k].astype(bool).sum())}")
     print(f"\nfinal_best_candidates: {len(best0)} -> {len(best)}; needs_manual_blend_review: {len(rev0)} -> {len(rev)}")
+    print(f"final_best order changed: {list(best0.host) != list(best.host)} (membership does not depend on the tier; only the sort does)")
     for name, before, after in (("final_best", best0, best), ("needs_review", rev0, rev)):
         left = sorted(set(before.host) - set(after.host)); joined = sorted(set(after.host) - set(before.host))
         print(f"  {name}: {len(left)} leave, {len(joined)} join")

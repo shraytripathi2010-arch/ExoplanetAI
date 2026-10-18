@@ -5,7 +5,7 @@
 <section class="stat-row">
   <div class="stat"><span class="stat-label">Total candidates</span><span class="stat-value">{{ counts.total }}</span></div>
   <div class="stat"><span class="stat-label">Pass combined filter</span><span class="stat-value accent">{{ counts.combined_filter_pass }}</span></div>
-  <div class="stat"><span class="stat-label">High confidence</span><span class="stat-value tier-high">{{ counts.by_tier.get('High', 0) }}</span></div>
+  <div class="stat"><span class="stat-label">High evidence tier</span><span class="stat-value tier-high">{{ counts.by_tier.get('High', 0) }}</span></div>
   <div class="stat"><span class="stat-label">Needs manual review</span><span class="stat-value warn">{{ counts.needs_manual_review }}</span></div>
   <div class="stat">
     <span class="stat-label">Last update</span>
@@ -22,7 +22,7 @@
 
 <section class="card">
   <form method="get" class="filter-form">
-    <label>Confidence tier
+    <label>Evidence tier
       <select name="tier" onchange="this.form.submit()">
         <option value="" {{ 'selected' if not tier_filter }}>All</option>
         <option value="High" {{ 'selected' if tier_filter == 'High' }}>High</option>
@@ -43,8 +43,9 @@
       <tr>
         <th></th>
         <th><a class="{{ 'is-sorted' if sort_by=='tic_id' }}" href="?sort=tic_id&dir={{ 'asc' if sort_by=='tic_id' and not ascending else 'desc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}">TIC ID {{ ('&#9650;' if sort_by=='tic_id' and ascending else ('&#9660;' if sort_by=='tic_id' else ''))|safe }}</a></th>
-        <th><a class="{{ 'is-sorted' if sort_by=='predicted_probability' }}" href="?sort=predicted_probability&dir={{ 'asc' if sort_by=='predicted_probability' and not ascending else 'desc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}">P(planet) {{ ('&#9650;' if sort_by=='predicted_probability' and ascending else ('&#9660;' if sort_by=='predicted_probability' else ''))|safe }}</a></th>
-        <th><a class="{{ 'is-sorted' if sort_by=='confidence_tier' }}" href="?sort=confidence_tier&dir={{ 'asc' if sort_by=='confidence_tier' and not ascending else 'desc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}">Confidence {{ ('&#9650;' if sort_by=='confidence_tier' and ascending else ('&#9660;' if sort_by=='confidence_tier' else ''))|safe }}</a></th>
+        <th><a class="{{ 'is-sorted' if sort_by=='predicted_probability' }}" href="?sort=predicted_probability&dir={{ 'asc' if sort_by=='predicted_probability' and not ascending else 'desc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}" title="{{ score_tooltip }}">Resemblance {{ ('&#9650;' if sort_by=='predicted_probability' and ascending else ('&#9660;' if sort_by=='predicted_probability' else ''))|safe }}</a></th>
+        <th><a class="{{ 'is-sorted' if sort_by=='clean' }}" href="?sort=clean&dir={{ 'desc' if sort_by=='clean' and ascending else 'asc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}" title="Clean first: rejected last, then physics blocks, then fewest warnings, then the most visible transit">Checks {{ ('&#9650;' if sort_by=='clean' and ascending else ('&#9660;' if sort_by=='clean' else ''))|safe }}</a></th>
+        <th><a class="{{ 'is-sorted' if sort_by=='confidence_tier' }}" href="?sort=confidence_tier&dir={{ 'asc' if sort_by=='confidence_tier' and not ascending else 'desc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}">Evidence tier {{ ('&#9650;' if sort_by=='confidence_tier' and ascending else ('&#9660;' if sort_by=='confidence_tier' else ''))|safe }}</a></th>
         <th>Combined filter</th>
         <th><a class="{{ 'is-sorted' if sort_by=='first_found_date' }}" href="?sort=first_found_date&dir={{ 'asc' if sort_by=='first_found_date' and not ascending else 'desc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}">First found {{ ('&#9650;' if sort_by=='first_found_date' and ascending else ('&#9660;' if sort_by=='first_found_date' else ''))|safe }}</a></th>
         <th><a class="{{ 'is-sorted' if sort_by=='last_verified_date' }}" href="?sort=last_verified_date&dir={{ 'asc' if sort_by=='last_verified_date' and not ascending else 'desc' }}{{ '&tier='+tier_filter if tier_filter }}{{ '&combined_only=1' if combined_only }}">Last verified {{ ('&#9650;' if sort_by=='last_verified_date' and ascending else ('&#9660;' if sort_by=='last_verified_date' else ''))|safe }}</a></th>
@@ -57,6 +58,7 @@
         <td><button type="button" class="expand-arrow" aria-expanded="false" aria-label="Expand details">&#9656;</button></td>
         <td><a href="{{ url_for('candidate_detail', tic_id=c.tic_id) }}">{{ c.host }}</a></td>
         <td class="num">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if c.prob_provenance.label %}<br><span class="muted">{{ c.prob_provenance.label }}</span>{% endif %}</td>
+        <td>{% if c.checks.rejected %}<span class="badge badge-fail">rejected</span>{% elif not c.checks.checked %}<span class="muted">not checked</span>{% elif c.checks.blocked %}<span class="badge badge-fail">blocked</span>{% elif c.checks.n_warn %}<span class="badge badge-review">{{ c.checks.n_warn }} warning{{ 's' if c.checks.n_warn != 1 }}</span>{% else %}<span class="badge badge-pass">clean</span>{% endif %}{% if c.checks.vis is not none %}<br><span class="muted">visibility {{ '%.2f'|format(c.checks.vis) }}</span>{% endif %}</td>
         <td><span class="badge tier-badge-{{ c.confidence_tier|lower }}">{{ c.confidence_tier or '--' }}</span></td>
         <td>
           {% if c.combined_filter_pass %}
@@ -79,7 +81,7 @@
         </td>
       </tr>
       <tr class="candidate-detail-row" data-tic="{{ c.tic_id }}" hidden>
-        <td colspan="8"><div class="candidate-detail-inline" data-tic="{{ c.tic_id }}"></div></td>
+        <td colspan="10"><div class="candidate-detail-inline" data-tic="{{ c.tic_id }}"></div></td>
       </tr>
     {% endfor %}
     </tbody>

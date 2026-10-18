@@ -15,7 +15,7 @@
     {% elif c.manual_review_status == 'accepted' %}
       <span class="badge badge-pass big"><span class="dot"></span>Reviewed &mdash; Accepted</span>
     {% else %}
-      <span class="badge tier-badge-{{ (c.confidence_tier or '')|lower }} big"><span class="dot"></span>{{ c.confidence_tier or '?' }} confidence</span>
+      <span class="badge tier-badge-{{ (c.confidence_tier or '')|lower }} big"><span class="dot"></span>{{ c.confidence_tier or '?' }} evidence tier</span>
     {% endif %}
   </div>
 
@@ -30,41 +30,13 @@
   {% endif %}
 
   <div class="stat-row">
-    <div class="stat"><span class="stat-label">Classifier probability</span>
-      <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if prob_provenance.label %} <span class="muted">({{ prob_provenance.label }})</span>{% endif %}</span>
-      {# The bootstrap band (uncertainty_* columns) is retained in the DB but no longer
-         displayed: its refit models are systematically different from production, and
-         the score fell outside their 16-84% spread for 117 of 294 candidates. The
-         conformal sets below are the uncertainty display. Register section I. #}
-    </div>
+    <div class="stat"><span class="stat-label">Visibility ratio</span><span class="stat-value">{{ '%.2f'|format(visibility) if visibility is not none else '--' }}{% if visibility_flag %} <span class="muted">(transit not clearly visible)</span>{% endif %}</span></div>
     <div class="stat"><span class="stat-label">Combined filter</span><span class="stat-value">{{ 'PASS ('+c.combined_filter_tier+')' if c.combined_filter_pass else ('needs review' if c.needs_manual_review else 'fail') }}</span></div>
     <div class="stat"><span class="stat-label">First found</span><span class="stat-value small">{{ c.first_found_date }}</span></div>
     <div class="stat"><span class="stat-label">Last verified</span><span class="stat-value small">{{ c.last_verified_date }}</span></div>
     <div class="stat"><span class="stat-label">Status</span><span class="stat-value small">{{ c.current_status }}</span></div>
   </div>
 
-  <div id="reverify-section" data-tic="{{ c.tic_id }}">
-    {% if reverify and reverify.status == 'running' %}
-      <div class="action-card">
-        <p class="action-progress" id="reverify-status"><span class="spinner" aria-hidden="true"></span>
-          Re-checking archive/ExoFOP/arXiv/VSX/blend live -- all five run at once, normally about 25 seconds.</p>
-        <p class="muted elapsed" data-started="{{ reverify.started_at }}" data-expected="25">Elapsed: --</p>
-      </div>
-    {% else %}
-      <div class="inline-form">
-        <form action="{{ url_for('reverify_candidate', tic_id=c.tic_id) }}" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit">Re-verify this candidate now</button>
-        </form>
-        <span class="muted">Re-runs all five external checks (archive/ExoFOP/arXiv/VSX/blend) for this star only, concurrently -- about 25 seconds, and doesn't wait for a full Update.</span>
-      </div>
-      {% if reverify and reverify.status == 'completed' %}
-        <p class="muted">Last result ({{ reverify.computed_at }}): {{ reverify.result_summary }}</p>
-      {% elif reverify and reverify.status == 'failed' %}
-        <p class="muted">Last attempt failed: {{ reverify.error_message }}</p>
-      {% endif %}
-    {% endif %}
-  </div>
 </section>
 
 {% if physics %}
@@ -101,47 +73,52 @@
 </section>
 {% endif %}
 
-<section class="card" id="exofop-refresh-section" data-tic="{{ c.tic_id }}">
-  <h2>ExoFOP status</h2>
-  <p class="muted">
-    Re-queries ExoFOP live for <em>this star only</em>: has it been submitted, flagged, or
-    assigned a TOI number since the last check? Uses the same two checks the full pipeline
-    already relies on -- ExoFOP's bulk TOI list plus this target's own ExoFOP page (only a real
-    TOI-&lt;number&gt; on the page counts; the page merely existing does not). Usually a few
-    seconds; the first check after the app starts takes ~35s, because ExoFOP's full TOI
-    list has to be downloaded once before it can be reused.
-  </p>
-  {% if exofop_refresh and exofop_refresh.status == 'running' %}
-    <div class="action-card">
-      <p class="action-progress" id="exofop-refresh-status"><span class="spinner" aria-hidden="true"></span>
-        Querying ExoFOP live...</p>
-      <p class="muted elapsed" data-started="{{ exofop_refresh.started_at }}" data-expected="10">Elapsed: --</p>
+<section class="card">
+  <h2>Folded light curve</h2>
+  {% set plot_src = plot_url or url_for('candidate_plot', tic_id=c.tic_id) %}
+  {% set plot_alt = "Folded light curve for " ~ c.host ~ ": close-up of the transit above, the whole orbit binned below" %}
+  {% if plot_missing %}
+    <p class="muted">Plot unavailable: the stored characterization has no {{ plot_missing|join('/') }} for this candidate, and the plot needs
+      {% if 'transit_duration_hours' in plot_missing and ('period' in plot_missing or 'T0' in plot_missing) %}the transit ephemeris and duration{% elif 'transit_duration_hours' in plot_missing %}the transit duration{% else %}the transit ephemeris{% endif %}.
+      This is not a missing light curve.</p>
+  {% elif has_plot %}
+    <img class="lightcurve-plot" src="{{ plot_src }}" alt="{{ plot_alt }}">
+  {% else %}
+    <img class="lightcurve-plot" src="{{ plot_src }}" alt="{{ plot_alt }}"
+         onerror="this.outerHTML='<p class=\'muted\'>Plot unavailable: it could not be generated (open the plot link for the reason).</p>'">
+  {% endif %}
+  {% if not plot_missing %}
+  <p class="figure-caption">The real TESS photometry for {{ c.host }}.
+    {% if plot_caption %}{{ plot_caption }}{% else %}Phase-folded on the stored period.{% endif %}</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <details class="collapsible">
+  <summary><h2>Animated transit illustration</h2></summary>
+  {% if transit_anim.has_data %}
+    <p class="muted">
+      Simplified illustration, not a literal simulation -- the orbit is sped up to a fixed
+      {{ transit_anim.loop_seconds }}-second loop for every candidate so they're
+      comparable to look at (the real period is {{ '%.4f'|format(transit_anim.period_days) }} days).
+      Planet size and the brightness dip's timing/depth are scaled from this candidate's own
+      measured R<sub>p</sub>/R<sub>star</sub>, transit duration, and transit depth.
+    </p>
+    <div class="transit-anim-wrap"
+         data-rp-rstar="{{ transit_anim.rp_rstar }}"
+         data-duration-fraction="{{ transit_anim.duration_fraction }}"
+         data-depth-ppm="{{ transit_anim.depth_ppm }}">
+      <canvas id="transit-anim-canvas" width="360" height="170"></canvas>
+      <div class="transit-anim-readout">
+        <span id="transit-anim-brightness">Relative brightness: 100.00%</span>
+        <span class="muted">(actual measured depth: {{ '%.0f'|format(transit_anim.depth_ppm) }} ppm,
+          duration {{ '%.2f'|format(transit_anim.duration_hours) }} h)</span>
+      </div>
     </div>
   {% else %}
-    {% if exofop_refresh and exofop_refresh.status == 'completed' %}
-      {% if exofop_refresh.changed %}
-        <div class="disclaimer-banner disclaimer-caution">
-          <span class="scope-note-icon" aria-hidden="true">!</span>
-          <span><strong>This changed since the previous ExoFOP check.</strong></span>
-        </div>
-      {% endif %}
-      <table class="plain-table">
-        <tr><td>TOI designation</td><td>{{ exofop_refresh.toi_designation or 'none' }}</td></tr>
-        <tr><td>In ExoFOP's TOI list</td><td>{{ 'yes' if exofop_refresh.in_bulk_toi_list else 'no' }}</td></tr>
-        <tr><td>Result</td><td>{{ exofop_refresh.result_summary }}</td></tr>
-        <tr><td>Last checked</td><td>{{ exofop_refresh.computed_at }}</td></tr>
-      </table>
-    {% elif exofop_refresh and exofop_refresh.status == 'failed' %}
-      <p class="muted">Last attempt failed: {{ exofop_refresh.error_message }}</p>
-    {% endif %}
-    <div class="inline-form">
-      <form action="{{ url_for('start_exofop_refresh', tic_id=c.tic_id) }}" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit">Check ExoFOP for updates</button>
-      </form>
-      <a href="{{ exofop_view_url }}" target="_blank" rel="noopener" class="muted">Open this target on ExoFOP &#8599;</a>
-    </div>
+    <p class="muted">Not enough measured transit parameters on file to drive this illustration.</p>
   {% endif %}
+  </details>
 </section>
 
 <section class="card">
@@ -160,114 +137,6 @@
     {% endfor %}
   </div>
 </section>
-
-{% if conformal_view %}
-<section class="card" id="conformal-section">
-  <h2>How sure is the model? (conformal prediction)</h2>
-  <p class="muted">
-    The probability above is a single number. This turns it into the set of statuses that are
-    <em>still plausible</em> at a given confidence level &mdash; which lets the model say
-    &ldquo;I don't know&rdquo; instead of quietly returning a middling number.
-    This is the model assessing <strong>itself</strong>; it is not evidence about the star.
-    For external human assessment see the TFOP panel below.
-  </p>
-
-  <table class="conformal-table">
-    <thead>
-      <tr><th>Confidence level</th><th>Still plausible</th><th>What that means</th></tr>
-    </thead>
-    <tbody>
-      {% for s in conformal_view.sets %}
-      <tr class="conformal-{{ s.set_key }}">
-        <td class="num"><strong>{{ s.confidence_pct }}%</strong></td>
-        <td><span class="conformal-badge conformal-badge-{{ s.set_key }}">{{ s.set_label }}</span></td>
-        <td class="muted">{{ s.plain_language }}{% if s.why %}<br><em>{{ s.why }}</em>{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <p class="muted" style="margin-top:1rem;">
-    Read the rows together: a status that survives at 99% is one the model cannot rule out even
-    when being very cautious. A star that reads &ldquo;Planet&rdquo; at 90% but
-    &ldquo;Planet or not a planet&rdquo; at 99% is a moderately confident call, not a certain one.
-    Sets only ever grow as the confidence level rises &mdash; being more careful means ruling
-    out less.
-  </p>
-  <p class="muted">
-    <strong>These answer a different question from the probability above.</strong> The
-    probability says which status is more <em>likely</em>. These sets say which statuses cannot
-    be <em>ruled out</em>. The two can point different ways, and that is not a contradiction:
-    a candidate scoring 0.62 can still have &ldquo;not a planet&rdquo; in its set, because
-    confirmed false positives do sometimes score that high, and ruling one out at 90%
-    confidence takes more evidence than merely leaning against it.
-  </p>
-
-  {% if conformal_view.thresholds_stale %}
-  <p class="conformal-caveat"><strong>Stale thresholds.</strong> These sets were calibrated for model
-    {{ (conformal_view.model_md5 or 'unknown')[:8] }}, not the model that is deployed now.</p>
-  {% endif %}
-  {% if conformal_view.diagnostics_available %}
-  <p class="muted conformal-limits">
-    <strong>Measured limits.</strong> The coverage guarantee formally covers only the
-    {{ conformal_view.guarantee_scope }}. On labelled stars added after that snapshot
-    ({{ conformal_view.fresh_n_planet }} planets, {{ conformal_view.fresh_n_not_planet }} non-planets),
-    the sets contained the true status for
-    {% for r in conformal_view.fresh_coverage %}{{ '%.3f'|format(r.planet) }} of planets at {{ r.confidence_pct }}%{{ ', ' if not loop.last else '' }}{% endfor %}
-    and {% for r in conformal_view.fresh_coverage %}{{ '%.3f'|format(r.not_planet) }}{{ ', ' if not loop.last else '' }}{% endfor %}
-    of non-planets at the same levels.
-    {% set low_p = conformal_view.fresh_coverage|selectattr('planet_below')|map(attribute='confidence_pct')|list %}
-    {% set low_n = conformal_view.fresh_coverage|selectattr('not_planet_below')|map(attribute='confidence_pct')|list %}
-    {% if low_p %}That is below target for planets at {{ low_p|join('%, ') }}%.{% endif %}
-    {% if low_n %}That is below target for non-planets at {{ low_n|join('%, ') }}%.{% endif %}
-    Calibration stars and candidates are separable at domain AUC
-    <strong>{{ '%.4f'|format(conformal_view.domain_auc) }}</strong>
-    ({{ conformal_view.domain_n_features }} features, measured {{ conformal_view.domain_measured_at[:10] }}).
-  </p>
-  {% if conformal_view.diagnostics_stale %}
-  <p class="conformal-caveat"><strong>Stale figures.</strong> These limits were measured for model
-    {{ (conformal_view.diagnostics_model_md5 or 'unknown')[:8] }}, not the model that is deployed now;
-    re-run code/experiments/conformal_diagnostics.py.</p>
-  {% endif %}
-  {% else %}
-  <p class="conformal-caveat">The measured limits of these sets (models/conformal_diagnostics.json) are
-    not available, so how far the guarantee carries to candidates is not stated here.</p>
-  {% endif %}
-  <details style="margin-top:1rem;">
-    <summary>What the guarantee is, and where it stops applying</summary>
-    <div class="muted" style="margin-top:0.75rem;">
-      <p>
-        Calibrated on <strong>{{ conformal_view.n_calibration }}</strong> labelled TESS stars
-        ({{ conformal_view.n_calibration_pos }} confirmed planets,
-        {{ conformal_view.n_calibration_neg }} false positives) that the model was never trained
-        on, using <strong>{{ conformal_view.method }}</strong>. On stars drawn from that same
-        population, the true status falls inside the set at least as often as the stated
-        confidence level &mdash; measured, not assumed, and verified separately for planets and
-        for false positives.
-      </p>
-      {% if conformal_view.diagnostics_available and not conformal_view.guarantee_transfers %}
-      <p class="conformal-caveat">
-        <strong>Important limit.</strong> That guarantee holds for stars like the calibration
-        set. This candidate is not one of those: a classifier separates the calibration stars
-        from this pipeline's candidates at AUC
-        <strong>{{ '%.4f'|format(conformal_view.domain_auc) }}</strong>, so the two populations
-        are measurably different. For candidates, treat the set above as a well-calibrated
-        indication rather than a mathematical guarantee. The honest summary is
-        &ldquo;this is how the model behaves on stars we have labels for&rdquo;, not
-        &ldquo;this is guaranteed correct {{ conformal_view.sets[1].confidence_pct }}% of the
-        time for this star&rdquo;.
-      </p>
-      {% endif %}
-      <p>
-        This is different from the calibration already inside the model. That makes probabilities
-        correct <em>on average</em> across many candidates. Conformal prediction makes a statement
-        about the <em>output set for a single prediction</em>, without assuming the probabilities
-        were any good to begin with.
-      </p>
-    </div>
-  </details>
-</section>
-{% endif %}
 
 {# pass/caution/skip are the existing design-system icons. A blend risk is a
    CAUTION ("!"), never a fail ("x") -- none of these checks can rule a
@@ -535,54 +404,6 @@
 </section>
 
 <section class="card">
-  <h2>Folded light curve</h2>
-  {% set plot_src = plot_url or url_for('candidate_plot', tic_id=c.tic_id) %}
-  {% set plot_alt = "Folded light curve for " ~ c.host ~ ": close-up of the transit above, the whole orbit binned below" %}
-  {% if plot_missing %}
-    <p class="muted">Plot unavailable: the stored characterization has no {{ plot_missing|join('/') }} for this candidate, and the plot needs
-      {% if 'transit_duration_hours' in plot_missing and ('period' in plot_missing or 'T0' in plot_missing) %}the transit ephemeris and duration{% elif 'transit_duration_hours' in plot_missing %}the transit duration{% else %}the transit ephemeris{% endif %}.
-      This is not a missing light curve.</p>
-  {% elif has_plot %}
-    <img class="lightcurve-plot" src="{{ plot_src }}" alt="{{ plot_alt }}">
-  {% else %}
-    <img class="lightcurve-plot" src="{{ plot_src }}" alt="{{ plot_alt }}"
-         onerror="this.outerHTML='<p class=\'muted\'>Plot unavailable: it could not be generated (open the plot link for the reason).</p>'">
-  {% endif %}
-  {% if not plot_missing %}
-  <p class="figure-caption">The real TESS photometry for {{ c.host }}.
-    {% if plot_caption %}{{ plot_caption }}{% else %}Phase-folded on the stored period.{% endif %}</p>
-  {% endif %}
-</section>
-
-<section class="card">
-  <details class="collapsible">
-  <summary><h2>Animated transit illustration</h2></summary>
-  {% if transit_anim.has_data %}
-    <p class="muted">
-      Simplified illustration, not a literal simulation -- the orbit is sped up to a fixed
-      {{ transit_anim.loop_seconds }}-second loop for every candidate so they're
-      comparable to look at (the real period is {{ '%.4f'|format(transit_anim.period_days) }} days).
-      Planet size and the brightness dip's timing/depth are scaled from this candidate's own
-      measured R<sub>p</sub>/R<sub>star</sub>, transit duration, and transit depth.
-    </p>
-    <div class="transit-anim-wrap"
-         data-rp-rstar="{{ transit_anim.rp_rstar }}"
-         data-duration-fraction="{{ transit_anim.duration_fraction }}"
-         data-depth-ppm="{{ transit_anim.depth_ppm }}">
-      <canvas id="transit-anim-canvas" width="360" height="170"></canvas>
-      <div class="transit-anim-readout">
-        <span id="transit-anim-brightness">Relative brightness: 100.00%</span>
-        <span class="muted">(actual measured depth: {{ '%.0f'|format(transit_anim.depth_ppm) }} ppm,
-          duration {{ '%.2f'|format(transit_anim.duration_hours) }} h)</span>
-      </div>
-    </div>
-  {% else %}
-    <p class="muted">Not enough measured transit parameters on file to drive this illustration.</p>
-  {% endif %}
-  </details>
-</section>
-
-<section class="card">
   <h2>Physical &amp; orbital parameters</h2>
   <div class="param-grid">
     <div class="param-cell">
@@ -661,6 +482,200 @@
       so a documented default uncertainty was used instead (not a real measurement for this star) --
       the ranges are illustrative, not a precise error bar, for those quantities.
     </p>
+  {% endif %}
+</section>
+
+<section class="card" id="score-section">
+  <h2>{{ score_label }}</h2>
+  <div class="stat-row">
+    <div class="stat"><span class="stat-label">{{ score_label }}</span>
+      <span class="stat-value">{{ '%.3f'|format(c.predicted_probability) if c.predicted_probability is not none else '--' }}{% if prob_provenance.label %} <span class="muted">({{ prob_provenance.label }})</span>{% endif %}</span>
+      {# The bootstrap band (uncertainty_* columns) is retained in the DB but no longer
+         displayed: its refit models are systematically different from production, and
+         the score fell outside their 16-84% spread for 117 of 294 candidates. The
+         conformal sets below are the uncertainty display. Register section I. #}
+    </div>
+  </div>
+  <p class="muted">{{ score_explanation }}{% if prob_provenance.scored_by and prob_provenance.scored_by != 'unknown' %} Model {{ prob_provenance.scored_by[:8] }}.{% endif %}</p>
+  {% if visibility_flag %}
+  <p class="muted">Here the transit itself is not clearly visible (visibility ratio {{ '%.2f'|format(visibility) if visibility is not none else 'not measurable' }}), so the score says more about the star than about any signal.</p>
+  {% endif %}
+</section>
+
+{% if conformal_view %}
+<section class="card" id="conformal-section">
+  <h2>How sure is the model? (conformal prediction)</h2>
+  <p class="muted">
+    The resemblance score above is a single number. This turns it into the set of statuses that are
+    <em>still plausible</em> at a given confidence level &mdash; which lets the model say
+    &ldquo;I don't know&rdquo; instead of quietly returning a middling number.
+    This is the model assessing <strong>itself</strong>; it is not evidence about the star.
+    For external human assessment see the TFOP panel above.
+  </p>
+
+  <table class="conformal-table">
+    <thead>
+      <tr><th>Confidence level</th><th>Still plausible</th><th>What that means</th></tr>
+    </thead>
+    <tbody>
+      {% for s in conformal_view.sets %}
+      <tr class="conformal-{{ s.set_key }}">
+        <td class="num"><strong>{{ s.confidence_pct }}%</strong></td>
+        <td><span class="conformal-badge conformal-badge-{{ s.set_key }}">{{ s.set_label }}</span></td>
+        <td class="muted">{{ s.plain_language }}{% if s.why %}<br><em>{{ s.why }}</em>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="muted" style="margin-top:1rem;">
+    Read the rows together: a status that survives at 99% is one the model cannot rule out even
+    when being very cautious. A star that reads &ldquo;Planet&rdquo; at 90% but
+    &ldquo;Planet or not a planet&rdquo; at 99% is a moderately confident call, not a certain one.
+    Sets only ever grow as the confidence level rises &mdash; being more careful means ruling
+    out less.
+  </p>
+  <p class="muted">
+    <strong>These answer a different question from the resemblance score above.</strong> The
+    score says which status is more <em>likely</em>. These sets say which statuses cannot
+    be <em>ruled out</em>. The two can point different ways, and that is not a contradiction:
+    a candidate scoring 0.62 can still have &ldquo;not a planet&rdquo; in its set, because
+    confirmed false positives do sometimes score that high, and ruling one out at 90%
+    confidence takes more evidence than merely leaning against it.
+  </p>
+
+  {% if conformal_view.thresholds_stale %}
+  <p class="conformal-caveat"><strong>Stale thresholds.</strong> These sets were calibrated for model
+    {{ (conformal_view.model_md5 or 'unknown')[:8] }}, not the model that is deployed now.</p>
+  {% endif %}
+  {% if conformal_view.diagnostics_available %}
+  <p class="muted conformal-limits">
+    <strong>Measured limits.</strong> The coverage guarantee formally covers only the
+    {{ conformal_view.guarantee_scope }}. On labelled stars added after that snapshot
+    ({{ conformal_view.fresh_n_planet }} planets, {{ conformal_view.fresh_n_not_planet }} non-planets),
+    the sets contained the true status for
+    {% for r in conformal_view.fresh_coverage %}{{ '%.3f'|format(r.planet) }} of planets at {{ r.confidence_pct }}%{{ ', ' if not loop.last else '' }}{% endfor %}
+    and {% for r in conformal_view.fresh_coverage %}{{ '%.3f'|format(r.not_planet) }}{{ ', ' if not loop.last else '' }}{% endfor %}
+    of non-planets at the same levels.
+    {% set low_p = conformal_view.fresh_coverage|selectattr('planet_below')|map(attribute='confidence_pct')|list %}
+    {% set low_n = conformal_view.fresh_coverage|selectattr('not_planet_below')|map(attribute='confidence_pct')|list %}
+    {% if low_p %}That is below target for planets at {{ low_p|join('%, ') }}%.{% endif %}
+    {% if low_n %}That is below target for non-planets at {{ low_n|join('%, ') }}%.{% endif %}
+    Calibration stars and candidates are separable at domain AUC
+    <strong>{{ '%.4f'|format(conformal_view.domain_auc) }}</strong>
+    ({{ conformal_view.domain_n_features }} features, measured {{ conformal_view.domain_measured_at[:10] }}).
+  </p>
+  {% if conformal_view.diagnostics_stale %}
+  <p class="conformal-caveat"><strong>Stale figures.</strong> These limits were measured for model
+    {{ (conformal_view.diagnostics_model_md5 or 'unknown')[:8] }}, not the model that is deployed now;
+    re-run code/experiments/conformal_diagnostics.py.</p>
+  {% endif %}
+  {% else %}
+  <p class="conformal-caveat">The measured limits of these sets (models/conformal_diagnostics.json) are
+    not available, so how far the guarantee carries to candidates is not stated here.</p>
+  {% endif %}
+  <details style="margin-top:1rem;">
+    <summary>What the guarantee is, and where it stops applying</summary>
+    <div class="muted" style="margin-top:0.75rem;">
+      <p>
+        Calibrated on <strong>{{ conformal_view.n_calibration }}</strong> labelled TESS stars
+        ({{ conformal_view.n_calibration_pos }} confirmed planets,
+        {{ conformal_view.n_calibration_neg }} false positives) that the model was never trained
+        on, using <strong>{{ conformal_view.method }}</strong>. On stars drawn from that same
+        population, the true status falls inside the set at least as often as the stated
+        confidence level &mdash; measured, not assumed, and verified separately for planets and
+        for false positives.
+      </p>
+      {% if conformal_view.diagnostics_available and not conformal_view.guarantee_transfers %}
+      <p class="conformal-caveat">
+        <strong>Important limit.</strong> That guarantee holds for stars like the calibration
+        set. This candidate is not one of those: a classifier separates the calibration stars
+        from this pipeline's candidates at AUC
+        <strong>{{ '%.4f'|format(conformal_view.domain_auc) }}</strong>, so the two populations
+        are measurably different. For candidates, treat the set above as a well-calibrated
+        indication rather than a mathematical guarantee. The honest summary is
+        &ldquo;this is how the model behaves on stars we have labels for&rdquo;, not
+        &ldquo;this is guaranteed correct {{ conformal_view.sets[1].confidence_pct }}% of the
+        time for this star&rdquo;.
+      </p>
+      {% endif %}
+      <p>
+        This is different from the calibration already inside the model. That makes probabilities
+        correct <em>on average</em> across many candidates. Conformal prediction makes a statement
+        about the <em>output set for a single prediction</em>, without assuming the probabilities
+        were any good to begin with.
+      </p>
+    </div>
+  </details>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Re-verify the external checks</h2>
+  <div id="reverify-section" data-tic="{{ c.tic_id }}">
+    {% if reverify and reverify.status == 'running' %}
+      <div class="action-card">
+        <p class="action-progress" id="reverify-status"><span class="spinner" aria-hidden="true"></span>
+          Re-checking archive/ExoFOP/arXiv/VSX/blend live -- all five run at once, normally about 25 seconds.</p>
+        <p class="muted elapsed" data-started="{{ reverify.started_at }}" data-expected="25">Elapsed: --</p>
+      </div>
+    {% else %}
+      <div class="inline-form">
+        <form action="{{ url_for('reverify_candidate', tic_id=c.tic_id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Re-verify this candidate now</button>
+        </form>
+        <span class="muted">Re-runs all five external checks (archive/ExoFOP/arXiv/VSX/blend) for this star only, concurrently -- about 25 seconds, and doesn't wait for a full Update.</span>
+      </div>
+      {% if reverify and reverify.status == 'completed' %}
+        <p class="muted">Last result ({{ reverify.computed_at }}): {{ reverify.result_summary }}</p>
+      {% elif reverify and reverify.status == 'failed' %}
+        <p class="muted">Last attempt failed: {{ reverify.error_message }}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+<section class="card" id="exofop-refresh-section" data-tic="{{ c.tic_id }}">
+  <h2>ExoFOP status</h2>
+  <p class="muted">
+    Re-queries ExoFOP live for <em>this star only</em>: has it been submitted, flagged, or
+    assigned a TOI number since the last check? Uses the same two checks the full pipeline
+    already relies on -- ExoFOP's bulk TOI list plus this target's own ExoFOP page (only a real
+    TOI-&lt;number&gt; on the page counts; the page merely existing does not). Usually a few
+    seconds; the first check after the app starts takes ~35s, because ExoFOP's full TOI
+    list has to be downloaded once before it can be reused.
+  </p>
+  {% if exofop_refresh and exofop_refresh.status == 'running' %}
+    <div class="action-card">
+      <p class="action-progress" id="exofop-refresh-status"><span class="spinner" aria-hidden="true"></span>
+        Querying ExoFOP live...</p>
+      <p class="muted elapsed" data-started="{{ exofop_refresh.started_at }}" data-expected="10">Elapsed: --</p>
+    </div>
+  {% else %}
+    {% if exofop_refresh and exofop_refresh.status == 'completed' %}
+      {% if exofop_refresh.changed %}
+        <div class="disclaimer-banner disclaimer-caution">
+          <span class="scope-note-icon" aria-hidden="true">!</span>
+          <span><strong>This changed since the previous ExoFOP check.</strong></span>
+        </div>
+      {% endif %}
+      <table class="plain-table">
+        <tr><td>TOI designation</td><td>{{ exofop_refresh.toi_designation or 'none' }}</td></tr>
+        <tr><td>In ExoFOP's TOI list</td><td>{{ 'yes' if exofop_refresh.in_bulk_toi_list else 'no' }}</td></tr>
+        <tr><td>Result</td><td>{{ exofop_refresh.result_summary }}</td></tr>
+        <tr><td>Last checked</td><td>{{ exofop_refresh.computed_at }}</td></tr>
+      </table>
+    {% elif exofop_refresh and exofop_refresh.status == 'failed' %}
+      <p class="muted">Last attempt failed: {{ exofop_refresh.error_message }}</p>
+    {% endif %}
+    <div class="inline-form">
+      <form action="{{ url_for('start_exofop_refresh', tic_id=c.tic_id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Check ExoFOP for updates</button>
+      </form>
+      <a href="{{ exofop_view_url }}" target="_blank" rel="noopener" class="muted">Open this target on ExoFOP &#8599;</a>
+    </div>
   {% endif %}
 </section>
 

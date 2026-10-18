@@ -875,21 +875,19 @@ def _giant_regime_stats():
 
 
 def confidence_tier(row):
-    """Returns (tier, supporting_evidence, doubting_evidence). Tiers are
+    """Returns (tier, supporting_evidence, doubting_evidence). Shown as the EVIDENCE tier:
     High/Medium/Low -- and EVEN "High" here means "strong candidate worth
     real follow-up", never "confirmed planet". No automated pipeline can
-    produce that confirmation."""
+    produce that confirmation.
+
+    The classifier's output contributes NOTHING here, neither points nor a "reasons this could
+    be real" phrase (2026-10-17). On this pool it is not evidence of a transit: it measures
+    resemblance to TESS planet hosts vs false-positive hosts given a TOI-like signal, and it
+    runs against visibility (register M). It used to add up to 2 points, which made 24 of 63
+    Medium candidates Medium through the score alone. It is shown separately, as the
+    resemblance score."""
     support, doubt = [], []
     score = 0
-
-    prob = row.get("predicted_probability")
-    if pd.notna(prob):
-        if prob >= 0.97:
-            support.append(f"very high classifier probability ({prob:.3f})")
-            score += 2
-        elif prob >= 0.9:
-            support.append(f"high classifier probability ({prob:.3f})")
-            score += 1
 
     sde = row.get("SDE")
     n_transits = row.get("distinct_transit_count")
