@@ -995,6 +995,97 @@ keeps a rejected star's list flags off). The star stays on its page.
   rejected.
 - **needs review: 8 → 6.**
 
+**SCORE PRESENTATION AND THE CENTROID CHECK (2026-10-18; `b841dc09`,
+`e66b4fbb`, `9bf1f7eb`, `deaeaf49`).** Display, wording and one new check.
+The model, `training.csv` and the gates are unchanged; nothing is blocked by
+the new check.
+
+**A. The score is presented as resemblance, after the evidence.**
+- **Wording:** "Classifier probability" is now **"Resemblance score"**, with
+  one line: how closely this star and its signal resemble TESS planet hosts
+  rather than false-positive hosts; not the chance this is a planet, and not
+  evidence the transit is real. The list column is "Resemblance" (with a
+  tooltip). The JSON keeps `predicted_probability` and adds
+  `predicted_probability_label`.
+- **Page order:** header, physics checks, folded plot, the detailed checks,
+  then the score and its conformal panel, then ExoFOP and the CTOI text. The
+  header no longer shows the score.
+- **List default:** clean first. Rejected stars last, then geometry blocks,
+  then by number of warnings, then by visibility. The score stays sortable.
+- **CTOI text:** the score line is gone; it carries "Physics checks (v2): ...;
+  visibility ratio X" instead. "High / very high classifier probability" is
+  removed from the reasons, on the page and in the CTOI text.
+- **Evidence tier:** the tier no longer takes points from the score, and is
+  named "Evidence tier". Recomputed offline (apply script, then sync with
+  `bump_last_verified=False`, so no verification date moved):
+
+  | tier | before | after |
+  |---|---|---|
+  | Medium | 63 | **39** |
+  | Low | 233 | **257** |
+
+  24 stars changed tier. All 296 "reasons this could be real" lost only the
+  score phrase; the doubts are unchanged. **List membership is unchanged**
+  (final_best 62, needs review 6); only the order within final_best moved.
+
+**B. The legacy centroid offset is uninformative below 2.7 px.**
+- **Calibration:** the deployed whole-cutout difference-image centroid, run on
+  80 TESS planets and 40 false positives with a nearby-eclipsing-binary or
+  offset comment (MAST, 2-minute SPOC, the deployed function unchanged):
+
+  | offset ≥ | 0.5 px | 1.0 px | 2.0 px |
+  |---|---|---|---|
+  | real planets (n = 75) | **75%** | 37% | 12% |
+  | NEB/offset false positives (n = 37) | 92% | 62% | 19% |
+  | noise only, fake phases on the planets (n = 760) | | median 1.19 px | p95 4.41 px |
+
+  The old 0.5 px "the signal may come from a contaminant" line fired on three
+  quarters of real planets: the offset is dominated by noise. The level that
+  keeps real planets at ≤ 5% is **2.74 px** (5 of 37 false positives exceed it).
+- **Change:** below 2.74 px the verdict reads "Offset X px, below the
+  calibrated threshold (2.7 px); uninformative", with no contaminant wording
+  anywhere. Relabelled offline from the stored offsets: **80 verdicts; the 74
+  that mentioned a contaminant now read uninformative.** None of the 82 now
+  completed is above 2.74 px (maximum 2.46 px).
+
+**C. A masked estimator, with each star's own noise null; WARN only.**
+- **Estimator:** the centroid of difference-image pixels within **2.5 px** of
+  the target whose in-minus-out difference exceeds **3σ** (σ from the
+  out-of-transit scatter). Constants and their source are in one place,
+  `web/job_runner.py` (`CENTROID_MASK_*`, `CENTROID_MASKED_WARN_PIX`).
+- **Calibration** (same sample, TOI ephemeris): ≥ 1.08 px is reached by **5.6%
+  of real planets** and **49% of the NEB/offset false positives**; on noise-only
+  fake phases the median is 0.90 px and 1.08 px is reached about a third of the
+  time. So a single offset is weak evidence, and every star also gets its own
+  noise null: the same estimator at 20 random non-transit phases (seeded by
+  TIC), reported as the median, the 95th percentile, and the fraction of noise
+  offsets smaller than the real one.
+- **Rule:** WARN at ≥ 1.08 px, never BLOCK. The warning appears in the physics
+  panel and counts as a warning in the list; the page shows the noise null next
+  to it.
+- **Re-run for the 92 stars with a centroid record** (MAST, lightkurve cache,
+  pixel files deleted after use): 82 completed (the 80 stored plus 2 that
+  previously failed), 10 failed as before and keep their stored record. The
+  legacy offset reproduced 80/80. The masked offset exists for 58 of the 82;
+  for the other 24 no pixel near the target reaches 3σ.
+
+**28 WARN:**
+
+| | count | stars |
+|---|---|---|
+| above their own noise p95 | **11** | TIC_49617121, 144285638, 152358293 (rejected), 183594679, 206592567, 213892434, 266995429, 303703388, 367899500, 372172466, 425863648 |
+| within their own noise | 15 | TIC_313002372, 411982793, 409853937, 313249030, 199730918, 281573888, 119625675, 173877131 (rejected), 166766868, 326512158, 6669806, 231053750 (rejected), 166744141, 234518259, 142250801 |
+| no usable null | 2 | TIC_91529289, 231626393 |
+
+Notes:
+- **TIC_119625675** warns at 1.72 px, but 60% of its noise-only offsets are
+  smaller (noise p95 1.85 px): a noise-level warning, not evidence of a
+  neighbour.
+- The null has 7–20 usable phases per star (a phase with no 3σ pixel gives no
+  offset), so the p95 is coarse for the smaller nulls.
+- Of the 10 geometry WARN stars, 206592567 and 367899500 are also above their
+  noise p95 here.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
