@@ -1086,6 +1086,19 @@ Notes:
 - Of the 10 geometry WARN stars, 206592567 and 367899500 are also above their
   noise p95 here.
 
+**Centroid rule tightened (2026-10-18, `c5c4364c`):** WARN only if the masked
+offset is ≥ 1.08 px **and** above the 95th percentile of the star's own
+noise-only offsets. Otherwise ≥ 1.08 px is INFO ("within this star's noise; not
+evidence of a nearby source", or "no noise comparison available"), which does
+not count as a warning or in the clean-first sort. On the stored calibration
+(10-phase null) it warns **1/73 real planets (1.4%)** and **10/39 blended false
+positives (26%)**, against 5.5% and 41% for the offset alone. Applied offline
+to the stored masked results: **11 WARN** (the table's first row; TIC_152358293
+already rejected) and **17 INFO** (the other 17). The Checks column loses one
+warning on 13 stars (TIC_91529289 becomes clean). The other 4 INFO stars are
+blocked or rejected, so their column is unchanged. final_best membership is
+unchanged.
+
 ---
 
 **DEPLOYED 2026-08-05 (HISTORICAL): the number of record was then 0.9208.**
